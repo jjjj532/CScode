@@ -1,6 +1,6 @@
 [project]
 name = "cscode"
-version = "0.2.5"
+version = "0.2.7"
 description = "CScode - AI-powered coding assistant (Python implementation)"
 requires-python = ">=3.11"
 dependencies = [
@@ -13,6 +13,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "pydantic>=2.0",
+    "python-multipart>=0.0.12",
 ]
 
 [project.scripts]

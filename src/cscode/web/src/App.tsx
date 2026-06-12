@@ -46,21 +46,38 @@ function App() {
   }, [currentSession]);
 
   const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+    if ((!input.trim() && attachedFiles.length === 0) || loading) return;
 
-    const userMsg: Message = { role: 'user', content: input };
+    const textContent = input.trim();
+    const userMsg: Message = { role: 'user', content: textContent || '(attached files)' };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
 
     try {
+      let body: BodyInit;
+      let headers: Record<string, string> = {};
+
+      if (attachedFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('message', textContent || '');
+        if (currentSession) formData.append('session_id', currentSession);
+        for (const file of attachedFiles) {
+          formData.append('files', file);
+        }
+        body = formData;
+      } else {
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify({
+          message: textContent,
+          session_id: currentSession,
+        });
+      }
+
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMsg.content,
-          session_id: currentSession,
-        }),
+        headers,
+        body,
       });
       console.log('Response status:', res.status);
       const text = await res.text();
@@ -77,6 +94,8 @@ function App() {
       }
       const assistantMsg: Message = { role: 'assistant', content: data.response };
       setMessages(prev => [...prev, assistantMsg]);
+      setAttachedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('Chat error:', err);
       const errorMsg: Message = { role: 'assistant', content: 'Error: ' + String(err) };
@@ -207,7 +226,10 @@ function App() {
               }}>
                 {file.name}
                 <button
-                  onClick={() => setAttachedFiles(attachedFiles.filter((_, j) => j !== i))}
+                  onClick={() => {
+                    setAttachedFiles(attachedFiles.filter((_, j) => j !== i));
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
                   style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
                 >
                   ✕

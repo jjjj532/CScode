@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -117,11 +117,6 @@ _session_store: SessionStore | None = None
 _agent: Agent | None = None
 
 
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str | None = None
-
-
 class ChatResponse(BaseModel):
     response: str
     session_id: str
@@ -149,7 +144,31 @@ async def health() -> dict[str, str]:
 
 
 @api_router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: Request) -> ChatResponse:
+    message = ""
+    session_id = None
+    files = []
+
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+        form = await request.form()
+        message = form.get("message", "")
+        session_id = form.get("session_id", None)
+        uploaded = form.getlist("files")
+        for f in uploaded:
+            content = await f.read()
+            files.append((f.filename or "unknown", content))
+    else:
+        body = await request.json()
+        message = body.get("message", "")
+        session_id = body.get("session_id", None)
+
+    return await _handle_chat(message, session_id, files)
+
+
+async def _handle_chat(
+    message: str, session_id: str | None, files: list[tuple[str, bytes]] | None = None
+) -> ChatResponse:
     global _agent
     if _agent is None or _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
@@ -172,14 +191,13 @@ async def chat(request: ChatRequest) -> ChatResponse:
         import logging
         logging.warning(f"Failed to load config from DB: {e}")
 
-    session_id = request.session_id or str(uuid.uuid4())
+    session_id = session_id or str(uuid.uuid4())
 
     try:
         # Ensure session exists in database
         if _session_store is not None:
             session = await _session_store.get(session_id)
             if session is None:
-                # Create session with config from saved config or defaults
                 from cscode.core.config import ConfigStore, load_config
                 config_data = None
                 if _db is not None:
@@ -203,10 +221,22 @@ async def chat(request: ChatRequest) -> ChatResponse:
         if _session_store is not None:
             existing_messages = await _session_store.get_messages(session_id)
         
+        # Build file context if files were uploaded
+        file_context = ""
+        if files:
+            parts = []
+            for name, content in files:
+                try:
+                    text = content.decode("utf-8", errors="replace")
+                except:
+                    text = f"[Binary file: {name}, {len(content)} bytes]"
+                parts.append(f"--- {name} ---\n{text}")
+            file_context = "\n\n" + "\n\n".join(parts)
+        
         # Build messages with history - Agent._run_loop already adds system prompt
         from cscode.core.messages import Message, MessageRole
         messages = list(existing_messages)
-        messages.append(Message(role=MessageRole.USER, content=request.message))
+        messages.append(Message(role=MessageRole.USER, content=message + file_context))
         
         # Run agent with full message history (Agent._run_loop adds system prompt internally)
         response = await _agent._run_loop(messages)
