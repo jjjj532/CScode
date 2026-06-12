@@ -173,12 +173,8 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cscode-${{ runner.os }}-${{ matrix.pkg }}
-          path: |
-            desktop/src-tauri/target/release/bundle/**/*.${{ matrix.pkg }}
-            desktop/src-tauri/target/release/bundle/**/*.app
-            desktop/src-tauri/target/release/bundle/**/*.exe
-            desktop/src-tauri/target/release/bundle/**/*.msi
+          name: cscode-${{ runner.os }}
+          path: desktop/src-tauri/target/release/bundle/
           compression-level: 0
 
   create-release:
@@ -194,10 +190,10 @@ jobs:
       - name: List downloaded files
         run: |
           echo "=== Artifacts dir ==="
-          ls -laR artifacts/ | head -50
+          find artifacts/ -type f | head -30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: artifacts/**
           generate_release_notes: true
