@@ -190,10 +190,15 @@ jobs:
       - name: List downloaded files
         run: |
           echo "=== Artifacts dir ==="
-          find artifacts/ -type f | head -30
+          find artifacts/ -type f
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.deb
+            artifacts/**/*.msi
+            artifacts/**/*.app
+            artifacts/**/*.exe
           generate_release_notes: true
