@@ -99,20 +99,23 @@ jobs:
           cp -r src/cscode/web/dist/* desktop/dist/
           cp -r src/cscode/web/dist/* desktop/src-tauri/web-dist/
 
-      - name: Bundle Python source for Tauri resources (macOS)
-        if: runner.os == 'macOS'
+      - name: Bundle Python source for Tauri resources
         shell: bash
         run: |
           mkdir -p desktop/src-tauri/python
-          # Copy only Python files and web/dist, exclude node_modules
+          # Copy Python source files (cross-platform find approach)
           cd src
-          find cscode -path '*/web/dist' -prune -o -path '*/node_modules' -prune -o -type f \( -name '*.py' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' \) -print | cpio -pdm ../desktop/src-tauri/python/ 2>/dev/null || true
-          # Copy web/dist separately
+          for f in $(find cscode -path '*/web/dist' -prune -o -path '*/node_modules' -prune -o -type f -name '*.py' -print); do
+            mkdir -p "../desktop/src-tauri/python/$(dirname $f)"
+            cp "$f" "../desktop/src-tauri/python/$f"
+          done
+          # Copy web/dist
           mkdir -p ../desktop/src-tauri/python/cscode/web
           cp -r cscode/web/dist ../desktop/src-tauri/python/cscode/web/
-          find ../desktop/src-tauri/python -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          cd ..
+          find desktop/src-tauri/python -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
           echo "Python source bundled"
-          du -sh ../desktop/src-tauri/python/
+          du -sh desktop/src-tauri/python/
 
       - name: Debug - check files
         shell: bash
