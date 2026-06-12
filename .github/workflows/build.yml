@@ -131,7 +131,14 @@ jobs:
       - name: Build Tauri app
         working-directory: desktop
         shell: bash
-        run: npx tauri build --verbose --bundles app 2>&1 || true
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npx tauri build --verbose --bundles app 2>&1 || true
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            npx tauri build --verbose --bundles msi 2>&1 || true
+          else
+            npx tauri build --verbose --bundles deb 2>&1 || true
+          fi
 
       - name: Fix DMG resources and create DMG (macOS)
         if: runner.os == 'macOS'
@@ -167,7 +174,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cscode-${{ runner.os }}-${{ matrix.pkg }}
-          path: desktop/src-tauri/target/release/
+          path: |
+            desktop/src-tauri/target/release/bundle/**/*.${{ matrix.pkg }}
+            desktop/src-tauri/target/release/bundle/**/*.app
+            desktop/src-tauri/target/release/bundle/**/*.exe
+            desktop/src-tauri/target/release/bundle/**/*.msi
           compression-level: 0
 
   create-release:
