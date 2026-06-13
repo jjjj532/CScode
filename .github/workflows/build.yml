@@ -137,10 +137,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
-          elif [ "$RUNNER_OS" = "Windows" ]; then
-            npx tauri build --verbose --bundles nsis
           else
-            npx tauri build --verbose --bundles deb
+            npx tauri build --verbose
           fi
 
       - name: Fix DMG resources and create DMG (macOS)
