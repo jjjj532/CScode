@@ -197,7 +197,7 @@ function App() {
           />
           <button
             onClick={sendMessage}
-            disabled={loading || !input.trim()}
+            disabled={loading || (!input.trim() && attachedFiles.length === 0)}
             style={{
               padding: '10px 24px',
               borderRadius: 8,
