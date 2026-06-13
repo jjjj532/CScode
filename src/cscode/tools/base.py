@@ -60,8 +60,14 @@ class ToolRegistry:
         raw_args = fn_info.get("arguments", "{}")
         if isinstance(raw_args, str):
             import json
-
-            args = json.loads(raw_args)
+            try:
+                args = json.loads(raw_args)
+            except json.JSONDecodeError as e:
+                return ToolResult(
+                    success=False,
+                    data="",
+                    error=f"Failed to parse arguments for tool '{name}': {e}",
+                )
         else:
             args = raw_args
 
