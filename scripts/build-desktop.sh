@@ -19,8 +19,11 @@ echo ""
 echo ">>> Step 2: Copying frontend to Tauri dirs..."
 rm -rf "$PROJECT_DIR/desktop/dist" "$PROJECT_DIR/desktop/src-tauri/web-dist"
 mkdir -p "$PROJECT_DIR/desktop/dist" "$PROJECT_DIR/desktop/src-tauri/web-dist"
-cp -r "$PROJECT_DIR/src/cscode/web/dist/"* "$PROJECT_DIR/desktop/dist/"
 cp -r "$PROJECT_DIR/src/cscode/web/dist/"* "$PROJECT_DIR/desktop/src-tauri/web-dist/"
+# Restore spinner page for frontendDist (Tauri loading screen)
+cat > "$PROJECT_DIR/desktop/dist/index.html" << 'SPINNER'
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>CScode</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;opacity:1;transition:opacity .2s ease}body.fade-out{opacity:0}.spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#646cff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div></body></html>
+SPINNER
 
 # Step 3: Bundle Python source into Tauri resources
 echo ""
