@@ -1,6 +1,6 @@
 [project]
 name = "cscode"
-version = "0.2.9"
+version = "0.2.10"
 description = "CScode - AI-powered coding assistant (Python implementation)"
 requires-python = ">=3.11"
 dependencies = [

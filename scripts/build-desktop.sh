@@ -38,6 +38,12 @@ find "$PROJECT_DIR/desktop/src-tauri/python" -name "__pycache__" -type d -exec r
 echo "Python source bundled at desktop/src-tauri/python/"
 du -sh "$PROJECT_DIR/desktop/src-tauri/python/"
 
+# Step 3b: Install pip dependencies into bundled Python (for Tauri system python3)
+echo ""
+echo ">>> Step 3b: Installing pip dependencies into bundled Python..."
+pip install --target="$PROJECT_DIR/desktop/src-tauri/python" python-multipart 2>&1 | tail -3
+echo "python-multipart installed to bundled Python"
+
 # Step 4: Build Tauri .app
 echo ""
 echo ">>> Step 4: Building Tauri .app..."

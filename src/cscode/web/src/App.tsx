@@ -94,13 +94,13 @@ function App() {
       }
       const assistantMsg: Message = { role: 'assistant', content: data.response };
       setMessages(prev => [...prev, assistantMsg]);
-      setAttachedFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error('Chat error:', err);
       const errorMsg: Message = { role: 'assistant', content: 'Error: ' + String(err) };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
+      setAttachedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setLoading(false);
     }
   };
