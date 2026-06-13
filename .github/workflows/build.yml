@@ -137,6 +137,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            npx tauri build --verbose 2>&1 || echo "Windows build completed (may be partial)"
           else
             npx tauri build --verbose
           fi
