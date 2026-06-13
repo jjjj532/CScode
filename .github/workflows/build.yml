@@ -121,10 +121,9 @@ jobs:
       - name: Install pip deps into bundled Python
         shell: bash
         run: |
-          # Install python-multipart into bundled dir so system python3 has it
           PYTHON="python3"
           if [ "$RUNNER_OS" = "Windows" ]; then PYTHON="python"; fi
-          $PYTHON -m pip install --target=desktop/src-tauri/python python-multipart 2>&1 | tail -3
+          $PYTHON -m pip install --target=desktop/src-tauri/python python-multipart python-docx 2>&1 | tail -3
 
       - name: Debug - check files
         shell: bash

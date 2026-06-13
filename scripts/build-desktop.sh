@@ -44,8 +44,8 @@ du -sh "$PROJECT_DIR/desktop/src-tauri/python/"
 # Step 3b: Install pip dependencies into bundled Python (for Tauri system python3)
 echo ""
 echo ">>> Step 3b: Installing pip dependencies into bundled Python..."
-pip install --target="$PROJECT_DIR/desktop/src-tauri/python" python-multipart 2>&1 | tail -3
-echo "python-multipart installed to bundled Python"
+pip install --target="$PROJECT_DIR/desktop/src-tauri/python" python-multipart python-docx 2>&1 | tail -3
+echo "pip deps installed to bundled Python"
 
 # Step 4: Build Tauri .app
 echo ""

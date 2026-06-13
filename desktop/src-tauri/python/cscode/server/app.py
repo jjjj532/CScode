@@ -224,12 +224,10 @@ async def _handle_chat(
         # Build file context if files were uploaded
         file_context = ""
         if files:
+            from cscode.utils.file_parser import parse_file
             parts = []
             for name, content in files:
-                try:
-                    text = content.decode("utf-8", errors="replace")
-                except:
-                    text = f"[Binary file: {name}, {len(content)} bytes]"
+                text = parse_file(name, content)
                 parts.append(f"--- {name} ---\n{text}")
             file_context = "\n\n" + "\n\n".join(parts)
         

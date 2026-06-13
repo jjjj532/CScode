@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+import io
+import zipfile
+from pathlib import Path
+from xml.etree import ElementTree
+
+TEXT_EXTENSIONS: set[str] = {
+    ".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml",
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".scss", ".less",
+    ".sh", ".bash", ".zsh", ".fish", ".env", ".gitignore", ".dockerignore",
+    ".ini", ".cfg", ".conf", ".toml", ".lock", ".log",
+    ".sql", ".rb", ".go", ".rs", ".java", ".kt", ".swift", ".c", ".cpp", ".h",
+    ".vue", ".svelte", ".astro", ".mjs", ".cjs",
+}
+
+
+def _parse_docx(content: bytes) -> str | None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as z:
+            if "word/document.xml" not in z.namelist():
+                return None
+            xml_bytes = z.read("word/document.xml")
+            root = ElementTree.fromstring(xml_bytes)
+            ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            paragraphs: list[str] = []
+            for p in root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"):
+                texts: list[str] = []
+                for t in p.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"):
+                    if t.text:
+                        texts.append(t.text)
+                if texts:
+                    paragraphs.append("".join(texts))
+            return "\n".join(paragraphs) if paragraphs else None
+    except Exception:
+        return None
+
+
+def _parse_doc(content: bytes) -> str | None:
+    try:
+        import olefile
+        return None
+    except ImportError:
+        pass
+    return None
+
+
+def parse_file(filename: str, content: bytes) -> str:
+    ext = Path(filename).suffix.lower()
+    name = Path(filename).name
+
+    if ext in TEXT_EXTENSIONS:
+        try:
+            text = content.decode("utf-8")
+            if len(text) > 200000:
+                text = text[:200000] + f"\n[truncated: file too long, showing first 200000 of {len(text)} characters]"
+            return text
+        except UnicodeDecodeError:
+            return f"[Binary file: {name}, {len(content)} bytes - not valid UTF-8 text]"
+
+    if ext == ".docx":
+        parsed = _parse_docx(content)
+        if parsed:
+            if len(parsed) > 200000:
+                parsed = parsed[:200000] + f"\n[truncated: file too long, showing first 200000 of {len(parsed)} characters]"
+            return parsed
+        return f"[Could not parse .docx file: {name}, {len(content)} bytes]"
+
+    if ext == ".doc":
+        parsed = _parse_doc(content)
+        if parsed:
+            return parsed
+        return f"[Legacy .doc file: {name}, {len(content)} bytes - use 'textutil' or 'pandoc' to convert]"
+
+    if ext in {".pdf"}:
+        return f"[PDF file: {name}, {len(content)} bytes - include a text extraction tool like PyMuPDF to parse]"
+
+    return f"[Binary file: {name}, {len(content)} bytes]"
