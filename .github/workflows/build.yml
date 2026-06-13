@@ -143,6 +143,17 @@ jobs:
             npx tauri build --verbose
           fi
 
+      - name: Debug bundle contents (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "=== bundle dir ==="
+          find desktop/src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle dir"
+          echo "=== target/release ==="
+          ls -la desktop/src-tauri/target/release/
+          echo "=== .exe files ==="
+          find desktop/src-tauri/target -name "*.exe" -type f 2>/dev/null | head -10
+
       - name: Fix DMG resources and create DMG (macOS)
         if: runner.os == 'macOS'
         shell: bash
