@@ -29,3 +29,7 @@ Thumbs.db
 *.msi
 *.deb
 *.AppImage
+
+# Git worktrees
+.worktrees/
+worktrees/
