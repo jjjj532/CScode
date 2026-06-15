@@ -39,7 +39,7 @@ def test_cli_version():
         cwd=PROJECT_ROOT,
     )
     assert result.returncode == 0
-    assert "0.1.0" in result.stdout
+    assert "0.2.10" in result.stdout
 
 
 def test_pyproject_toml_exists():

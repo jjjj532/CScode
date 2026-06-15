@@ -27,8 +27,9 @@ def test_provider_factory():
     olla = create_provider(Config(provider="ollama"))
     assert isinstance(olla, OllamaProvider)
 
-    with pytest.raises(ValueError, match="Unknown"):
-        create_provider(Config(provider="unknown"))
+    # Unknown provider defaults to OpenAI
+    unknown = create_provider(Config(provider="unknown"))
+    assert isinstance(unknown, OpenAIProvider)
 
 
 class TestProviderBase:
