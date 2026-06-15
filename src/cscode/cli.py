@@ -225,7 +225,36 @@ _session_manager: SessionManager | None = None
 def _get_session_manager() -> SessionManager:
     global _session_manager
     if _session_manager is None:
-        _session_manager = SessionManager()
+        async def persist_create(session):
+            from cscode.storage.session import get_session_store
+            store = get_session_store()
+            if store:
+                await store.create(
+                    title=session.title,
+                    provider=session.provider,
+                    model=session.model,
+                    session_id=session.id,
+                )
+
+        async def persist_delete(session_id):
+            from cscode.storage.session import get_session_store
+            store = get_session_store()
+            if store:
+                await store.delete(session_id)
+
+        def sync_create(session):
+            try:
+                asyncio.run(persist_create(session))
+            except Exception:
+                pass
+
+        def sync_delete(session_id):
+            try:
+                asyncio.run(persist_delete(session_id))
+            except Exception:
+                pass
+
+        _session_manager = SessionManager(on_create=sync_create, on_delete=sync_delete)
     return _session_manager
 
 
