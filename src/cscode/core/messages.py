@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+from cscode.core.images import ImageAttachment
+
 
 class MessageRole(str, Enum):
     SYSTEM = "system"
@@ -20,6 +22,7 @@ class Message:
     tool_calls: list[dict[str, Any]] | None = None
     tool_call_id: str | None = None
     name: str | None = None
+    image_attachments: list[ImageAttachment] | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 

@@ -58,6 +58,16 @@ class OpenAIProvider(LLMProvider):
                         tc_copy["function"] = func
                     normalized_tool_calls.append(tc_copy)
                 entry["tool_calls"] = normalized_tool_calls
+            elif msg.role == MessageRole.USER and msg.image_attachments:
+                content_parts: list[dict[str, Any]] = []
+                if msg.content:
+                    content_parts.append({"type": "text", "text": msg.content})
+                for img in msg.image_attachments:
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": img.data_uri, "detail": "auto"},
+                    })
+                entry["content"] = content_parts
             else:
                 entry["content"] = msg.content
             result.append(entry)

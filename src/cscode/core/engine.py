@@ -8,8 +8,10 @@ from typing import Any
 
 from cscode.core.compression import ContextCompressor
 from cscode.core.config import Config
+from cscode.core.images import ImageAttachment, is_image_file, process_image_file
 from cscode.core.messages import Message, MessageRole
 from cscode.core.permissions import PermissionResult, PermissionService
+from cscode.git.snapshot import GitSnapshot
 from cscode.providers.base import LLMProvider
 from cscode.tools.base import ToolRegistry
 from cscode.utils.logging import get_logger
@@ -60,6 +62,20 @@ class Agent:
             messages = compressor.compress(messages)
             if len(messages) < original_len:
                 logger.info("Context compressed: %d -> %d messages", original_len, len(messages))
+
+        if attached_filenames:
+            image_attachments: list[ImageAttachment] = []
+            for fname in attached_filenames:
+                if is_image_file(fname):
+                    att = process_image_file(fname)
+                    if att is not None:
+                        image_attachments.append(att)
+
+            if image_attachments:
+                for msg in reversed(messages):
+                    if msg.role == MessageRole.USER:
+                        msg.image_attachments = image_attachments
+                        break
 
         tool_rounds = 0
         effective_timeout = timeout if timeout is not None else self.options.timeout
@@ -146,8 +162,11 @@ class Agent:
 
                 tool_rounds += 1
                 logger.info("TOOL: round %s/%s, %s tool call(s)", tool_rounds, self.options.max_tool_rounds, len(result.tool_calls))
+                git_snapshot = GitSnapshot()
                 for tool_call in result.tool_calls:
                     func_name = tool_call.get("function", {}).get("name", "?")
+                    if func_name in ("Write", "Edit", "Bash"):
+                        git_snapshot.snapshot(f"before {func_name}")
                     await _emit({"type": "tool:start", "name": func_name, "round": tool_rounds, "max": self.options.max_tool_rounds})
                     if await _intercept(tool_call, messages):
                         await _emit({"type": "tool:complete", "name": func_name, "success": True, "intercepted": True})
