@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from cscode.core.compression import ContextCompressor
 from cscode.core.config import Config
 from cscode.core.messages import Message, MessageRole
 from cscode.core.permissions import PermissionResult, PermissionService
@@ -47,12 +48,19 @@ class Agent:
         permission_service: PermissionService | None = None,
         attached_filenames: list[str] | None = None,
         on_event: collections.abc.Callable[[dict[str, Any]], collections.abc.Awaitable[None]] | None = None,
+        compressor: ContextCompressor | None = None,
     ) -> str:
         messages = self._build_initial_messages()
         messages.append(Message(role=MessageRole.USER, content=user_input))
-        return await self._run_loop(messages, attached_filenames=attached_filenames, on_event=on_event, permission_service=permission_service)
+        return await self._run_loop(messages, attached_filenames=attached_filenames, on_event=on_event, permission_service=permission_service, compressor=compressor)
 
-    async def _run_loop(self, messages: list[Message], attached_filenames: list[str] | None = None, timeout: float | None = None, on_event: collections.abc.Callable[[dict[str, Any]], collections.abc.Awaitable[None]] | None = None, permission_service: PermissionService | None = None) -> str:
+    async def _run_loop(self, messages: list[Message], attached_filenames: list[str] | None = None, timeout: float | None = None, on_event: collections.abc.Callable[[dict[str, Any]], collections.abc.Awaitable[None]] | None = None, permission_service: PermissionService | None = None, compressor: ContextCompressor | None = None) -> str:
+        if compressor is not None:
+            original_len = len(messages)
+            messages = compressor.compress(messages)
+            if len(messages) < original_len:
+                logger.info("Context compressed: %d -> %d messages", original_len, len(messages))
+
         tool_rounds = 0
         effective_timeout = timeout if timeout is not None else self.options.timeout
         file_guard = bool(attached_filenames)
