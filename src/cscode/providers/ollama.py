@@ -6,8 +6,9 @@ from typing import Any
 import httpx
 
 from cscode.core.config import Config
+from cscode.core.errors import ProviderError
 from cscode.core.messages import Message
-from cscode.providers.base import LLMProvider, LLMResult, ProviderError
+from cscode.providers.base import LLMProvider, LLMResult
 
 
 class OllamaProvider(LLMProvider):

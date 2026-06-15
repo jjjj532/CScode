@@ -95,17 +95,39 @@ class SessionStore:
             (session_id,),
         )
         rows = await cursor.fetchall()
-        return [
-            Message(
+        import json
+        messages = []
+        for row in rows:
+            tool_calls = None
+            if row["tool_calls"]:
+                try:
+                    tool_calls_data = json.loads(row["tool_calls"])
+                    # Normalize arguments from strings to objects
+                    if tool_calls_data and isinstance(tool_calls_data, list):
+                        normalized = []
+                        for tc in tool_calls_data:
+                            if "function" in tc:
+                                func = dict(tc["function"])
+                                if "arguments" in func and isinstance(func["arguments"], str):
+                                    try:
+                                        func["arguments"] = json.loads(func["arguments"])
+                                    except json.JSONDecodeError:
+                                        func["arguments"] = {"_raw": func["arguments"]}
+                                tc = dict(tc)
+                                tc["function"] = func
+                            normalized.append(tc)
+                        tool_calls = normalized
+                except json.JSONDecodeError:
+                    tool_calls = None
+            messages.append(Message(
                 role=MessageRole(row["role"]),
                 content=row["content"],
-                tool_calls=json.loads(row["tool_calls"]) if row["tool_calls"] else None,
+                tool_calls=tool_calls,
                 tool_call_id=row["tool_call_id"],
                 name=row["name"],
                 created_at=datetime.fromisoformat(row["created_at"]),
-            )
-            for row in rows
-        ]
+            ))
+        return messages
 
     async def update_title(self, session_id: str, title: str) -> None:
         now = datetime.now(timezone.utc).isoformat()

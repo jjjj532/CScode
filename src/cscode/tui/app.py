@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from textual import work
+from textual.app import App, ComposeResult
+from textual.containers import Container
+from textual.widgets import Footer, Header, Input, RichLog
+
 from cscode.core.config import load_config
 from cscode.core.engine import Agent, AgentOptions
 from cscode.core.session_manager import SessionManager
@@ -12,10 +17,6 @@ from cscode.tools.grep import GrepTool
 from cscode.tools.ls import LsTool
 from cscode.tools.read import ReadTool
 from cscode.tools.write import WriteTool
-from textual import work
-from textual.app import App, ComposeResult
-from textual.containers import Container
-from textual.widgets import Footer, Header, Input, RichLog
 
 
 def _default_registry() -> ToolRegistry:

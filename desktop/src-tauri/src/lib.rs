@@ -167,12 +167,38 @@ async fn wait_for_health(port: u16) -> Result<(), String> {
     Err(format!("Backend at {url} did not become ready within 30 seconds"))
 }
 
+#[tauri::command]
+async fn download_file(filename: String) -> Result<String, String> {
+    let safe_name = Path::new(&filename)
+        .file_name()
+        .ok_or_else(|| "Invalid filename".to_string())?
+        .to_string_lossy()
+        .to_string();
+
+    let source = PathBuf::from("/tmp/cscode-outputs").join(&safe_name);
+
+    if !source.exists() {
+        return Err("File not found".to_string());
+    }
+
+    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+    let dest = PathBuf::from(home).join("Downloads").join(&safe_name);
+
+    std::fs::copy(&source, &dest)
+        .map_err(|e| format!("Failed to copy: {e}"))?;
+
+    Ok(format!("Saved to ~/Downloads/{safe_name}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let port: u16 = 8080;
     let mut backend = BackendState::new(port);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .invoke_handler(tauri::generate_handler![download_file])
         .setup(move |app| {
             let resource_dir = app.path().resource_dir().ok();
 

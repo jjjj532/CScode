@@ -9,7 +9,8 @@ from httpx import Response
 
 from cscode.core.config import Config
 from cscode.core.messages import Message, MessageRole
-from cscode.providers.base import LLMProvider, ProviderError
+from cscode.core.errors import ProviderError
+from cscode.providers.base import LLMProvider
 from cscode.providers.openai import OpenAIProvider
 
 

@@ -4,8 +4,10 @@ import asyncio
 import json
 from typing import Any
 
+from cscode.core.errors import CScodeError
 
-class MCPError(Exception):
+
+class MCPError(CScodeError):
     """MCP client errors."""
 
 

@@ -9,10 +9,6 @@ from cscode.core.config import Config
 from cscode.core.messages import Message
 
 
-class ProviderError(Exception):
-    """Provider-level errors."""
-
-
 @dataclass
 class LLMResult:
     content: str

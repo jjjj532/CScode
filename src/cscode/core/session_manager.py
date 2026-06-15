@@ -3,11 +3,10 @@ from __future__ import annotations
 import asyncio
 import inspect
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-
-from collections.abc import Callable
 from typing import Any
 
 from cscode.storage.session import SessionStore

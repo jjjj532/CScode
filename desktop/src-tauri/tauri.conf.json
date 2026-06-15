@@ -11,6 +11,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "CScode - AI Coding Assistant",
         "width": 1200,
         "height": 800,

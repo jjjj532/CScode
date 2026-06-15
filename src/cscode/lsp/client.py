@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cscode.core.errors import CScodeError
 
-class LSPError(Exception):
+
+class LSPError(CScodeError):
     """LSP client errors."""
 
 

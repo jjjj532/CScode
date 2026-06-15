@@ -8,6 +8,7 @@ import click
 from cscode import __version__
 from cscode.core.config import load_config
 from cscode.core.engine import Agent, AgentOptions
+from cscode.core.session_manager import SessionManager
 from cscode.tools.base import ToolRegistry
 
 
@@ -96,6 +97,50 @@ def chat(prompt: str | None, model: str | None) -> None:
         if not user_input.strip():
             continue
 
+        manager = _get_session_manager()
+
+        if user_input.startswith("/sessions") or user_input == "/s":
+            sessions = manager.list()
+            active = manager.get_active()
+            if not sessions:
+                click.echo("No sessions.")
+            else:
+                for s in sessions:
+                    marker = " *" if active and active.id == s.id else ""
+                    click.echo(f"{s.id[:8]} - {s.title}{marker}")
+            continue
+
+        if user_input.startswith("/new") or user_input == "/n":
+            s = manager.create()
+            click.echo(f"Created new session: {s.id}")
+            continue
+
+        if user_input.startswith("/switch ") or user_input.startswith("/use "):
+            target_id = user_input.split()[1]
+            if manager.set_active(target_id):
+                click.echo(f"Switched to: {target_id}")
+            else:
+                click.echo(f"Session not found: {target_id}")
+            continue
+
+        if user_input.startswith("/kill ") or user_input.startswith("/delete ") or user_input.startswith("/kill"):
+            parts = user_input.split()
+            if len(parts) > 1:
+                target_id = parts[1]
+            else:
+                active = manager.get_active()
+                if active:
+                    target_id = active.id
+                else:
+                    click.echo("No active session to kill")
+                    continue
+
+            if manager.remove(target_id):
+                click.echo(f"Session terminated: {target_id}")
+            else:
+                click.echo(f"Session not found: {target_id}")
+            continue
+
         result = asyncio.run(agent.run(user_input))
         click.echo(result)
         click.echo("")
@@ -105,6 +150,11 @@ def _show_help() -> None:
     click.echo("Commands:")
     click.echo("  exit, quit, /q  End the session")
     click.echo("  /help, /h       Show this help")
+    click.echo("  /sessions, /s   List all sessions")
+    click.echo("  /new, /n        Create new session")
+    click.echo("  /switch <id>    Switch to session")
+    click.echo("  /use <id>       Switch to session")
+    click.echo("  /kill [id]      Kill session (default: active)")
 
 
 @cli.command()
@@ -167,3 +217,100 @@ def desktop(dev: bool) -> None:
 
 def main() -> None:
     cli()
+
+
+_session_manager: SessionManager | None = None
+
+
+def _get_session_manager() -> SessionManager:
+    global _session_manager
+    if _session_manager is None:
+        async def persist_create(session):
+            from cscode.storage.session import get_session_store
+            store = get_session_store()
+            if store:
+                await store.create(
+                    title=session.title,
+                    provider=session.provider,
+                    model=session.model,
+                    session_id=session.id,
+                )
+
+        async def persist_delete(session_id):
+            from cscode.storage.session import get_session_store
+            store = get_session_store()
+            if store:
+                await store.delete(session_id)
+
+        def sync_create(session):
+            try:
+                asyncio.run(persist_create(session))
+            except Exception:
+                pass
+
+        def sync_delete(session_id):
+            try:
+                asyncio.run(persist_delete(session_id))
+            except Exception:
+                pass
+
+        _session_manager = SessionManager(on_create=sync_create, on_delete=sync_delete)
+    return _session_manager
+
+
+@cli.group()
+def session():
+    """Manage sessions."""
+    pass
+
+
+@session.command("list")
+def session_list():
+    """List all sessions."""
+    manager = _get_session_manager()
+    sessions = manager.list()
+    active = manager.get_active()
+
+    if not sessions:
+        click.echo("No sessions.")
+        return
+
+    for s in sessions:
+        marker = " *" if active and active.id == s.id else ""
+        click.echo(f"{s.id[:8]} - {s.title} ({s.status.value}){marker}")
+
+
+@session.command("new")
+@click.option("--name", default="", help="Session name")
+@click.option("--provider", default="openai", help="LLM provider")
+@click.option("--model", default="gpt-4o", help="Model name")
+def session_new(name: str, provider: str, model: str):
+    """Create a new session."""
+    manager = _get_session_manager()
+    s = manager.create(title=name, provider=provider, model=model)
+    click.echo(f"Created session: {s.id}")
+    click.echo(f"Title: {s.title}")
+    click.echo(f"Provider: {s.provider}/{s.model}")
+
+
+@session.command("use")
+@click.argument("session_id")
+def session_use(session_id: str):
+    """Switch to a session."""
+    manager = _get_session_manager()
+    if manager.set_active(session_id):
+        s = manager.get(session_id)
+        click.echo(f"Switched to: {s.title}")
+    else:
+        click.echo(f"Session not found: {session_id}", err=True)
+
+
+@session.command("kill")
+@click.argument("session_id")
+def session_kill(session_id: str):
+    """Terminate a session."""
+    manager = _get_session_manager()
+    if manager.remove(session_id):
+        click.echo(f"Session terminated: {session_id}")
+    else:
+        click.echo(f"Session not found: {session_id}", err=True)

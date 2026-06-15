@@ -5,7 +5,6 @@ from pathlib import Path
 
 from cscode.lsp.client import LSPClient
 
-
 _LANGUAGE_MAP: dict[str, str] = {
     ".py": "python",
     ".pyw": "python",

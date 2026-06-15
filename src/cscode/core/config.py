@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -11,8 +11,7 @@ if TYPE_CHECKING:
     from cscode.storage.db import Database
 
 
-class ConfigError(Exception):
-    """Configuration related errors."""
+from cscode.core.errors import ConfigError
 
 
 @dataclass

@@ -3,11 +3,10 @@ from __future__ import annotations
 import os
 import time
 import uuid
-from pathlib import Path
-from typing import Any
-
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,13 +22,13 @@ from cscode.storage.db import Database
 from cscode.storage.session import SessionStore
 from cscode.tools.base import ToolRegistry
 from cscode.tools.bash import BashTool
+from cscode.tools.browser import BrowserTool
 from cscode.tools.edit import EditTool
 from cscode.tools.glob import GlobTool
 from cscode.tools.grep import GrepTool
 from cscode.tools.ls import LsTool
 from cscode.tools.read import ReadTool
 from cscode.tools.write import WriteTool
-from cscode.tools.browser import BrowserTool
 
 api_router = APIRouter(prefix="/api")
 
@@ -48,7 +47,7 @@ def find_web_dist() -> Path:
         if bundled.exists():
             print(f"DEBUG: returning bundled web-dist at {bundled}")
             return bundled
-    
+
     # 2. Try to find the app bundle by checking the executable path FIRST
     try:
         import sys
@@ -63,7 +62,7 @@ def find_web_dist() -> Path:
                 return resources
     except Exception as e:
         print(f"DEBUG: exe_path check failed: {e}")
-    
+
     # 3. Try to find the app bundle by checking the current working directory
     try:
         cwd = Path.cwd()
@@ -76,14 +75,14 @@ def find_web_dist() -> Path:
                 return resources
     except Exception as e:
         print(f"DEBUG: cwd check failed: {e}")
-    
+
     # 4. Bundled location (PyInstaller)
     if hasattr(__import__('sys'), 'frozen'):
         base = Path(getattr(__import__('sys'), '_MEIPASS', Path.cwd()))
         bundled = base / "web" / "dist"
         if bundled.exists():
             return bundled
-    
+
     # 5. Check for app bundle Resources/web-dist from executable location
     try:
         import sys
@@ -97,19 +96,19 @@ def find_web_dist() -> Path:
                     return resources
     except Exception as e:
         print(f"DEBUG: parent check failed: {e}")
-    
+
     # 6. Development location
     dev_path = Path(__file__).resolve().parent.parent / "web" / "dist"
     print(f"DEBUG: dev_path={dev_path}, exists={dev_path.exists()}")
     if dev_path.exists():
         return dev_path
-    
+
     # 7. Fallback to parent directories
     for parent in Path(__file__).resolve().parents:
         web_path = parent / "web" / "dist"
         if web_path.exists():
             return web_path
-    
+
     return Path(__file__).resolve().parent.parent / "web" / "dist"
 
 WEB_DIST = find_web_dist()
@@ -487,24 +486,24 @@ async def _handle_chat(
                     saved_config = await store.get()
                     if saved_config:
                         config_data = saved_config
-                
+
                 provider_name: str = "openai"
                 model: str = "gpt-4o"
                 if config_data:
                     provider_name = config_data.get("provider", "openai")
                     model = config_data.get("model", "gpt-4o")
-                
+
                 print(f"DEBUG: Creating new session {session_id} with provider={provider_name}, model={model}")
                 await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
                 print("DEBUG: Session created successfully")
-        
+
         # Load existing messages for this session
         existing_messages: list[Message] = []
         if _session_store is not None:
             existing_messages = await _session_store.get_messages(session_id)
         print(f"PERF: load_messages={time.time()-t0:.2f}s")
         t1 = time.time()
-        
+
         # Build file context if files were uploaded
         FILE_CONTEXT_MAX = 30000  # Limit to prevent API errors
         file_context = ""
@@ -533,7 +532,7 @@ async def _handle_chat(
             file_context = "\n\n" + header + "\n\n".join(parts)
         print(f"PERF: parse_files={time.time()-t1:.2f}s, file_context_len={len(file_context)}")
         t2 = time.time()
-        
+
         # Build messages with history
         messages = list(existing_messages)
         # Add system prompt on first message if not already present
@@ -544,14 +543,14 @@ async def _handle_chat(
             messages.append(Message(role=MessageRole.SYSTEM, content=file_context))
         user_text = message.strip() if message else "请分析附件内容"
         messages.append(Message(role=MessageRole.USER, content=user_text))
-        
+
         # Run agent with full message history
         print(f"PERF: build_messages={time.time()-t2:.2f}s, total_messages={len(messages)}, total_chars={sum(len(m.content) for m in messages)}")
         t3 = time.time()
         dynamic_timeout = _detect_timeout(message, files, attached_filenames)
         response = await _agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout)
         print(f"PERF: agent_run_loop={time.time()-t3:.2f}s")
-        
+
         # Save updated messages to session
         if _session_store is not None:
             await _session_store.save_messages(session_id, messages)
@@ -582,16 +581,15 @@ async def list_sessions() -> list[dict[str, Any]]:
 
 @api_router.get("/config")
 async def get_config() -> dict[str, Any]:
-    from cscode.core.config import load_config
-    from cscode.core.config import ConfigStore
-    
+    from cscode.core.config import ConfigStore, load_config
+
     # First try to load from database
     if _db is not None:
         store = ConfigStore(_db)
         saved_config = await store.get()
         if saved_config:
             return saved_config
-    
+
     # Fallback to default config
     config = load_config()
     return config.to_dict()
@@ -651,11 +649,12 @@ async def get_session_messages(session_id: str) -> list[dict[str, Any]]:
 @api_router.get("/download/{filename:path}")
 async def download_file(filename: str, raw: bool = False, quiet: bool = False) -> Any:
     """Serve file content (raw=true) or copy to ~/Downloads/."""
+    import platform
     import shutil
     import subprocess
-    import platform
-    from fastapi.responses import FileResponse
     from urllib.parse import quote
+
+    from fastapi.responses import FileResponse
 
     file_path = OUTPUTS_DIR / filename
     if not file_path.exists() or not file_path.is_file():
@@ -700,22 +699,22 @@ if WEB_DIST.exists():
         print(f"DEBUG: assets_dir contents: {list(assets_dir.iterdir())}")
         app.mount("/assets", StaticFiles(directory=str(assets_dir), html=False, check_dir=True), name="assets")
         print("DEBUG: Assets mounted at /assets")
-    
+
     # Test endpoint
     @app.get("/assets/test")
     async def test_assets() -> dict[str, str]:
         return {"message": "assets endpoint works"}
-    
+
     # Serve index.html at root
     from fastapi.responses import FileResponse
-    
+
     @app.get("/")
     async def serve_index() -> Any:
         index_path = WEB_DIST / "index.html"
         if index_path.exists():
             return FileResponse(str(index_path))
         return {"detail": "Not found"}
-    
+
     # Serve other static files from web-dist
     @app.get("/{path:path}")
     async def serve_static(path: str) -> Any:
@@ -770,11 +769,11 @@ def _detect_timeout(message: str, files: list[Any] | None, attached_filenames: l
     gen_keywords = ["xlsx", "excel", "spreadsheet", "pdf", "生成", "测试用例", "报告", "文档"]
     msg_lower = message.lower()
     has_gen_task = any(kw in msg_lower for kw in gen_keywords)
-    
+
     # Also check file extensions
     file_exts = [f.lower() for f in attached_filenames] if attached_filenames else []
     has_file_gen_task = any(ext.endswith(('.xlsx', '.xls', '.pdf', '.docx', '.doc')) for ext in file_exts)
-    
+
     has_large_context = files and (attached_filenames or message.count("用例") > 5 or len(message) > 200)
     if has_gen_task or has_file_gen_task or has_large_context:
         return 600.0

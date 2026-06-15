@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 import asyncio
 import os
-
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
@@ -42,22 +42,22 @@ class BrowserTool(BaseTool):
 
     async def execute(self, args: dict[str, Any]) -> ToolResult:
         global _browser, _page
-        
+
         action = args.get("action", "")
         print(f"DEBUG BrowserTool: action={action}, args={args}")
-        
+
         try:
             if action == "open":
                 url = args.get("url", "about:blank")
                 if not url.startswith(("http://", "https://", "file://")):
                     url = "https://" + url
-                
+
                 if _browser is None:
                     from playwright.async_api import async_playwright
                     pw = await async_playwright().start()
                     _browser = await pw.chromium.launch(headless=True)
                     _page = await _browser.new_page()
-                
+
                 await _page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 title = await _page.title()
                 return ToolResult(
@@ -65,7 +65,7 @@ class BrowserTool(BaseTool):
                     data=f"Opened {url}. Page title: {title}",
                     metadata={"url": url, "title": title},
                 )
-            
+
             elif action == "click":
                 selector = args.get("selector")
                 if not selector:
@@ -73,7 +73,7 @@ class BrowserTool(BaseTool):
                 assert _page is not None
                 await _page.click(selector, timeout=10000)
                 return ToolResult(success=True, data=f"Clicked element: {selector}")
-            
+
             elif action == "type":
                 selector = args.get("selector")
                 text = args.get("text", "")
@@ -82,14 +82,14 @@ class BrowserTool(BaseTool):
                 assert _page is not None
                 await _page.fill(selector, text)
                 return ToolResult(success=True, data=f"Typed '{text}' into {selector}")
-            
+
             elif action == "press":
                 selector = args.get("selector", "body")
                 key = args.get("key", "Enter")
                 assert _page is not None
                 await _page.press(selector, key)
                 return ToolResult(success=True, data=f"Pressed {key} on {selector}")
-            
+
             elif action == "screenshot":
                 path = args.get("path", "/tmp/cscode-outputs/screenshot.png")
                 os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -100,7 +100,7 @@ class BrowserTool(BaseTool):
                     data=f"Screenshot saved to {path}",
                     metadata={"path": path},
                 )
-            
+
             elif action == "get_text":
                 selector = args.get("selector")
                 if not selector:
@@ -108,7 +108,7 @@ class BrowserTool(BaseTool):
                 assert _page is not None
                 text = await _page.locator(selector).text_content()
                 return ToolResult(success=True, data=text or "", metadata={"selector": selector})
-            
+
             elif action == "get_html":
                 selector = args.get("selector")
                 assert _page is not None
@@ -117,7 +117,7 @@ class BrowserTool(BaseTool):
                 else:
                     html = await _page.content()
                 return ToolResult(success=True, data=html[:50000])  # Limit to 50k chars
-            
+
             elif action == "wait":
                 selector = args.get("selector")
                 seconds = args.get("seconds", 2)
@@ -128,7 +128,7 @@ class BrowserTool(BaseTool):
                 else:
                     await asyncio.sleep(seconds)
                     return ToolResult(success=True, data=f"Waited {seconds} seconds")
-            
+
             elif action == "scroll":
                 selector = args.get("selector")
                 assert _page is not None
@@ -137,14 +137,14 @@ class BrowserTool(BaseTool):
                 else:
                     await _page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 return ToolResult(success=True, data="Scrolled")
-            
+
             elif action == "close":
                 if _browser:
                     await _browser.close()
                     _browser = None
                     _page = None
                 return ToolResult(success=True, data="Browser closed")
-            
+
             elif action == "status":
                 if _browser:
                     url = _page.url if _page else "none"
@@ -155,13 +155,13 @@ class BrowserTool(BaseTool):
                         metadata={"url": url, "title": title},
                     )
                 return ToolResult(success=True, data="Browser is not running")
-            
+
             else:
                 return ToolResult(
                     success=False,
                     data="",
                     error=f"Unknown action: {action}. Available: open, click, type, press, screenshot, get_text, get_html, wait, scroll, close, status",
                 )
-                
+
         except Exception as e:
             return ToolResult(success=False, data="", error=str(e))

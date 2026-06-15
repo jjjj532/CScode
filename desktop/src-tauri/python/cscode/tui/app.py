@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from cscode.core.config import load_config
 from cscode.core.engine import Agent, AgentOptions
+from cscode.core.session_manager import SessionManager
 from cscode.providers import create_provider
 from cscode.tools.base import ToolRegistry
 from cscode.tools.bash import BashTool
@@ -60,6 +61,7 @@ class CScodeTUI(App):
         super().__init__()
         config = load_config()
         provider = create_provider(config)
+        self._session_manager = SessionManager()
         self._agent = Agent(
             config=config,
             provider=provider,
@@ -92,11 +94,53 @@ class CScodeTUI(App):
 
         input_widget = self.query_one("#input-box", Input)
         input_widget.value = ""
-        input_widget.disabled = True
 
         output = self.query_one("#output-panel", RichLog)
         output.write(f"[bold green]You:[/] {user_input}")
+
+        if self._handle_session_command(user_input, output):
+            return
+
+        input_widget.disabled = True
         self._process_input(user_input)
+
+    def _handle_session_command(self, user_input: str, output: RichLog) -> bool:
+        """Handle session management commands. Returns True if command was handled."""
+        parts = user_input.split()
+
+        if parts[0] in ("/sessions", "/s"):
+            sessions = self._session_manager.list()
+            active = self._session_manager.get_active()
+            if not sessions:
+                output.write("[dim]No sessions.[/dim]")
+            else:
+                for s in sessions:
+                    marker = " [bold cyan]*[/bold cyan]" if active and active.id == s.id else ""
+                    output.write(f"[dim]{s.id[:8]}[/dim] - {s.title}{marker}")
+            return True
+
+        if parts[0] in ("/new", "/n"):
+            s = self._session_manager.create()
+            output.write(f"[green]Created new session:[/] {s.id}")
+            return True
+
+        if parts[0] == "/switch" and len(parts) > 1:
+            target_id = parts[1]
+            if self._session_manager.set_active(target_id):
+                output.write(f"[green]Switched to:[/] {target_id}")
+            else:
+                output.write(f"[red]Session not found:[/] {target_id}")
+            return True
+
+        if parts[0] in ("/kill", "/delete") and len(parts) > 1:
+            target_id = parts[1]
+            if self._session_manager.remove(target_id):
+                output.write(f"[green]Session terminated:[/] {target_id}")
+            else:
+                output.write(f"[red]Session not found:[/] {target_id}")
+            return True
+
+        return False
 
     @work(thread=False)
     async def _process_input(self, user_input: str) -> None:

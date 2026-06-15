@@ -43,6 +43,16 @@ exclude = ["tests/"]
 target-version = "py311"
 line-length = 100
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cscode"]
+
 [project.optional-dependencies]
 test = [
     "respx>=0.23.0",

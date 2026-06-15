@@ -41,7 +41,7 @@ def _parse_xlsx(content: bytes) -> str | None:
             if "xl/sharedStrings.xml" not in z.namelist() and "xl/worksheets/sheet1.xml" not in z.namelist():
                 return None
             rows: list[list[str]] = []
-            
+
             # Read shared strings (if exists)
             shared_strings: list[str] = []
             if "xl/sharedStrings.xml" in z.namelist():
@@ -57,13 +57,13 @@ def _parse_xlsx(content: bytes) -> str | None:
                             shared_strings.append("".join(texts))
                 except Exception:
                     pass
-            
+
             # Read first sheet
             sheet_path = "xl/worksheets/sheet1.xml"
             if sheet_path in z.namelist():
                 xml_bytes = z.read(sheet_path)
                 root = ElementTree.fromstring(xml_bytes)
-                
+
                 for row in root.iter("row"):
                     row_data: list[str] = []
                     for cell in row.iter("c"):
@@ -85,15 +85,15 @@ def _parse_xlsx(content: bytes) -> str | None:
                         row_data.append(value)
                     if row_data:
                         rows.append(row_data)
-            
+
             if not rows:
                 return None
-            
+
             # Convert to CSV-like format
             lines: list[str] = []
             for r in rows:
                 lines.append(",".join(f'"{cell}"' for cell in r))
-            
+
             result = "\n".join(lines)
             if len(result) > 200000:
                 result = result[:200000] + f"\n[truncated: showing first 200000 of {len(result)} characters]"

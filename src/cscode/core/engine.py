@@ -9,6 +9,9 @@ from cscode.core.config import Config
 from cscode.core.messages import Message, MessageRole
 from cscode.providers.base import LLMProvider
 from cscode.tools.base import ToolRegistry
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -45,7 +48,7 @@ class Agent:
         python_read_patterns = ["open(", ".read()", "read_text", "read_file", "Path(", "pathlib"]
 
         async def _emit(event: dict[str, Any]) -> None:
-            print(f"DEBUG _emit: {event}")
+            logger.debug("event: %s", event)
             if on_event:
                 await on_event(event)
 
@@ -61,7 +64,7 @@ class Agent:
                 arguments = {}
 
             if func_name in search_tools:
-                print(f"  FILE_GUARD: blocked {func_name} (files attached)")
+                logger.warning("FILE_GUARD: blocked %s (files attached)", func_name)
                 msgs.append(
                     Message(
                         role=MessageRole.TOOL,
@@ -76,7 +79,7 @@ class Agent:
                 cmd = (arguments.get("command", "") if isinstance(arguments, dict) else str(arguments)).lower()
                 for kw in search_keywords:
                     if kw in cmd:
-                        print(f"  FILE_GUARD: blocked Bash '{cmd[:50]}' (files attached)")
+                        logger.warning("FILE_GUARD: blocked Bash '%s' (files attached)", cmd[:50])
                         msgs.append(
                             Message(
                                 role=MessageRole.TOOL,
@@ -89,7 +92,7 @@ class Agent:
 
                 for pat in python_read_patterns:
                     if pat in cmd:
-                        print(f"  FILE_GUARD: blocked Python file read '{cmd[:50]}' (files attached)")
+                        logger.warning("FILE_GUARD: blocked Python file read '%s' (files attached)", cmd[:50])
                         msgs.append(
                             Message(
                                 role=MessageRole.TOOL,
@@ -122,7 +125,7 @@ class Agent:
                     return result.content
 
                 tool_rounds += 1
-                print(f"TOOL: round {tool_rounds}/{self.options.max_tool_rounds}, {len(result.tool_calls)} tool call(s)")
+                logger.info("TOOL: round %s/%s, %s tool call(s)", tool_rounds, self.options.max_tool_rounds, len(result.tool_calls))
                 for tool_call in result.tool_calls:
                     func_name = tool_call.get("function", {}).get("name", "?")
                     await _emit({"type": "tool:start", "name": func_name, "round": tool_rounds, "max": self.options.max_tool_rounds})
