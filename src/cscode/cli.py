@@ -8,6 +8,7 @@ import click
 from cscode import __version__
 from cscode.core.config import load_config
 from cscode.core.engine import Agent, AgentOptions
+from cscode.core.session_manager import SessionManager
 from cscode.tools.base import ToolRegistry
 
 
@@ -167,3 +168,71 @@ def desktop(dev: bool) -> None:
 
 def main() -> None:
     cli()
+
+
+_session_manager: SessionManager | None = None
+
+
+def _get_session_manager() -> SessionManager:
+    global _session_manager
+    if _session_manager is None:
+        _session_manager = SessionManager()
+    return _session_manager
+
+
+@cli.group()
+def session():
+    """Manage sessions."""
+    pass
+
+
+@session.command("list")
+def session_list():
+    """List all sessions."""
+    manager = _get_session_manager()
+    sessions = manager.list()
+    active = manager.get_active()
+
+    if not sessions:
+        click.echo("No sessions.")
+        return
+
+    for s in sessions:
+        marker = " *" if active and active.id == s.id else ""
+        click.echo(f"{s.id[:8]} - {s.title} ({s.status.value}){marker}")
+
+
+@session.command("new")
+@click.option("--name", default="", help="Session name")
+@click.option("--provider", default="openai", help="LLM provider")
+@click.option("--model", default="gpt-4o", help="Model name")
+def session_new(name: str, provider: str, model: str):
+    """Create a new session."""
+    manager = _get_session_manager()
+    s = manager.create(title=name, provider=provider, model=model)
+    click.echo(f"Created session: {s.id}")
+    click.echo(f"Title: {s.title}")
+    click.echo(f"Provider: {s.provider}/{s.model}")
+
+
+@session.command("use")
+@click.argument("session_id")
+def session_use(session_id: str):
+    """Switch to a session."""
+    manager = _get_session_manager()
+    if manager.set_active(session_id):
+        s = manager.get(session_id)
+        click.echo(f"Switched to: {s.title}")
+    else:
+        click.echo(f"Session not found: {session_id}", err=True)
+
+
+@session.command("kill")
+@click.argument("session_id")
+def session_kill(session_id: str):
+    """Terminate a session."""
+    manager = _get_session_manager()
+    if manager.remove(session_id):
+        click.echo(f"Session terminated: {session_id}")
+    else:
+        click.echo(f"Session not found: {session_id}", err=True)
