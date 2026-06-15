@@ -6,7 +6,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -113,7 +114,105 @@ def find_web_dist() -> Path:
 
 WEB_DIST = find_web_dist()
 
-app = FastAPI(title="CScode API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    global _db, _session_store, _agent
+
+    resource_dir = os.environ.get("CSCORE_RESOURCE_DIR", "")
+    if resource_dir:
+        python_dir = os.path.join(resource_dir, "python")
+        if os.path.isdir(python_dir):
+            existing = os.environ.get("PYTHONPATH", "")
+            os.environ["PYTHONPATH"] = f"{python_dir}{os.pathsep}{existing}" if existing else python_dir
+            print(f"DEBUG: Set PYTHONPATH for subprocesses: {python_dir}")
+
+    _db = Database()
+    await _db.init()
+    _session_store = SessionStore(_db)
+
+    os.makedirs("/tmp/cscode-outputs", exist_ok=True)
+    template_path = "/tmp/cscode-outputs/xlsx_template.py"
+    if not os.path.exists(template_path):
+        with open(template_path, "w") as f:
+            f.write(_XLSX_TEMPLATE)
+        os.chmod(template_path, 0o755)
+
+    config = load_config()
+    provider = create_provider(config)
+    registry = ToolRegistry()
+    registry.register(ReadTool())
+    registry.register(WriteTool())
+    registry.register(EditTool())
+    registry.register(BashTool())
+    registry.register(GrepTool())
+    registry.register(GlobTool())
+    registry.register(LsTool())
+    registry.register(BrowserTool())
+    _agent = Agent(
+        config=config,
+        provider=provider,
+        registry=registry,
+        options=AgentOptions(
+            max_tool_rounds=15,
+            timeout=600.0,
+            system_prompt="""You are CScode, an AI-powered coding assistant.
+
+IMPORTANT: When a file is attached by the user, its content appears in [FILE: ...] blocks above. Use this content directly. If you need to explore the file content, use the Read tool (NOT Glob, Grep, or Ls). The file content is already provided — you do not need to search for it.
+
+When generating .xlsx files, use a TWO-STEP approach for speed:
+  Step 1 - Generate CSV: Write a .csv file via Write tool. First row must be column headers.
+    Example CSV content for a test case table:
+```
+用例ID,用例名称,优先级,前置条件,测试步骤,预期结果
+TC001,登录成功,P0,用户未登录,1.打开APP 2.输入用户名密码 3.点击登录,登录成功跳转首页
+TC002,登录失败,P0,用户未登录,1.打开APP 2.输入错误密码,提示密码错误
+```
+  Step 2 - Convert to .xlsx: Run this Bash command:
+    python3 /tmp/cscode-outputs/xlsx_template.py /tmp/cscode-outputs/data.csv --output /tmp/cscode-outputs/result.xlsx
+
+  This is faster than writing openpyxl code from scratch. The xlsx_template.py auto-formats with headers, filter, and freeze panes.
+
+Save ALL user-facing generated files to /tmp/cscode-outputs/. When a file is ready, output exactly ONE download link like this:
+**下载链接：** /outputs/filename.ext
+Do NOT output Markdown link syntax like [text](/outputs/...). Do NOT output a second "路径" line.
+
+BROWSER AUTOMATION - When you need to interact with a real website:
+1. Use browser.open to open a URL: browser action=open url=https://example.com
+2. Click elements: browser action=click selector="#button-id"
+3. Type text: browser action=type selector="#input-id" text="hello"
+4. Press keys: browser action=press selector="body" key=Enter
+5. Take screenshot: browser action=screenshot
+6. Get text content: browser action=get_text selector=".content"
+7. Get HTML: browser action=get_html selector=".container"
+8. Wait for element: browser action=wait selector=".loading" seconds=5
+9. Scroll: browser action=scroll selector=".footer"
+10. Close browser: browser action=close
+
+Example workflow for testing a website:
+1. browser action=open url="https://voice.styoai.com"
+2. browser action=type selector="#username" text="admin"
+3. browser action=type selector="#password" text="xxx"
+4. browser action=click selector="button[type=submit]"
+5. browser action=get_text selector=".dashboard"
+
+Available tools: Read, Write, Edit, Bash, Grep, Glob, Ls, Browser.
+
+IMPORTANT: You have a browser automation tool! Use it to interact with REAL websites!
+- The browser tool can open any URL, click elements, fill forms, take screenshots, etc.
+- Do NOT generate local test scripts - use browser tool to test websites DIRECTLY
+- Example: browser action=open url="https://voice.styoai.com" will open the real website
+- If user asks to test a website, ALWAYS use browser tool, do NOT generate scripts""",
+        ),
+    )
+
+    yield
+
+    if _db is not None:
+        await _db.close()
+
+
+app = FastAPI(title="CScode API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -684,101 +783,4 @@ def _detect_timeout(message: str, files: list[Any] | None, attached_filenames: l
     return 300.0
 
 
-@app.on_event("startup")
-async def startup() -> None:
-    global _db, _session_store, _agent
 
-    # Pass bundled Python path to subprocesses so they can find openpyxl etc.
-    resource_dir = os.environ.get("CSCORE_RESOURCE_DIR", "")
-    if resource_dir:
-        python_dir = os.path.join(resource_dir, "python")
-        if os.path.isdir(python_dir):
-            existing = os.environ.get("PYTHONPATH", "")
-            os.environ["PYTHONPATH"] = f"{python_dir}{os.pathsep}{existing}" if existing else python_dir
-            print(f"DEBUG: Set PYTHONPATH for subprocesses: {python_dir}")
-
-    _db = Database()
-    await _db.init()
-    _session_store = SessionStore(_db)
-
-    # Ensure output dir and write Excel template
-    os.makedirs("/tmp/cscode-outputs", exist_ok=True)
-    template_path = "/tmp/cscode-outputs/xlsx_template.py"
-    if not os.path.exists(template_path):
-        with open(template_path, "w") as f:
-            f.write(_XLSX_TEMPLATE)
-        os.chmod(template_path, 0o755)
-
-    config = load_config()
-    provider = create_provider(config)
-    registry = ToolRegistry()
-    registry.register(ReadTool())
-    registry.register(WriteTool())
-    registry.register(EditTool())
-    registry.register(BashTool())
-    registry.register(GrepTool())
-    registry.register(GlobTool())
-    registry.register(LsTool())
-    registry.register(BrowserTool())
-    _agent = Agent(
-        config=config,
-        provider=provider,
-        registry=registry,
-        options=AgentOptions(
-            max_tool_rounds=15,
-            timeout=600.0,
-            system_prompt="""You are CScode, an AI-powered coding assistant.
-
-IMPORTANT: When a file is attached by the user, its content appears in [FILE: ...] blocks above. Use this content directly. If you need to explore the file content, use the Read tool (NOT Glob, Grep, or Ls). The file content is already provided — you do not need to search for it.
-
-When generating .xlsx files, use a TWO-STEP approach for speed:
-  Step 1 - Generate CSV: Write a .csv file via Write tool. First row must be column headers.
-    Example CSV content for a test case table:
-```
-用例ID,用例名称,优先级,前置条件,测试步骤,预期结果
-TC001,登录成功,P0,用户未登录,1.打开APP 2.输入用户名密码 3.点击登录,登录成功跳转首页
-TC002,登录失败,P0,用户未登录,1.打开APP 2.输入错误密码,提示密码错误
-```
-  Step 2 - Convert to .xlsx: Run this Bash command:
-    python3 /tmp/cscode-outputs/xlsx_template.py /tmp/cscode-outputs/data.csv --output /tmp/cscode-outputs/result.xlsx
-
-  This is faster than writing openpyxl code from scratch. The xlsx_template.py auto-formats with headers, filter, and freeze panes.
-
-Save ALL user-facing generated files to /tmp/cscode-outputs/. When a file is ready, output exactly ONE download link like this:
-**下载链接：** /outputs/filename.ext
-Do NOT output Markdown link syntax like [text](/outputs/...). Do NOT output a second "路径" line.
-
-BROWSER AUTOMATION - When you need to interact with a real website:
-1. Use browser.open to open a URL: browser action=open url=https://example.com
-2. Click elements: browser action=click selector="#button-id"
-3. Type text: browser action=type selector="#input-id" text="hello"
-4. Press keys: browser action=press selector="body" key=Enter
-5. Take screenshot: browser action=screenshot
-6. Get text content: browser action=get_text selector=".content"
-7. Get HTML: browser action=get_html selector=".container"
-8. Wait for element: browser action=wait selector=".loading" seconds=5
-9. Scroll: browser action=scroll selector=".footer"
-10. Close browser: browser action=close
-
-Example workflow for testing a website:
-1. browser action=open url="https://voice.styoai.com"
-2. browser action=type selector="#username" text="admin"
-3. browser action=type selector="#password" text="xxx"
-4. browser action=click selector="button[type=submit]"
-5. browser action=get_text selector=".dashboard"
-
-Available tools: Read, Write, Edit, Bash, Grep, Glob, Ls, Browser.
-
-IMPORTANT: You have a browser automation tool! Use it to interact with REAL websites!
-- The browser tool can open any URL, click elements, fill forms, take screenshots, etc.
-- Do NOT generate local test scripts - use browser tool to test websites DIRECTLY
-- Example: browser action=open url="https://voice.styoai.com" will open the real website
-- If user asks to test a website, ALWAYS use browser tool, do NOT generate scripts""",
-        ),
-    )
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    if _db is not None:
-        await _db.close()
