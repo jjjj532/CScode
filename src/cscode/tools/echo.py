@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from cscode.tools.base import BaseTool, ToolResult
 
 
@@ -14,5 +16,5 @@ class EchoTool(BaseTool):
         "required": ["text"],
     }
 
-    async def execute(self, args: dict) -> ToolResult:
+    async def execute(self, args: dict[str, Any]) -> ToolResult:
         return ToolResult(success=True, data=args.get("text", ""))

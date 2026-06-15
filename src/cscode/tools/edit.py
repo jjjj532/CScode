@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
 
@@ -27,7 +28,7 @@ class EditTool(BaseTool):
         "required": ["path", "old_string", "new_string"],
     }
 
-    async def execute(self, args: dict) -> ToolResult:
+    async def execute(self, args: dict[str, Any]) -> ToolResult:
         path = Path(args["path"])
         if not path.exists():
             return ToolResult(

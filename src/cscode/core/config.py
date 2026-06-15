@@ -22,8 +22,8 @@ class Config:
     api_base: str | None = None
     api_key: str | None = None
     max_tokens: int = 4096
-    temperature: float = 0.7
-    top_p: float = 1.0
+    temperature: float = 0.3
+    top_p: float = 0.3
     system_prompt: str | None = None
 
     def __post_init__(self) -> None:
@@ -111,7 +111,7 @@ class ConfigStore:
         )
         if row and row["data"]:
             import json
-            return json.loads(row["data"])
+            return json.loads(row["data"])  # type: ignore[no-any-return]
         return None
 
     async def save(self, data: dict[str, Any]) -> None:

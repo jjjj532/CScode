@@ -91,8 +91,8 @@ def _parse_xlsx(content: bytes) -> str | None:
             
             # Convert to CSV-like format
             lines: list[str] = []
-            for row in rows:
-                lines.append(",".join(f'"{cell}"' for cell in row))
+            for r in rows:
+                lines.append(",".join(f'"{cell}"' for cell in r))
             
             result = "\n".join(lines)
             if len(result) > 200000:
@@ -103,7 +103,7 @@ def _parse_xlsx(content: bytes) -> str | None:
 
 
 def _parse_doc(content: bytes) -> str | None:
-    import importlib
+    import importlib.util
     if importlib.util.find_spec("olefile") is None:
         return None
     return None

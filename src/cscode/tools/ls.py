@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
 
@@ -19,7 +20,7 @@ class LsTool(BaseTool):
         "required": [],
     }
 
-    async def execute(self, args: dict) -> ToolResult:
+    async def execute(self, args: dict[str, Any]) -> ToolResult:
         path = Path(args.get("path", "."))
 
         if not path.exists():

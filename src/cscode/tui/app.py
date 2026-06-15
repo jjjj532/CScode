@@ -30,7 +30,7 @@ def _default_registry() -> ToolRegistry:
     return registry
 
 
-class CScodeTUI(App):
+class CScodeTUI(App[None]):
     TITLE = "CScode"
     SUB_TITLE = "AI-powered coding assistant"
     CSS = """

@@ -16,8 +16,8 @@ class MCPClient:
         self._writer: asyncio.StreamWriter | None = None
         self._reader: asyncio.StreamReader | None = None
         self._request_id = 0
-        self._pending: dict[int, asyncio.Future] = {}
-        self._reader_task: asyncio.Task | None = None
+        self._pending: dict[int, asyncio.Future[Any]] = {}
+        self._reader_task: asyncio.Task[Any] | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -77,7 +77,7 @@ class MCPClient:
 
     async def list_tools(self) -> list[dict[str, Any]]:
         result = await self._request("tools/list", {})
-        return result.get("tools", [])
+        return result.get("tools", [])  # type: ignore[no-any-return]
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         result = await self._request(
@@ -105,7 +105,7 @@ class MCPClient:
             "method": method,
             "params": params,
         }
-        future: asyncio.Future = asyncio.get_event_loop().create_future()
+        future: asyncio.Future[Any] = asyncio.get_event_loop().create_future()
         self._pending[req_id] = future
         await self._send(msg)
         return await future

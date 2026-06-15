@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
+from collections.abc import Callable
+from typing import Any
+
 from cscode.storage.session import SessionStore
 
 
@@ -34,8 +37,8 @@ class SessionManager:
         self,
         max_sessions: int = 5,
         session_store: SessionStore | None = None,
-        on_create: callable | None = None,
-        on_delete: callable | None = None,
+        on_create: Callable[..., Any] | None = None,
+        on_delete: Callable[..., Any] | None = None,
     ):
         if max_sessions <= 0:
             raise ValueError("max_sessions must be greater than 0")

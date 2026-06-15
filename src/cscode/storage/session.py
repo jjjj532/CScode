@@ -4,6 +4,8 @@ import json
 import uuid
 from datetime import datetime, timezone
 
+from typing import List
+
 from cscode.core.messages import Message, MessageRole, Session
 from cscode.storage.db import Database
 
@@ -70,7 +72,7 @@ class SessionStore:
         await self._db.conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         await self._db.conn.commit()
 
-    async def save_messages(self, session_id: str, messages: list[Message]) -> None:
+    async def save_messages(self, session_id: str, messages: List[Message]) -> None:
         now = datetime.now(timezone.utc).isoformat()
         for msg in messages:
             await self._db.conn.execute(
@@ -89,7 +91,7 @@ class SessionStore:
             )
         await self._db.conn.commit()
 
-    async def get_messages(self, session_id: str) -> list[Message]:
+    async def get_messages(self, session_id: str) -> List[Message]:
         cursor = await self._db.conn.execute(
             "SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC",
             (session_id,),

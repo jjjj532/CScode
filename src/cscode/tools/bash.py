@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
 
@@ -23,7 +24,7 @@ class BashTool(BaseTool):
         "required": ["command"],
     }
 
-    async def execute(self, args: dict) -> ToolResult:
+    async def execute(self, args: dict[str, Any]) -> ToolResult:
         command = args["command"]
         timeout_ms = args.get("timeout", 30000)
         timeout_s = timeout_ms / 1000

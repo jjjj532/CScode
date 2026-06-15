@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import aiosqlite
 
@@ -25,7 +26,7 @@ class Database:
             pass
         cursor = await self.conn.execute("SELECT MAX(version) FROM schema_version")
         row = await cursor.fetchone()
-        current_version = row[0] if row[0] is not None else 0
+        current_version = row[0] if row is not None and row[0] is not None else 0
 
         migrations = [_migration_001, _migration_002]
         for i, migration in enumerate(migrations, start=1):
@@ -37,11 +38,11 @@ class Database:
     async def close(self) -> None:
         await self.conn.close()
 
-    async def fetchone(self, query: str, params: tuple = ()) -> aiosqlite.Row | None:
+    async def fetchone(self, query: str, params: tuple[Any, ...] = ()) -> aiosqlite.Row | None:
         cursor = await self.conn.execute(query, params)
         return await cursor.fetchone()
 
-    async def execute(self, query: str, params: tuple = ()) -> None:
+    async def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
         await self.conn.execute(query, params)
         await self.conn.commit()
 

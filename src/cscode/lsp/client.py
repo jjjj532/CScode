@@ -18,8 +18,8 @@ class LSPClient:
         self._writer: asyncio.StreamWriter | None = None
         self._reader: asyncio.StreamReader | None = None
         self._request_id = 0
-        self._pending: dict[int, asyncio.Future] = {}
-        self._reader_task: asyncio.Task | None = None
+        self._pending: dict[int, asyncio.Future[Any]] = {}
+        self._reader_task: asyncio.Task[Any] | None = None
         self._initialized = False
 
     @property
@@ -93,7 +93,7 @@ class LSPClient:
             "method": method,
             "params": params,
         }
-        future: asyncio.Future = asyncio.get_event_loop().create_future()
+        future: asyncio.Future[Any] = asyncio.get_event_loop().create_future()
         self._pending[req_id] = future
         await self._send(msg)
         return await future
