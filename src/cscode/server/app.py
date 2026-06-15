@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -224,13 +225,11 @@ async def chat_stream(request: Request) -> StreamingResponse:
         yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
         try:
-            import time
-            t0 = time.time()
 
             if _session_store is not None:
                 session = await _session_store.get(session_id)
                 if session is None:
-                    from cscode.core.config import ConfigStore, load_config
+                    from cscode.core.config import ConfigStore
                     config_data = None
                     if _db is not None:
                         store = ConfigStore(_db)
@@ -372,7 +371,7 @@ async def _handle_chat(
         if _session_store is not None:
             session = await _session_store.get(session_id)
             if session is None:
-                from cscode.core.config import ConfigStore, load_config
+                from cscode.core.config import ConfigStore
                 config_data = None
                 if _db is not None:
                     store = ConfigStore(_db)
@@ -388,7 +387,7 @@ async def _handle_chat(
                 
                 print(f"DEBUG: Creating new session {session_id} with provider={provider}, model={model}")
                 await _session_store.create(title="New Chat", provider=provider, model=model, session_id=session_id)
-                print(f"DEBUG: Session created successfully")
+                print("DEBUG: Session created successfully")
         
         # Load existing messages for this session
         existing_messages = []
