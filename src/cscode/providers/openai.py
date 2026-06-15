@@ -39,7 +39,24 @@ class OpenAIProvider(LLMProvider):
                 entry["tool_call_id"] = msg.tool_call_id
             elif msg.tool_calls:
                 entry["content"] = msg.content or ""
-                entry["tool_calls"] = msg.tool_calls
+                # Ensure tool_calls arguments are JSON objects, not strings
+                normalized_tool_calls = []
+                for tc in msg.tool_calls:
+                    tc_copy = dict(tc)
+                    if "function" in tc_copy:
+                        func = dict(tc_copy["function"])
+                        if "arguments" in func:
+                            args = func["arguments"]
+                            # If arguments is a string, parse it as JSON
+                            if isinstance(args, str):
+                                import json
+                                try:
+                                    func["arguments"] = json.loads(args)
+                                except json.JSONDecodeError:
+                                    func["arguments"] = {"_raw": args}
+                        tc_copy["function"] = func
+                    normalized_tool_calls.append(tc_copy)
+                entry["tool_calls"] = normalized_tool_calls
             else:
                 entry["content"] = msg.content
             result.append(entry)
