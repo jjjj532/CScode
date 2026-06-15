@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
+from cscode.storage.session import SessionStore
+
 
 class SessionStatus(Enum):
     ACTIVE = "active"
@@ -26,14 +28,28 @@ class Session:
 class SessionManager:
     """Manage multiple parallel sessions."""
 
-    def __init__(self, max_sessions: int = 5):
+    def __init__(self, max_sessions: int = 5, session_store: SessionStore | None = None):
         if max_sessions <= 0:
             raise ValueError("max_sessions must be greater than 0")
         self._sessions: dict[str, Session] = {}
         self._active_session_id: str | None = None
         self._max_sessions = max_sessions
+        self._session_store = session_store
 
-    def create(
+    async def _persist_create(self, session: Session) -> None:
+        if self._session_store:
+            await self._session_store.create(
+                title=session.title,
+                provider=session.provider,
+                model=session.model,
+                session_id=session.id,
+            )
+
+    async def _persist_delete(self, session_id: str) -> None:
+        if self._session_store:
+            await self._session_store.delete(session_id)
+
+    async def create(
         self,
         title: str = "",
         provider: str = "openai",
@@ -67,6 +83,7 @@ class SessionManager:
         )
         self._sessions[session.id] = session
         self._active_session_id = session.id
+        await self._persist_create(session)
         return session
 
     def get(self, session_id: str) -> Session | None:
@@ -112,7 +129,7 @@ class SessionManager:
             return None
         return self._sessions.get(self._active_session_id)
 
-    def remove(self, session_id: str) -> bool:
+    async def remove(self, session_id: str) -> bool:
         """Remove a session.
 
         Args:
@@ -128,4 +145,5 @@ class SessionManager:
             self._active_session_id = None
             if self._sessions:
                 self._active_session_id = next(iter(self._sessions))
+        await self._persist_delete(session_id)
         return True
