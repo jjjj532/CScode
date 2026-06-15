@@ -6,7 +6,9 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request
+from collections.abc import AsyncGenerator
+
+from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -154,19 +156,23 @@ async def health() -> dict[str, str]:
 
 @api_router.post("/chat", response_model=ChatResponse)
 async def chat(request: Request) -> ChatResponse:
-    message = ""
-    session_id = None
-    files = []
+    message: str = ""
+    session_id: str | None = None
+    files: list[tuple[str, bytes]] = []
 
     content_type = request.headers.get("content-type", "")
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         form = await request.form()
-        message = form.get("message", "")
-        session_id = form.get("session_id", None)
-        uploaded = form.getlist("files")
-        for f in uploaded:
-            content = await f.read()
-            files.append((f.filename or "unknown", content))
+        _message = form.get("message", "")
+        if isinstance(_message, str):
+            message = _message
+        _session_raw = form.get("session_id", None)
+        if isinstance(_session_raw, str):
+            session_id = _session_raw
+        for f in form.getlist("files"):
+            if isinstance(f, UploadFile):
+                content = await f.read()
+                files.append((f.filename or "unknown", content))
     else:
         body = await request.json()
         message = body.get("message", "")
@@ -180,25 +186,29 @@ async def chat_stream(request: Request) -> StreamingResponse:
     import asyncio
     import json
 
-    message = ""
-    session_id = None
-    files = []
+    message: str = ""
+    session_id: str | None = None
+    files: list[tuple[str, bytes]] = []
 
     content_type = request.headers.get("content-type", "")
     if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
         form = await request.form()
-        message = form.get("message", "")
-        session_id = form.get("session_id", None)
-        uploaded = form.getlist("files")
-        for f in uploaded:
-            content = await f.read()
-            files.append((f.filename or "unknown", content))
+        _message = form.get("message", "")
+        if isinstance(_message, str):
+            message = _message
+        _session_raw = form.get("session_id", None)
+        if isinstance(_session_raw, str):
+            session_id = _session_raw
+        for f in form.getlist("files"):
+            if isinstance(f, UploadFile):
+                content = await f.read()
+                files.append((f.filename or "unknown", content))
     else:
         body = await request.json()
         message = body.get("message", "")
         session_id = body.get("session_id", None)
 
-    async def event_stream():
+    async def event_stream() -> AsyncGenerator[str, None]:
         nonlocal session_id
         global _agent, _session_store, _db
         if _agent is None or _session_store is None:
@@ -237,15 +247,15 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         if saved_config:
                             config_data = saved_config
 
-                    provider = "openai"
-                    model = "gpt-4o"
+                    provider_name: str = "openai"
+                    model: str = "gpt-4o"
                     if config_data:
-                        provider = config_data.get("provider", "openai")
+                        provider_name = config_data.get("provider", "openai")
                         model = config_data.get("model", "gpt-4o")
 
-                    await _session_store.create(title="New Chat", provider=provider, model=model, session_id=session_id)
+                    await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
 
-            existing_messages = []
+            existing_messages: list[Message] = []
             if _session_store is not None:
                 existing_messages = await _session_store.get_messages(session_id)
 
@@ -291,8 +301,8 @@ async def chat_stream(request: Request) -> StreamingResponse:
             if _session_store is not None:
                 await _session_store.save_messages(session_id, messages)
 
-            queue: asyncio.Queue[dict] = asyncio.Queue()
-            async def on_event(event: dict) -> None:
+            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            async def on_event(event: dict[str, Any]) -> None:
                 await queue.put(event)
 
             before = time.time()
@@ -379,18 +389,18 @@ async def _handle_chat(
                     if saved_config:
                         config_data = saved_config
                 
-                provider = "openai"
-                model = "gpt-4o"
+                provider_name: str = "openai"
+                model: str = "gpt-4o"
                 if config_data:
-                    provider = config_data.get("provider", "openai")
+                    provider_name = config_data.get("provider", "openai")
                     model = config_data.get("model", "gpt-4o")
                 
-                print(f"DEBUG: Creating new session {session_id} with provider={provider}, model={model}")
-                await _session_store.create(title="New Chat", provider=provider, model=model, session_id=session_id)
+                print(f"DEBUG: Creating new session {session_id} with provider={provider_name}, model={model}")
+                await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
                 print("DEBUG: Session created successfully")
         
         # Load existing messages for this session
-        existing_messages = []
+        existing_messages: list[Message] = []
         if _session_store is not None:
             existing_messages = await _session_store.get_messages(session_id)
         print(f"PERF: load_messages={time.time()-t0:.2f}s")
@@ -528,19 +538,19 @@ async def get_session_messages(session_id: str) -> list[dict[str, Any]]:
     if _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    messages = await _session_store.get_messages(session_id)
+    msgs: list[Message] = await _session_store.get_messages(session_id)
     return [
         {
             "role": msg.role.value,
             "content": msg.content,
             "created_at": msg.created_at.isoformat() if msg.created_at else "",
         }
-        for msg in messages
+        for msg in msgs
     ]
 
 
 @api_router.get("/download/{filename:path}")
-async def download_file(filename: str, raw: bool = False, quiet: bool = False):
+async def download_file(filename: str, raw: bool = False, quiet: bool = False) -> Any:
     """Serve file content (raw=true) or copy to ~/Downloads/."""
     import shutil
     import subprocess
@@ -594,14 +604,14 @@ if WEB_DIST.exists():
     
     # Test endpoint
     @app.get("/assets/test")
-    async def test_assets():
+    async def test_assets() -> dict[str, str]:
         return {"message": "assets endpoint works"}
     
     # Serve index.html at root
     from fastapi.responses import FileResponse
     
     @app.get("/")
-    async def serve_index():
+    async def serve_index() -> Any:
         index_path = WEB_DIST / "index.html"
         if index_path.exists():
             return FileResponse(str(index_path))
@@ -609,7 +619,7 @@ if WEB_DIST.exists():
     
     # Serve other static files from web-dist
     @app.get("/{path:path}")
-    async def serve_static(path: str):
+    async def serve_static(path: str) -> Any:
         file_path = WEB_DIST / path
         print(f"DEBUG serve_static: path={path}, file_path={file_path}, exists={file_path.exists()}")
         if file_path.exists() and file_path.is_file():
@@ -657,7 +667,7 @@ if __name__ == "__main__":
 """
 
 
-def _detect_timeout(message: str, files: list, attached_filenames: list[str]) -> float:
+def _detect_timeout(message: str, files: list[Any] | None, attached_filenames: list[str]) -> float:
     gen_keywords = ["xlsx", "excel", "spreadsheet", "pdf", "生成", "测试用例", "报告", "文档"]
     msg_lower = message.lower()
     has_gen_task = any(kw in msg_lower for kw in gen_keywords)
