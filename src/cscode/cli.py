@@ -8,7 +8,7 @@ import click
 from cscode import __version__
 from cscode.core.config import load_config
 from cscode.core.engine import Agent, AgentOptions
-from cscode.core.session_manager import SessionManager
+from cscode.core.session_manager import Session, SessionManager
 from cscode.tools.base import ToolRegistry
 
 
@@ -225,8 +225,8 @@ _session_manager: SessionManager | None = None
 def _get_session_manager() -> SessionManager:
     global _session_manager
     if _session_manager is None:
-        async def persist_create(session):
-            from cscode.storage.session import get_session_store
+        async def persist_create(session: Session) -> None:
+            from cscode.storage.session import get_session_store  # type: ignore[attr-defined]
             store = get_session_store()
             if store:
                 await store.create(
@@ -236,19 +236,19 @@ def _get_session_manager() -> SessionManager:
                     session_id=session.id,
                 )
 
-        async def persist_delete(session_id):
-            from cscode.storage.session import get_session_store
+        async def persist_delete(session_id: str) -> None:
+            from cscode.storage.session import get_session_store  # type: ignore[attr-defined]
             store = get_session_store()
             if store:
                 await store.delete(session_id)
 
-        def sync_create(session):
+        def sync_create(session: Session) -> None:
             try:
                 asyncio.run(persist_create(session))
             except Exception:
                 pass
 
-        def sync_delete(session_id):
+        def sync_delete(session_id: str) -> None:
             try:
                 asyncio.run(persist_delete(session_id))
             except Exception:
@@ -259,13 +259,13 @@ def _get_session_manager() -> SessionManager:
 
 
 @cli.group()
-def session():
+def session() -> None:
     """Manage sessions."""
     pass
 
 
 @session.command("list")
-def session_list():
+def session_list() -> None:
     """List all sessions."""
     manager = _get_session_manager()
     sessions = manager.list()
@@ -284,7 +284,7 @@ def session_list():
 @click.option("--name", default="", help="Session name")
 @click.option("--provider", default="openai", help="LLM provider")
 @click.option("--model", default="gpt-4o", help="Model name")
-def session_new(name: str, provider: str, model: str):
+def session_new(name: str, provider: str, model: str) -> None:
     """Create a new session."""
     manager = _get_session_manager()
     s = manager.create(title=name, provider=provider, model=model)
@@ -295,11 +295,12 @@ def session_new(name: str, provider: str, model: str):
 
 @session.command("use")
 @click.argument("session_id")
-def session_use(session_id: str):
+def session_use(session_id: str) -> None:
     """Switch to a session."""
     manager = _get_session_manager()
     if manager.set_active(session_id):
         s = manager.get(session_id)
+        assert s is not None
         click.echo(f"Switched to: {s.title}")
     else:
         click.echo(f"Session not found: {session_id}", err=True)
@@ -307,7 +308,7 @@ def session_use(session_id: str):
 
 @session.command("kill")
 @click.argument("session_id")
-def session_kill(session_id: str):
+def session_kill(session_id: str) -> None:
     """Terminate a session."""
     manager = _get_session_manager()
     if manager.remove(session_id):
