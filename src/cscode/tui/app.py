@@ -39,7 +39,7 @@ class CScodeTUI(App[None]):
         super().__init__()
         config = load_config()
         theme_css = apply_theme(config.theme) or apply_theme("catppuccin") or ""
-        self.CSS = theme_css + """
+        css = theme_css + """
         Screen { layout: vertical; }
         #output-panel {
             height: 1fr;
@@ -58,6 +58,7 @@ class CScodeTUI(App[None]):
             color: $text-muted;
         }
         """
+        self.CSS = css  # type: ignore[misc]
         provider = create_provider(config)
         self._session_manager = SessionManager()
         self._agent = Agent(
