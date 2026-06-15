@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
-
 import pytest
 import respx
-from httpx import Response
 
 from cscode.core.config import Config
+from cscode.core.errors import ProviderError  # noqa: F401
 from cscode.core.messages import Message, MessageRole
-from cscode.core.errors import ProviderError
 from cscode.providers.base import LLMProvider
 from cscode.providers.openai import OpenAIProvider
 
@@ -28,9 +24,9 @@ def test_provider_factory():
     olla = create_provider(Config(provider="ollama"))
     assert isinstance(olla, OllamaProvider)
 
-    # Unknown provider defaults to OpenAI
-    unknown = create_provider(Config(provider="unknown"))
-    assert isinstance(unknown, OpenAIProvider)
+    # Unknown provider raises error
+    with pytest.raises(ProviderError):
+        create_provider(Config(provider="unknown"))
 
 
 class TestProviderBase:
