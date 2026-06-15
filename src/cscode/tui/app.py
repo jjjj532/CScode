@@ -17,6 +17,7 @@ from cscode.tools.grep import GrepTool
 from cscode.tools.ls import LsTool
 from cscode.tools.read import ReadTool
 from cscode.tools.write import WriteTool
+from cscode.tui.themes import apply_theme
 
 
 def _default_registry() -> ToolRegistry:
@@ -34,33 +35,29 @@ def _default_registry() -> ToolRegistry:
 class CScodeTUI(App[None]):
     TITLE = "CScode"
     SUB_TITLE = "AI-powered coding assistant"
-    CSS = """
-    Screen {
-        layout: vertical;
-    }
-    #output-panel {
-        height: 1fr;
-        border: solid $primary;
-        padding: 1;
-    }
-    #input-container {
-        height: 3;
-        dock: bottom;
-        padding: 0 1;
-    }
-    Input {
-        width: 100%;
-    }
-    .status {
-        height: 1;
-        text-style: italic;
-        color: $text-muted;
-    }
-    """
-
     def __init__(self) -> None:
         super().__init__()
         config = load_config()
+        theme_css = apply_theme(config.theme) or apply_theme("catppuccin") or ""
+        self.CSS = theme_css + """
+        Screen { layout: vertical; }
+        #output-panel {
+            height: 1fr;
+            border: solid $primary;
+            padding: 1;
+        }
+        #input-container {
+            height: 3;
+            dock: bottom;
+            padding: 0 1;
+        }
+        Input { width: 100%; }
+        .status {
+            height: 1;
+            text-style: italic;
+            color: $text-muted;
+        }
+        """
         provider = create_provider(config)
         self._session_manager = SessionManager()
         self._agent = Agent(

@@ -24,6 +24,7 @@ class Config:
     temperature: float = 0.3
     top_p: float = 0.3
     system_prompt: str | None = None
+    theme: str = "catppuccin"
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.temperature <= 2.0:
