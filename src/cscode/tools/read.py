@@ -9,6 +9,7 @@ from cscode.tools.base import BaseTool, ToolResult
 class ReadTool(BaseTool):
     name = "read"
     description = "Read the contents of a file at the given path"
+    requires_permission = False
     parameters = {
         "type": "object",
         "properties": {

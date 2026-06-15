@@ -16,6 +16,8 @@ class ToolResult:
 class BaseTool(ABC):
     name: str = ""
     description: str = ""
+    requires_permission: bool = True
+    permission_default: str = "allow"
     parameters: dict[str, Any] = {
         "type": "object",
         "properties": {},
