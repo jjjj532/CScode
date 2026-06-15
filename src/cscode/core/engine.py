@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import collections.abc
+import json
 from dataclasses import dataclass
 from typing import Any
 
 from cscode.core.config import Config
 from cscode.core.messages import Message, MessageRole
+from cscode.core.permissions import PermissionResult, PermissionService
 from cscode.providers.base import LLMProvider
 from cscode.tools.base import ToolRegistry
 from cscode.utils.logging import get_logger
@@ -39,7 +41,18 @@ class Agent:
         messages.append(Message(role=MessageRole.USER, content=user_input))
         return await self._run_loop(messages)
 
-    async def _run_loop(self, messages: list[Message], attached_filenames: list[str] | None = None, timeout: float | None = None, on_event: collections.abc.Callable[[dict[str, Any]], collections.abc.Awaitable[None]] | None = None) -> str:
+    async def run_with_permissions(
+        self,
+        user_input: str,
+        permission_service: PermissionService | None = None,
+        attached_filenames: list[str] | None = None,
+        on_event: collections.abc.Callable[[dict[str, Any]], collections.abc.Awaitable[None]] | None = None,
+    ) -> str:
+        messages = self._build_initial_messages()
+        messages.append(Message(role=MessageRole.USER, content=user_input))
+        return await self._run_loop(messages, attached_filenames=attached_filenames, on_event=on_event, permission_service=permission_service)
+
+    async def _run_loop(self, messages: list[Message], attached_filenames: list[str] | None = None, timeout: float | None = None, on_event: collections.abc.Callable[[dict[str, Any]], collections.abc.Awaitable[None]] | None = None, permission_service: PermissionService | None = None) -> str:
         tool_rounds = 0
         effective_timeout = timeout if timeout is not None else self.options.timeout
         file_guard = bool(attached_filenames)
@@ -57,7 +70,6 @@ class Agent:
                 return False
             func_name = tool_call.get("function", {}).get("name", "")
             try:
-                import json
                 args_raw = tool_call.get("function", {}).get("arguments", "{}")
                 arguments = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
             except json.JSONDecodeError:
@@ -132,6 +144,24 @@ class Agent:
                     if await _intercept(tool_call, messages):
                         await _emit({"type": "tool:complete", "name": func_name, "success": True, "intercepted": True})
                         continue
+                    if permission_service is not None:
+                        try:
+                            args_json = tool_call.get("function", {}).get("arguments", "{}")
+                            fn_args = json.loads(args_json) if isinstance(args_json, str) else args_json
+                        except (json.JSONDecodeError, TypeError):
+                            fn_args = {}
+                        perm = await permission_service.check(func_name, fn_args)
+                        if perm == PermissionResult.DENIED:
+                            messages.append(Message(
+                                role=MessageRole.TOOL,
+                                content=f"[Permission Denied] Tool '{func_name}' is not permitted.",
+                                tool_call_id=tool_call.get("id"),
+                                name=func_name,
+                            ))
+                            await _emit({"type": "tool:complete", "name": func_name, "success": False, "intercepted": True})
+                            continue
+                        elif perm == PermissionResult.ASK:
+                            await _emit({"type": "permission:ask", "name": func_name, "args": fn_args})
                     tool_result = await self.registry.execute_tool_call(tool_call)
                     await _emit({"type": "tool:complete", "name": func_name, "success": tool_result.success})
                     messages.append(
