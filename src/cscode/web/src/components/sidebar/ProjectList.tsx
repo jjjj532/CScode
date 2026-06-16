@@ -1,16 +1,16 @@
-import { useSessionStore } from '../../stores/useSessionStore';
 import { ProjectItem } from './ProjectItem';
+import type { Session } from '../../stores/useSessionStore';
 
-export function ProjectList() {
-  const sessions = useSessionStore((s) => s.sessions);
-  const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const setActiveSession = useSessionStore((s) => s.setActiveSession);
+interface ProjectListProps {
+  sessions: Session[];
+  activeSessionId: string | null;
+  onSelectSession: (id: string) => void;
+  onDeleteSession: (id: string, e: React.MouseEvent) => void;
+}
 
+export function ProjectList({ sessions, activeSessionId, onSelectSession, onDeleteSession }: ProjectListProps) {
   const projects = [
-    {
-      name: 'AI-CScode',
-      sessions: sessions,
-    },
+    { name: 'AI-CScode', sessions },
   ];
 
   return (
@@ -20,7 +20,8 @@ export function ProjectList() {
           key={project.name}
           project={project}
           activeSessionId={activeSessionId}
-          onSelectSession={setActiveSession}
+          onSelectSession={onSelectSession}
+          onDeleteSession={onDeleteSession}
         />
       ))}
       {sessions.length === 0 && (
