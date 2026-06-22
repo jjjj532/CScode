@@ -17,7 +17,7 @@ class GeminiProvider(LLMProvider):
         self._api_key = config.api_key or ""
         self._model = config.model or "gemini-2.0-flash"
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(120.0),
+            timeout=httpx.Timeout(600.0),
         )
 
     @property

@@ -1,0 +1,2292 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/Cellar/node/25.8.1/bin/node",
+      "/Users/mac/AI/CScode/src/cscode/web/node_modules/.bin/playwright",
+      "test",
+      "--project=chromium"
+    ],
+    "configFile": "/Users/mac/AI/CScode/src/cscode/web/playwright.config.ts",
+    "rootDir": "/Users/mac/AI/CScode/src/cscode/web/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/mac/AI/CScode/src/cscode/web/test-results",
+        "repeatEach": 1,
+        "retries": 2,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/mac/AI/CScode/src/cscode/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/mac/AI/CScode/src/cscode/web/test-results",
+        "repeatEach": 1,
+        "retries": 2,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/Users/mac/AI/CScode/src/cscode/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/mac/AI/CScode/src/cscode/web/test-results",
+        "repeatEach": 1,
+        "retries": 2,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/Users/mac/AI/CScode/src/cscode/web/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.0",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": false,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "app.spec.ts",
+      "file": "app.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "CScode Web Application",
+          "file": "app.spec.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "homepage loads successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 498,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:29.791Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-13e4e9b08728b4631e3e",
+              "file": "app.spec.ts",
+              "line": 12,
+              "column": 3
+            },
+            {
+              "title": "navigation is visible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 398,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:30.637Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-397a72845cdcb7dee379",
+              "file": "app.spec.ts",
+              "line": 17,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Chat Interface",
+          "file": "app.spec.ts",
+          "line": 24,
+          "column": 6,
+          "specs": [
+            {
+              "title": "composer input is visible",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 381,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:31.054Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-093ae68fddbc849b6db8",
+              "file": "app.spec.ts",
+              "line": 29,
+              "column": 3
+            },
+            {
+              "title": "send button exists",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5297,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:36:38",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 38,
+                          "line": 36
+                        },
+                        "snippet": "  34 |   test('send button exists', async ({ page }) => {\n  35 |     const sendButton = page.locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")');\n> 36 |     await expect(sendButton.first()).toBeVisible();\n     |                                      ^\n  37 |   });\n  38 |\n  39 |   test('can type in composer', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 38,
+                            "line": 36
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n\n\n  34 |   test('send button exists', async ({ page }) => {\n  35 |     const sendButton = page.locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")');\n> 36 |     await expect(sendButton.first()).toBeVisible();\n     |                                      ^\n  37 |   });\n  38 |\n  39 |   test('can type in composer', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:36:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:31.449Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 38,
+                        "line": 36
+                      }
+                    },
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5672,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:36:38",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 38,
+                          "line": 36
+                        },
+                        "snippet": "  34 |   test('send button exists', async ({ page }) => {\n  35 |     const sendButton = page.locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")');\n> 36 |     await expect(sendButton.first()).toBeVisible();\n     |                                      ^\n  37 |   });\n  38 |\n  39 |   test('can type in composer', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 38,
+                            "line": 36
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n\n\n  34 |   test('send button exists', async ({ page }) => {\n  35 |     const sendButton = page.locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")');\n> 36 |     await expect(sendButton.first()).toBeVisible();\n     |                                      ^\n  37 |   });\n  38 |\n  39 |   test('can type in composer', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:36:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:20:37.437Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 38,
+                        "line": 36
+                      }
+                    },
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5348,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:36:38",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 38,
+                          "line": 36
+                        },
+                        "snippet": "  34 |   test('send button exists', async ({ page }) => {\n  35 |     const sendButton = page.locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")');\n> 36 |     await expect(sendButton.first()).toBeVisible();\n     |                                      ^\n  37 |   });\n  38 |\n  39 |   test('can type in composer', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 38,
+                            "line": 36
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")').first()\u001b[22m\n\n\n  34 |   test('send button exists', async ({ page }) => {\n  35 |     const sendButton = page.locator('button[type=\"submit\"], button:has-text(\"Send\"), button:has-text(\"发送\")');\n> 36 |     await expect(sendButton.first()).toBeVisible();\n     |                                      ^\n  37 |   });\n  38 |\n  39 |   test('can type in composer', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:36:38"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:20:43.993Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Chat-Interface-send-button-exists-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 38,
+                        "line": 36
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-7905c21655ce7e524b55",
+              "file": "app.spec.ts",
+              "line": 34,
+              "column": 3
+            },
+            {
+              "title": "can type in composer",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 474,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:50.244Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-8fe5ac117e4a28f003a9",
+              "file": "app.spec.ts",
+              "line": 39,
+              "column": 3
+            },
+            {
+              "title": "message list area exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 422,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:51.061Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-df15c968e93f8bc8f556",
+              "file": "app.spec.ts",
+              "line": 45,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Settings Panel",
+          "file": "app.spec.ts",
+          "line": 51,
+          "column": 6,
+          "specs": [
+            {
+              "title": "settings button exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 416,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:51.504Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-84c089503c358f9b8999",
+              "file": "app.spec.ts",
+              "line": 56,
+              "column": 3
+            },
+            {
+              "title": "can open settings panel",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5464,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:67:33",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 33,
+                          "line": 67
+                        },
+                        "snippet": "  65 |     // Settings panel should be visible\n  66 |     const panel = page.locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]');\n> 67 |     await expect(panel.first()).toBeVisible();\n     |                                 ^\n  68 |   });\n  69 | });\n  70 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 33,
+                            "line": 67
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n\n\n  65 |     // Settings panel should be visible\n  66 |     const panel = page.locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]');\n> 67 |     await expect(panel.first()).toBeVisible();\n     |                                 ^\n  68 |   });\n  69 | });\n  70 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:67:33"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:20:51.935Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 33,
+                        "line": 67
+                      }
+                    },
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5776,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:67:33",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 33,
+                          "line": 67
+                        },
+                        "snippet": "  65 |     // Settings panel should be visible\n  66 |     const panel = page.locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]');\n> 67 |     await expect(panel.first()).toBeVisible();\n     |                                 ^\n  68 |   });\n  69 | });\n  70 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 33,
+                            "line": 67
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n\n\n  65 |     // Settings panel should be visible\n  66 |     const panel = page.locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]');\n> 67 |     await expect(panel.first()).toBeVisible();\n     |                                 ^\n  68 |   });\n  69 | });\n  70 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:67:33"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:20:58.314Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 33,
+                        "line": 67
+                      }
+                    },
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5482,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:67:33",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 33,
+                          "line": 67
+                        },
+                        "snippet": "  65 |     // Settings panel should be visible\n  66 |     const panel = page.locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]');\n> 67 |     await expect(panel.first()).toBeVisible();\n     |                                 ^\n  68 |   });\n  69 | });\n  70 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 33,
+                            "line": 67
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]').first()\u001b[22m\n\n\n  65 |     // Settings panel should be visible\n  66 |     const panel = page.locator('[role=\"dialog\"], [class*=\"panel\"], [class*=\"modal\"]');\n> 67 |     await expect(panel.first()).toBeVisible();\n     |                                 ^\n  68 |   });\n  69 | });\n  70 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:67:33"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:21:05.167Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Settings-Panel-can-open-settings-panel-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 33,
+                        "line": 67
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-41a36fed9798670d7e32",
+              "file": "app.spec.ts",
+              "line": 61,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Theme Switching",
+          "file": "app.spec.ts",
+          "line": 71,
+          "column": 6,
+          "specs": [
+            {
+              "title": "theme toggle exists",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5357,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:78:39",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 39,
+                          "line": 78
+                        },
+                        "snippet": "  76 |   test('theme toggle exists', async ({ page }) => {\n  77 |     const themeToggle = page.locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]');\n> 78 |     await expect(themeToggle.first()).toBeVisible();\n     |                                       ^\n  79 |   });\n  80 |\n  81 |   test('can toggle theme', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 39,
+                            "line": 78
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n\n\n  76 |   test('theme toggle exists', async ({ page }) => {\n  77 |     const themeToggle = page.locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]');\n> 78 |     await expect(themeToggle.first()).toBeVisible();\n     |                                       ^\n  79 |   });\n  80 |\n  81 |   test('can toggle theme', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:78:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:21:11.539Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 39,
+                        "line": 78
+                      }
+                    },
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5631,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:78:39",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 39,
+                          "line": 78
+                        },
+                        "snippet": "  76 |   test('theme toggle exists', async ({ page }) => {\n  77 |     const themeToggle = page.locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]');\n> 78 |     await expect(themeToggle.first()).toBeVisible();\n     |                                       ^\n  79 |   });\n  80 |\n  81 |   test('can toggle theme', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 39,
+                            "line": 78
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n\n\n  76 |   test('theme toggle exists', async ({ page }) => {\n  77 |     const themeToggle = page.locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]');\n> 78 |     await expect(themeToggle.first()).toBeVisible();\n     |                                       ^\n  79 |   });\n  80 |\n  81 |   test('can toggle theme', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:78:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:21:17.877Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 39,
+                        "line": 78
+                      }
+                    },
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5342,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:78:39",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 39,
+                          "line": 78
+                        },
+                        "snippet": "  76 |   test('theme toggle exists', async ({ page }) => {\n  77 |     const themeToggle = page.locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]');\n> 78 |     await expect(themeToggle.first()).toBeVisible();\n     |                                       ^\n  79 |   });\n  80 |\n  81 |   test('can toggle theme', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 39,
+                            "line": 78
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]').first()\u001b[22m\n\n\n  76 |   test('theme toggle exists', async ({ page }) => {\n  77 |     const themeToggle = page.locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\"), [data-testid*=\"theme\"]');\n> 78 |     await expect(themeToggle.first()).toBeVisible();\n     |                                       ^\n  79 |   });\n  80 |\n  81 |   test('can toggle theme', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:78:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:21:24.348Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-theme-toggle-exists-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 39,
+                        "line": 78
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-2f7e62993c6d95fed34e",
+              "file": "app.spec.ts",
+              "line": 76,
+              "column": 3
+            },
+            {
+              "title": "can toggle theme",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30068,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 23,
+                            "line": 87
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\")').first()\u001b[22m\n\n\n  85 |     const htmlBefore = await page.locator('html').getAttribute('class');\n  86 |     \n> 87 |     await themeToggle.click();\n     |                       ^\n  88 |     \n  89 |     // Theme should have changed\n  90 |     const htmlAfter = await page.locator('html').getAttribute('class');\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:87:23"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:21:30.514Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium/error-context.md"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30080,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 23,
+                            "line": 87
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\")').first()\u001b[22m\n\n\n  85 |     const htmlBefore = await page.locator('html').getAttribute('class');\n  86 |     \n> 87 |     await themeToggle.click();\n     |                       ^\n  88 |     \n  89 |     // Theme should have changed\n  90 |     const htmlAfter = await page.locator('html').getAttribute('class');\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:87:23"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:22:01.614Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium-retry1/trace.zip"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30060,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 23,
+                            "line": 87
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[aria-label*=\"theme\" i], button:has-text(\"Theme\"), button:has-text(\"主题\")').first()\u001b[22m\n\n\n  85 |     const htmlBefore = await page.locator('html').getAttribute('class');\n  86 |     \n> 87 |     await themeToggle.click();\n     |                       ^\n  88 |     \n  89 |     // Theme should have changed\n  90 |     const htmlAfter = await page.locator('html').getAttribute('class');\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:87:23"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:22:32.619Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Theme-Switching-can-toggle-theme-chromium-retry2/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-e61c82af972f5ee30474",
+              "file": "app.spec.ts",
+              "line": 81,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Mode Toggle (Plan/Build)",
+          "file": "app.spec.ts",
+          "line": 95,
+          "column": 6,
+          "specs": [
+            {
+              "title": "mode toggle exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 414,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:23:03.573Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-5c5b8e492042d8f27e91",
+              "file": "app.spec.ts",
+              "line": 100,
+              "column": 3
+            },
+            {
+              "title": "can switch to Plan mode",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5427,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:110:30",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 30,
+                          "line": 110
+                        },
+                        "snippet": "  108 |     \n  109 |     // Plan should be active (check for active state)\n> 110 |     await expect(planButton).toHaveAttribute('data-active', 'true');\n      |                              ^\n  111 |   });\n  112 |\n  113 |   test('can switch to Build mode', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 30,
+                            "line": 110
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n\n  108 |     \n  109 |     // Plan should be active (check for active state)\n> 110 |     await expect(planButton).toHaveAttribute('data-active', 'true');\n      |                              ^\n  111 |   });\n  112 |\n  113 |   test('can switch to Build mode', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:110:30"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:23:04.193Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 30,
+                        "line": 110
+                      }
+                    },
+                    {
+                      "workerIndex": 13,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5737,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:110:30",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 30,
+                          "line": 110
+                        },
+                        "snippet": "  108 |     \n  109 |     // Plan should be active (check for active state)\n> 110 |     await expect(planButton).toHaveAttribute('data-active', 'true');\n      |                              ^\n  111 |   });\n  112 |\n  113 |   test('can switch to Build mode', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 30,
+                            "line": 110
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n\n  108 |     \n  109 |     // Plan should be active (check for active state)\n> 110 |     await expect(planButton).toHaveAttribute('data-active', 'true');\n      |                              ^\n  111 |   });\n  112 |\n  113 |   test('can switch to Build mode', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:110:30"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:23:10.325Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 30,
+                        "line": 110
+                      }
+                    },
+                    {
+                      "workerIndex": 14,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5551,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:110:30",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 30,
+                          "line": 110
+                        },
+                        "snippet": "  108 |     \n  109 |     // Plan should be active (check for active state)\n> 110 |     await expect(planButton).toHaveAttribute('data-active', 'true');\n      |                              ^\n  111 |   });\n  112 |\n  113 |   test('can switch to Build mode', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 30,
+                            "line": 110
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Plan\"), button:has-text(\"计划\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent text-white\">Plan</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n\n  108 |     \n  109 |     // Plan should be active (check for active state)\n> 110 |     await expect(planButton).toHaveAttribute('data-active', 'true');\n      |                              ^\n  111 |   });\n  112 |\n  113 |   test('can switch to Build mode', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:110:30"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:23:16.956Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Plan-mode-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 30,
+                        "line": 110
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-5e87e5b444bdd3f4d28f",
+              "file": "app.spec.ts",
+              "line": 105,
+              "column": 3
+            },
+            {
+              "title": "can switch to Build mode",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 15,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5459,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:118:31",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 31,
+                          "line": 118
+                        },
+                        "snippet": "  116 |     \n  117 |     // Build should be active\n> 118 |     await expect(buildButton).toHaveAttribute('data-active', 'true');\n      |                               ^\n  119 |   });\n  120 | });\n  121 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 31,
+                            "line": 118
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n\n  116 |     \n  117 |     // Build should be active\n> 118 |     await expect(buildButton).toHaveAttribute('data-active', 'true');\n      |                               ^\n  119 |   });\n  120 | });\n  121 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:118:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:23:23.485Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 31,
+                        "line": 118
+                      }
+                    },
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5701,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:118:31",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 31,
+                          "line": 118
+                        },
+                        "snippet": "  116 |     \n  117 |     // Build should be active\n> 118 |     await expect(buildButton).toHaveAttribute('data-active', 'true');\n      |                               ^\n  119 |   });\n  120 | });\n  121 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 31,
+                            "line": 118
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n\n  116 |     \n  117 |     // Build should be active\n> 118 |     await expect(buildButton).toHaveAttribute('data-active', 'true');\n      |                               ^\n  119 |   });\n  120 | });\n  121 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:118:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:23:30.072Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 31,
+                        "line": 118
+                      }
+                    },
+                    {
+                      "workerIndex": 17,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5447,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:118:31",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 31,
+                          "line": 118
+                        },
+                        "snippet": "  116 |     \n  117 |     // Build should be active\n> 118 |     await expect(buildButton).toHaveAttribute('data-active', 'true');\n      |                               ^\n  119 |   });\n  120 | });\n  121 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 31,
+                            "line": 118
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveAttribute\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\nExpected: \u001b[32m\"true\"\u001b[39m\nReceived: \u001b[31m\"\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveAttribute\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Build\"), button:has-text(\"构建\")').first()\u001b[22m\n\u001b[2m    14 × locator resolved to <button role=\"radio\" aria-checked=\"true\" class=\"px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white\">Build</button>\u001b[22m\n\u001b[2m       - unexpected value \"null\"\u001b[22m\n\n\n  116 |     \n  117 |     // Build should be active\n> 118 |     await expect(buildButton).toHaveAttribute('data-active', 'true');\n      |                               ^\n  119 |   });\n  120 | });\n  121 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:118:31"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:23:36.709Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Mode-Toggle-Plan-Build-can-switch-to-Build-mode-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 31,
+                        "line": 118
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-03da500da2a3edaf3468",
+              "file": "app.spec.ts",
+              "line": 113,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Session Management",
+          "file": "app.spec.ts",
+          "line": 122,
+          "column": 6,
+          "specs": [
+            {
+              "title": "session list exists",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 18,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5347,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:129:39",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 39,
+                          "line": 129
+                        },
+                        "snippet": "  127 |   test('session list exists', async ({ page }) => {\n  128 |     const sessionList = page.locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]');\n> 129 |     await expect(sessionList.first()).toBeVisible();\n      |                                       ^\n  130 |   });\n  131 |\n  132 |   test('new session button exists', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 39,
+                            "line": 129
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n\n\n  127 |   test('session list exists', async ({ page }) => {\n  128 |     const sessionList = page.locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]');\n> 129 |     await expect(sessionList.first()).toBeVisible();\n      |                                       ^\n  130 |   });\n  131 |\n  132 |   test('new session button exists', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:129:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:23:43.035Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 39,
+                        "line": 129
+                      }
+                    },
+                    {
+                      "workerIndex": 19,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5620,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:129:39",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 39,
+                          "line": 129
+                        },
+                        "snippet": "  127 |   test('session list exists', async ({ page }) => {\n  128 |     const sessionList = page.locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]');\n> 129 |     await expect(sessionList.first()).toBeVisible();\n      |                                       ^\n  130 |   });\n  131 |\n  132 |   test('new session button exists', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 39,
+                            "line": 129
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n\n\n  127 |   test('session list exists', async ({ page }) => {\n  128 |     const sessionList = page.locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]');\n> 129 |     await expect(sessionList.first()).toBeVisible();\n      |                                       ^\n  130 |   });\n  131 |\n  132 |   test('new session button exists', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:129:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:23:49.232Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 39,
+                        "line": 129
+                      }
+                    },
+                    {
+                      "workerIndex": 20,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5409,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:129:39",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 39,
+                          "line": 129
+                        },
+                        "snippet": "  127 |   test('session list exists', async ({ page }) => {\n  128 |     const sessionList = page.locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]');\n> 129 |     await expect(sessionList.first()).toBeVisible();\n      |                                       ^\n  130 |   });\n  131 |\n  132 |   test('new session button exists', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 39,
+                            "line": 129
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]').first()\u001b[22m\n\n\n  127 |   test('session list exists', async ({ page }) => {\n  128 |     const sessionList = page.locator('[class*=\"sidebar\"], aside, [data-testid*=\"session\"]');\n> 129 |     await expect(sessionList.first()).toBeVisible();\n      |                                       ^\n  130 |   });\n  131 |\n  132 |   test('new session button exists', async ({ page }) => {\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:129:39"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:23:55.855Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-session-list-exists-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 39,
+                        "line": 129
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-8c3d2e50eb726ad93631",
+              "file": "app.spec.ts",
+              "line": 127,
+              "column": 3
+            },
+            {
+              "title": "new session button exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 21,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 450,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:24:02.387Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-bc6ccd02d6a101439ec6",
+              "file": "app.spec.ts",
+              "line": 132,
+              "column": 3
+            },
+            {
+              "title": "can create new session",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 21,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30055,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 28,
+                            "line": 139
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New\"), button:has-text(\"新建\")').first()\u001b[22m\n\n\n  137 |   test('can create new session', async ({ page }) => {\n  138 |     const newSessionButton = page.locator('button:has-text(\"New\"), button:has-text(\"新建\")').first();\n> 139 |     await newSessionButton.click();\n      |                            ^\n  140 |     \n  141 |     // New session should appear in list or be selected\n  142 |     const sessionItems = page.locator('[class*=\"session\"], [data-testid*=\"session\"]');\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:139:28"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:24:03.055Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium/error-context.md"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 22,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30102,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 28,
+                            "line": 139
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New\"), button:has-text(\"新建\")').first()\u001b[22m\n\n\n  137 |   test('can create new session', async ({ page }) => {\n  138 |     const newSessionButton = page.locator('button:has-text(\"New\"), button:has-text(\"新建\")').first();\n> 139 |     await newSessionButton.click();\n      |                            ^\n  140 |     \n  141 |     // New session should appear in list or be selected\n  142 |     const sessionItems = page.locator('[class*=\"session\"], [data-testid*=\"session\"]');\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:139:28"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:24:33.797Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium-retry1/trace.zip"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30060,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 28,
+                            "line": 139
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New\"), button:has-text(\"新建\")').first()\u001b[22m\n\n\n  137 |   test('can create new session', async ({ page }) => {\n  138 |     const newSessionButton = page.locator('button:has-text(\"New\"), button:has-text(\"新建\")').first();\n> 139 |     await newSessionButton.click();\n      |                            ^\n  140 |     \n  141 |     // New session should appear in list or be selected\n  142 |     const sessionItems = page.locator('[class*=\"session\"], [data-testid*=\"session\"]');\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:139:28"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:25:04.746Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Session-Management-can-create-new-session-chromium-retry2/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-f73143846bf574e0d7bb",
+              "file": "app.spec.ts",
+              "line": 137,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Responsive Design",
+          "file": "app.spec.ts",
+          "line": 147,
+          "column": 6,
+          "specs": [
+            {
+              "title": "works on mobile viewport",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 24,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 417,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:35.796Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-9fe1c634b31026aa7f58",
+              "file": "app.spec.ts",
+              "line": 148,
+              "column": 3
+            },
+            {
+              "title": "works on tablet viewport",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 24,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 371,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:36.469Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-f97c463ddc1752d66835",
+              "file": "app.spec.ts",
+              "line": 157,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Accessibility",
+          "file": "app.spec.ts",
+          "line": 167,
+          "column": 6,
+          "specs": [
+            {
+              "title": "page has proper heading structure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 24,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 368,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:36.855Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-35267c54d94d6b2741d6",
+              "file": "app.spec.ts",
+              "line": 172,
+              "column": 3
+            },
+            {
+              "title": "buttons have accessible names",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 24,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 378,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:37.238Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-158c14aacd405d5ff7db",
+              "file": "app.spec.ts",
+              "line": 180,
+              "column": 3
+            },
+            {
+              "title": "inputs have labels",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 24,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 381,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:206:60",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 60,
+                          "line": 206
+                        },
+                        "snippet": "  204 |         \n  205 |         // Input should have some form of labeling\n> 206 |         expect(hasLabel || hasAriaLabel || hasPlaceholder).toBeTruthy();\n      |                                                            ^\n  207 |       }\n  208 |     }\n  209 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 60,
+                            "line": 206
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n\n  204 |         \n  205 |         // Input should have some form of labeling\n> 206 |         expect(hasLabel || hasAriaLabel || hasPlaceholder).toBeTruthy();\n      |                                                            ^\n  207 |       }\n  208 |     }\n  209 |   });\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:206:60"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:37.627Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 60,
+                        "line": 206
+                      }
+                    },
+                    {
+                      "workerIndex": 25,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 698,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:206:60",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 60,
+                          "line": 206
+                        },
+                        "snippet": "  204 |         \n  205 |         // Input should have some form of labeling\n> 206 |         expect(hasLabel || hasAriaLabel || hasPlaceholder).toBeTruthy();\n      |                                                            ^\n  207 |       }\n  208 |     }\n  209 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 60,
+                            "line": 206
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n\n  204 |         \n  205 |         // Input should have some form of labeling\n> 206 |         expect(hasLabel || hasAriaLabel || hasPlaceholder).toBeTruthy();\n      |                                                            ^\n  207 |       }\n  208 |     }\n  209 |   });\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:206:60"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:25:38.676Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 60,
+                        "line": 206
+                      }
+                    },
+                    {
+                      "workerIndex": 26,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 569,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:206:60",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 60,
+                          "line": 206
+                        },
+                        "snippet": "  204 |         \n  205 |         // Input should have some form of labeling\n> 206 |         expect(hasLabel || hasAriaLabel || hasPlaceholder).toBeTruthy();\n      |                                                            ^\n  207 |       }\n  208 |     }\n  209 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 60,
+                            "line": 206
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m\n\n  204 |         \n  205 |         // Input should have some form of labeling\n> 206 |         expect(hasLabel || hasAriaLabel || hasPlaceholder).toBeTruthy();\n      |                                                            ^\n  207 |       }\n  208 |     }\n  209 |   });\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:206:60"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:25:40.293Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Accessibility-inputs-have-labels-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 60,
+                        "line": 206
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-12cfdfc125108b03810c",
+              "file": "app.spec.ts",
+              "line": 194,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Performance",
+          "file": "app.spec.ts",
+          "line": 212,
+          "column": 6,
+          "specs": [
+            {
+              "title": "page loads within acceptable time",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 27,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 448,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:41.922Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-253804ba089fcc43f935",
+              "file": "app.spec.ts",
+              "line": 213,
+              "column": 3
+            },
+            {
+              "title": "no console errors on load",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 27,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 923,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:240:35",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 35,
+                          "line": 240
+                        },
+                        "snippet": "  238 |     );\n  239 |     \n> 240 |     expect(criticalErrors.length).toBe(0);\n      |                                   ^\n  241 |   });\n  242 | });\n  243 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 35,
+                            "line": 240
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m\n\n  238 |     );\n  239 |     \n> 240 |     expect(criticalErrors.length).toBe(0);\n      |                                   ^\n  241 |   });\n  242 | });\n  243 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:240:35"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-17T07:25:42.568Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 35,
+                        "line": 240
+                      }
+                    },
+                    {
+                      "workerIndex": 28,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1158,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:240:35",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 35,
+                          "line": 240
+                        },
+                        "snippet": "  238 |     );\n  239 |     \n> 240 |     expect(criticalErrors.length).toBe(0);\n      |                                   ^\n  241 |   });\n  242 | });\n  243 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 35,
+                            "line": 240
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m\n\n  238 |     );\n  239 |     \n> 240 |     expect(criticalErrors.length).toBe(0);\n      |                                   ^\n  241 |   });\n  242 | });\n  243 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:240:35"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-06-17T07:25:44.185Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 35,
+                        "line": 240
+                      }
+                    },
+                    {
+                      "workerIndex": 29,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1046,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:240:35",
+                        "location": {
+                          "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                          "column": 35,
+                          "line": 240
+                        },
+                        "snippet": "  238 |     );\n  239 |     \n> 240 |     expect(criticalErrors.length).toBe(0);\n      |                                   ^\n  241 |   });\n  242 | });\n  243 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                            "column": 35,
+                            "line": 240
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m8\u001b[39m\n\n  238 |     );\n  239 |     \n> 240 |     expect(criticalErrors.length).toBe(0);\n      |                                   ^\n  241 |   });\n  242 | });\n  243 |\n    at /Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts:240:35"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-06-17T07:25:46.291Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/mac/AI/CScode/src/cscode/web/test-results/app-Performance-no-console-errors-on-load-chromium-retry2/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/mac/AI/CScode/src/cscode/web/e2e/app.spec.ts",
+                        "column": 35,
+                        "line": 240
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "c31ff144dc4fee3acd0a-e496e4bac69dbb9c051d",
+              "file": "app.spec.ts",
+              "line": 222,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-17T07:20:27.168Z",
+    "duration": 320497.374,
+    "expected": 13,
+    "skipped": 0,
+    "unexpected": 10,
+    "flaky": 0
+  }
+}

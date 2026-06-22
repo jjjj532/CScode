@@ -1,33 +1,43 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Message } from './Message';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { ToolCallDisplay } from '../ui/ToolCallDisplay';
 import { useSessionStore } from '../../stores/useSessionStore';
 
-interface ToolCallState {
-  name: string;
-  round: number;
-  max: number;
-  success?: boolean;
-  error?: string;
-  output?: string;
-}
-
 export function MessageList() {
-  const messages = useSessionStore((s) => s.messages);
-  const loading = useSessionStore((s) => s.loading);
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const sessionMessages = useSessionStore((s) => s.sessionMessages);
+  const messages = sessionMessages[activeSessionId || ''] || [];
+  const sessionLoading = useSessionStore((s) => s.sessionLoading);
+  const sessionToolCalls = useSessionStore((s) => s.sessionToolCalls);
+  const sessionThinking = useSessionStore((s) => s.sessionThinking);
   const endRef = useRef<HTMLDivElement>(null);
-  const [toolCalls, setToolCalls] = useState<ToolCallState[]>([]);
+
+  const toolCalls = activeSessionId ? (sessionToolCalls[activeSessionId] || []) : [];
+  const isThinking = activeSessionId ? (sessionThinking[activeSessionId] || false) : false;
+  const isActiveProcessing = activeSessionId ? (sessionLoading[activeSessionId] || false) : false;
+  const showProcessing = isActiveProcessing || isThinking || toolCalls.length > 0;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading, toolCalls]);
+  }, [messages, toolCalls]);
 
   useEffect(() => {
-    if (!loading) setToolCalls([]);
-  }, [loading]);
+    const total = messages.length;
+    const userMsgs = messages.filter((m) => m.role === 'user').map((m) => JSON.stringify(m.content.slice(0, 30)));
+    const userCount = messages.filter((m) => m.role === 'user').length;
+    if (total > 0) {
+      console.log('[MessageList] RENDER session=%s total=%d user=%d user_previews=%s', activeSessionId, total, userCount, JSON.stringify(userMsgs));
+    }
+    // Debug: log all session keys and their message counts every 5 renders
+    const allKeys = Object.keys(sessionMessages);
+    if (allKeys.length > 0 && total > 0) {
+      const keyStats = allKeys.map(k => `${k.slice(0,8)}:${sessionMessages[k]?.length ?? 0}`).join(', ');
+      console.log('[MessageList] sessionMessages keys: [%s] active=%s', keyStats, activeSessionId);
+    }
+  }, [messages, activeSessionId, sessionMessages]);
 
-  if (messages.length === 0 && !loading) {
+  if (messages.length === 0 && !showProcessing) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
@@ -43,13 +53,13 @@ export function MessageList() {
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-      {messages.map((msg, i) => (
-        <Message key={i} message={msg} />
+      {messages.filter((msg) => msg.role !== 'system' && msg.role !== 'tool' && (msg.role !== 'assistant' || (msg.content && msg.content.trim()))).map((msg, idx) => (
+        <Message key={msg.id || (msg.content ? msg.content.slice(0, 20) : `msg_${Math.random()}`)} message={msg} index={idx} />
       ))}
-      {toolCalls.map((tc, i) => (
-        <ToolCallDisplay key={i} {...tc} />
+      {showProcessing && toolCalls.map((tc, i) => (
+        <ToolCallDisplay key={`tc-${tc.name}-${i}`} {...tc} />
       ))}
-      {loading && toolCalls.length === 0 && <ThinkingIndicator />}
+      {showProcessing && toolCalls.length === 0 && <ThinkingIndicator />}
       <div ref={endRef} />
     </div>
   );

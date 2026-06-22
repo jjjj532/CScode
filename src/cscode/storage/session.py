@@ -72,8 +72,12 @@ class SessionStore:
         await self._db.conn.commit()
 
     async def save_messages(self, session_id: str, messages: List[Message]) -> None:
+        # Delete existing messages first to avoid duplication
+        await self._db.conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
         now = datetime.now(timezone.utc).isoformat()
         for msg in messages:
+            if msg.role == MessageRole.ASSISTANT and not msg.content:
+                continue
             await self._db.conn.execute(
                 """INSERT INTO messages
                    (session_id, role, content, tool_calls, tool_call_id, name, created_at)
@@ -109,11 +113,15 @@ class SessionStore:
                         for tc in tool_calls_data:
                             if "function" in tc:
                                 func = dict(tc["function"])
-                                if "arguments" in func and isinstance(func["arguments"], str):
-                                    try:
-                                        func["arguments"] = json.loads(func["arguments"])
-                                    except json.JSONDecodeError:
-                                        func["arguments"] = {"_raw": func["arguments"]}
+                                if "arguments" in func:
+                                    args = func["arguments"]
+                                    if isinstance(args, str):
+                                        try:
+                                            func["arguments"] = json.loads(args)
+                                        except json.JSONDecodeError:
+                                            func["arguments"] = {"_raw": args}
+                                    elif isinstance(args, dict):
+                                        pass
                                 tc = dict(tc)
                                 tc["function"] = func
                             normalized.append(tc)

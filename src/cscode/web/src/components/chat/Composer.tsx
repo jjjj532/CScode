@@ -1,66 +1,148 @@
 import { useState, useRef, useCallback } from 'react';
-import { Paperclip, Send, Square, X } from 'lucide-react';
+import { Paperclip, Send, Square, X, FileCode, FileImage, FileText } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useSessionStore } from '../../stores/useSessionStore';
-import { useUIStore } from '../../stores/useUIStore';
 import { useConfigStore } from '../../stores/useConfigStore';
+import { AutocompletePopup } from '../ui/AutocompletePopup';
+
+// Per-session sending guard — prevents the component-level useRef from
+// blocking sends to a different session while another session's stream runs.
+const sendingSessions: Record<string, boolean> = {};
 
 export function Composer() {
   const [input, setInput] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { sendMessage, stop } = useChat();
-  const loading = useSessionStore((s) => s.loading);
+  const sessionLoading = useSessionStore((s) => s.sessionLoading);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const appendMessage = useSessionStore((s) => s.appendMessage);
-  const setActiveSession = useSessionStore((s) => s.setActiveSession);
-  const attachedFiles = useUIStore((s) => s.attachedFiles);
-  const removeAttachedFile = useUIStore((s) => s.removeAttachedFile);
+  const sessionAttachments = useSessionStore((s) => s.sessionAttachments);
+  const addSessionAttachment = useSessionStore((s) => s.addSessionAttachment);
+  const removeSessionAttachment = useSessionStore((s) => s.removeSessionAttachment);
+  const clearSessionAttachments = useSessionStore((s) => s.clearSessionAttachments);
+  const attachedFiles = activeSessionId ? (sessionAttachments[activeSessionId] || []) : [];
   const config = useConfigStore((s) => s.config);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (name: string) => {
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return FileImage;
+    if (['py', 'js', 'ts', 'tsx', 'jsx', 'java', 'c', 'cpp', 'go', 'rs'].includes(ext || '')) return FileCode;
+    return FileText;
+  };
+
+  const extractMentionQuery = useCallback((value: string, cursorPos: number): string | null => {
+    const beforeCursor = value.slice(0, cursorPos);
+    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    if (lastAtIndex === -1) return null;
+    const afterAt = beforeCursor.slice(lastAtIndex + 1);
+    if (afterAt.includes(' ')) return null;
+    return afterAt;
+  }, []);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInput(value);
+    const cursorPos = e.target.selectionStart ?? value.length;
+    setMentionQuery(extractMentionQuery(value, cursorPos));
+  }, [extractMentionQuery]);
+
+  const handleMentionSelect = useCallback((suggestion: { type: string; label: string }) => {
+    const pos = textareaRef.current?.selectionStart ?? input.length;
+    const beforeCursor = input.slice(0, pos);
+    const lastAtIndex = beforeCursor.lastIndexOf('@');
+    if (lastAtIndex === -1) return;
+    const before = input.slice(0, lastAtIndex);
+    const after = input.slice(pos);
+    const replacement = `@${suggestion.label} `;
+    setInput(before + replacement + after);
+    setMentionQuery(null);
+    setTimeout(() => {
+      const newPos = (before + replacement).length;
+      textareaRef.current?.setSelectionRange(newPos, newPos);
+      textareaRef.current?.focus();
+    }, 0);
+  }, [input]);
+
+  const handleCloseMention = useCallback(() => {
+    setMentionQuery(null);
+  }, []);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    const sid = activeSessionId;
+    const isSessionLoading = sid ? (sessionLoading[sid] || false) : false;
+    if ((!text && attachedFiles.length === 0) || isSessionLoading) return;
+
+    if (!sid) return;
+
+    // Per-session guard: don't allow concurrent sends to the same session
+    if (sendingSessions[sid]) {
+      console.log('[Composer] handleSend SKIPPED: session=%s already sending', sid);
+      return;
+    }
+    sendingSessions[sid] = true;
+
+    const filesToSend = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
 
     setInput('');
-    appendMessage({ role: 'user', content: text });
+    setMentionQuery(null);
 
     try {
-      const newSessionId = await sendMessage(text, activeSessionId || undefined);
-      if (!activeSessionId && newSessionId) {
-        setActiveSession(newSessionId);
-      }
+      await sendMessage(text, sid, filesToSend);
+      if (filesToSend) clearSessionAttachments(sid);
     } catch (err) {
       console.error('Chat error:', err);
-      appendMessage({
-        role: 'assistant',
-        content: `Error: ${err instanceof Error ? err.message : 'Request failed'}`,
-      });
+    } finally {
+      sendingSessions[sid] = false;
     }
-  }, [input, loading, activeSessionId, appendMessage, sendMessage, setActiveSession]);
+  }, [input, sessionLoading, activeSessionId, attachedFiles, sendMessage, clearSessionAttachments]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionQuery) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (input.trim() || attachedFiles.length > 0) handleSend();
     }
   };
 
   const handleAttachFile = async () => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
+      const { readFile } = await import('@tauri-apps/plugin-fs');
       const selected = await open({ multiple: true, title: 'Select files' });
       if (!selected) return;
-      for (const path of Array.isArray(selected) ? selected : [selected]) {
-        const file = new File([path], typeof path === 'string' ? path.split('/').pop() || path : 'file', { type: 'application/octet-stream' });
-        useUIStore.getState().addAttachedFile(file);
+      const paths: string[] = Array.isArray(selected) ? selected : [selected];
+      if (!activeSessionId) return;
+      for (const pathStr of paths) {
+        const bytes = await readFile(pathStr);
+        const name = pathStr.split('/').pop() || 'file';
+        const file = new File([bytes], name);
+        useSessionStore.getState().addSessionAttachment(activeSessionId, file);
       }
-    } catch {
+    } catch (err) {
+      if (!activeSessionId) return;
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.multiple = true;
       fileInput.onchange = () => {
         if (fileInput.files) {
-          Array.from(fileInput.files).forEach((f) => useUIStore.getState().addAttachedFile(f));
+          Array.from(fileInput.files).forEach((f) => useSessionStore.getState().addSessionAttachment(activeSessionId!, f));
         }
       };
       fileInput.click();
@@ -71,41 +153,54 @@ export function Composer() {
     <div className="border-t border-v2-border bg-v2-bg-base p-3">
       {attachedFiles.length > 0 && (
         <div className="flex gap-2 mb-2 flex-wrap">
-          {attachedFiles.map((file, i) => (
-            <span
-              key={i}
-              className="flex items-center gap-1 bg-v2-bg-surface text-xs text-v2-text-secondary px-2 py-1 rounded-md"
-            >
-              <Paperclip size={12} />
-              {file.name}
-              <button onClick={() => removeAttachedFile(i)} className="text-v2-text-muted hover:text-red-400">
-                <X size={12} />
-              </button>
-            </span>
-          ))}
+          {attachedFiles.map((file, i) => {
+            const Icon = getFileIcon(file.name);
+            return (
+              <span
+                key={i}
+                className="flex items-center gap-1.5 bg-v2-bg-surface text-xs text-v2-text-secondary px-2 py-1 rounded-md"
+              >
+                <Icon size={12} className="text-v2-text-muted" />
+                <span className="font-medium max-w-[120px] truncate" title={file.name}>{file.name}</span>
+                <span className="text-v2-text-muted text-[10px]">{formatFileSize(file.size)}</span>
+                <button onClick={() => activeSessionId && removeSessionAttachment(activeSessionId, i)} className="text-v2-text-muted hover:text-red-400">
+                  <X size={12} />
+                </button>
+              </span>
+            );
+          })}
         </div>
       )}
       <div className="flex items-end gap-2 bg-v2-bg-deep border border-v2-border rounded-v2 px-3 py-2">
         <button onClick={handleAttachFile} className="text-v2-text-muted hover:text-v2-text-secondary transition-colors p-1">
           <Paperclip size={18} />
         </button>
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask anything or @mention a file..."
-          className="flex-1 bg-transparent text-sm text-v2-text-primary placeholder-v2-text-muted outline-none resize-none py-1 max-h-32"
-          rows={1}
-        />
-        {loading ? (
+        <div className="relative flex-1">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask anything or @mention a file..."
+            className="w-full bg-transparent text-sm text-v2-text-primary placeholder-v2-text-muted outline-none resize-none py-1 max-h-32"
+            rows={1}
+          />
+          {mentionQuery !== null && (
+            <AutocompletePopup
+              query={mentionQuery}
+              onSelect={handleMentionSelect}
+              onClose={handleCloseMention}
+            />
+          )}
+        </div>
+        {activeSessionId && sessionLoading[activeSessionId] ? (
           <button onClick={stop} className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors">
             <Square size={16} />
           </button>
         ) : (
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() && attachedFiles.length === 0}
             className="bg-v2-accent text-white p-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Send size={16} />

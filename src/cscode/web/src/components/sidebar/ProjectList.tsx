@@ -6,9 +6,11 @@ interface ProjectListProps {
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string, e: React.MouseEvent) => void;
+  onUpdateSession: (id: string, title: string) => void;
+  onImportSession: (session: Session) => void;
 }
 
-export function ProjectList({ sessions, activeSessionId, onSelectSession, onDeleteSession }: ProjectListProps) {
+export function ProjectList({ sessions, activeSessionId, onSelectSession, onDeleteSession, onUpdateSession, onImportSession }: ProjectListProps) {
   const projects = [
     { name: 'AI-CScode', sessions },
   ];
@@ -22,6 +24,8 @@ export function ProjectList({ sessions, activeSessionId, onSelectSession, onDele
           activeSessionId={activeSessionId}
           onSelectSession={onSelectSession}
           onDeleteSession={onDeleteSession}
+          onUpdateSession={onUpdateSession}
+          onImportSession={onImportSession}
         />
       ))}
       {sessions.length === 0 && (

@@ -6,6 +6,8 @@ __pycache__/
 .pytest_cache/
 *.egg
 dist/
+build/
+*.spec
 
 # Rust
 desktop/src-tauri/target/
@@ -24,12 +26,38 @@ node_modules/
 Thumbs.db
 
 # Build artifacts
-*.spec
 *.dmg
 *.msi
 *.deb
 *.AppImage
 
+# Auto-generated Python bundle (built by CI/local scripts)
+desktop/src-tauri/python/
+
+# Auto-generated web dist in desktop
+desktop/src-tauri/web-dist/
+desktop/dist/
+
 # Git worktrees
 .worktrees/
 worktrees/
+
+# Local config (may contain API keys)
+.cscode/
+.env
+
+# Test artifacts
+.coverage
+test-reports/
+playwright-report/
+test-results/
+e2e-test-output.txt
+
+# Superpowers
+.superpowers/
+
+# Misc
+uv.lock
+todo-app.html
+cscode-desktop.icns
+*.xlsx

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
+from cscode import __version__
 from cscode.cli import cli
 
 
@@ -22,7 +23,7 @@ class TestCLI:
     def test_version(self, runner: CliRunner):
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.2.10" in result.output
+        assert __version__ in result.output
 
     def test_chat_help(self, runner: CliRunner):
         result = runner.invoke(cli, ["chat", "--help"])

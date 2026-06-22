@@ -24,7 +24,7 @@ class OpenAIProvider(LLMProvider):
                 "Authorization": f"Bearer {config.api_key}",
                 "Content-Type": "application/json",
             },
-            timeout=httpx.Timeout(120.0),
+            timeout=httpx.Timeout(600.0),
         )
 
     @property
@@ -33,6 +33,7 @@ class OpenAIProvider(LLMProvider):
 
     def build_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
+        import json
         for msg in messages:
             entry: dict[str, Any] = {"role": msg.role.value}
             if msg.role == MessageRole.TOOL:
@@ -40,7 +41,6 @@ class OpenAIProvider(LLMProvider):
                 entry["tool_call_id"] = msg.tool_call_id
             elif msg.tool_calls:
                 entry["content"] = msg.content or ""
-                # Ensure tool_calls arguments are JSON objects, not strings
                 normalized_tool_calls = []
                 for tc in msg.tool_calls:
                     tc_copy = dict(tc)
@@ -48,13 +48,15 @@ class OpenAIProvider(LLMProvider):
                         func = dict(tc_copy["function"])
                         if "arguments" in func:
                             args = func["arguments"]
-                            # If arguments is a string, parse it as JSON
-                            if isinstance(args, str):
-                                import json
+                            if isinstance(args, dict):
+                                func["arguments"] = json.dumps(args, ensure_ascii=False)
+                            elif isinstance(args, str):
                                 try:
-                                    func["arguments"] = json.loads(args)
+                                    json.loads(args)
                                 except json.JSONDecodeError:
-                                    func["arguments"] = {"_raw": args}
+                                    func["arguments"] = json.dumps({"_error": "invalid JSON in arguments", "_raw": args}, ensure_ascii=False)
+                            else:
+                                func["arguments"] = json.dumps(str(args), ensure_ascii=False)
                         tc_copy["function"] = func
                     normalized_tool_calls.append(tc_copy)
                 entry["tool_calls"] = normalized_tool_calls
@@ -97,21 +99,15 @@ class OpenAIProvider(LLMProvider):
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
         payload = self._build_payload(messages, tools, stream=False)
-        print(f"DEBUG: Sending request to {self._api_base}/chat/completions with model {self._model}")
-        print(f"DEBUG: Payload: {payload}")
         try:
             response = await self._client.post("/chat/completions", json=payload)
-            print(f"DEBUG: Response status: {response.status_code}")
-            print(f"DEBUG: Response body: {response.text[:500]}")
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as e:
-            print(f"DEBUG HTTPStatusError: {e.response.status_code} {e.response.text}")
             raise ProviderError(
                 f"OpenAI API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
-            print(f"DEBUG RequestError: {e}")
             raise ProviderError(f"Request failed: {e}") from e
 
         choice = data["choices"][0]

@@ -18,7 +18,7 @@ class OllamaProvider(LLMProvider):
         self._model = config.model
         self._client = httpx.AsyncClient(
             base_url=self._api_base,
-            timeout=httpx.Timeout(300.0),
+            timeout=httpx.Timeout(600.0),
         )
 
     @property

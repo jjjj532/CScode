@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 import respx
 
@@ -50,10 +52,13 @@ class TestOpenAIProvider:
         assert provider.model == "gpt-4o-mini"
         assert "test-key" in provider._client.headers["Authorization"]
 
-    def test_build_messages(self, provider: OpenAIProvider):
+    def test_build_messages_roundtrip_dict_arguments(self, provider: OpenAIProvider):
+        """
+        模拟 get_messages 后的数据（arguments 被 normalize 成了 dict）。
+        build_messages 必须把 dict arguments 还原为 JSON string，否则 API 会报 400。
+        """
         msgs = provider.build_messages([
-            Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
-            Message(role=MessageRole.USER, content="Hello!"),
+            Message(role=MessageRole.USER, content="Read the file"),
             Message(
                 role=MessageRole.ASSISTANT,
                 content="",
@@ -62,28 +67,61 @@ class TestOpenAIProvider:
                         "id": "call_1",
                         "type": "function",
                         "function": {
-                            "name": "read_file",
-                            "arguments": '{"path": "test.txt"}',
+                            "name": "read",
+                            # 模拟 get_messages 后的 dict 格式
+                            "arguments": {"filepath": "test.py"},
                         },
                     }
                 ],
             ),
-            Message(
-                role=MessageRole.TOOL,
-                content="File content",
-                tool_call_id="call_1",
-                name="read_file",
+        ])
+        assert len(msgs) == 2
+        assert msgs[1]["role"] == "assistant"
+        tc = msgs[1]["tool_calls"][0]
+        assert tc["function"]["name"] == "read"
+        # arguments 必须是 JSON string，不能是 dict
+        args = tc["function"]["arguments"]
+        assert isinstance(args, str), f"Expected string, got {type(args)}: {args}"
+        import json
+        parsed = json.loads(args)
+        assert parsed == {"filepath": "test.py"}
+
+    def test_build_messages_handles_string_arguments(self, provider: OpenAIProvider):
+        """String arguments (从 API 直接返回) 保持不变"""
+        msgs = provider.build_messages([
+            Message(role=MessageRole.ASSISTANT, content="",
+                tool_calls=[{
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "read",
+                        "arguments": '{"filepath": "test.py"}',
+                    },
+                }]
             ),
         ])
-        assert len(msgs) == 4
-        assert msgs[0]["role"] == "system"
-        assert msgs[1]["role"] == "user"
-        assert msgs[1]["content"] == "Hello!"
-        assert msgs[2]["role"] == "assistant"
-        assert msgs[2]["tool_calls"][0]["id"] == "call_1"
-        assert msgs[3]["role"] == "tool"
-        assert msgs[3]["tool_call_id"] == "call_1"
-        assert msgs[3]["content"] == "File content"
+        tc = msgs[0]["tool_calls"][0]
+        assert tc["function"]["arguments"] == '{"filepath": "test.py"}'
+
+    def test_build_messages_handles_malformed_string(self, provider: OpenAIProvider):
+        """Malformed string arguments 被包装为错误对象"""
+        msgs = provider.build_messages([
+            Message(role=MessageRole.ASSISTANT, content="",
+                tool_calls=[{
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "read",
+                        "arguments": "{not-json}",
+                    },
+                }]
+            ),
+        ])
+        tc = msgs[0]["tool_calls"][0]
+        args = tc["function"]["arguments"]
+        assert isinstance(args, str)
+        parsed = json.loads(args)
+        assert "_error" in parsed
 
     @pytest.mark.asyncio
     async def test_complete(self, provider: OpenAIProvider):

@@ -164,6 +164,15 @@ def review() -> None:
 
 
 @cli.command()
+def tui() -> None:
+    """Start the terminal UI."""
+    from cscode.tui.app import CScodeTUI
+
+    app = CScodeTUI()
+    app.run()
+
+
+@cli.command()
 @click.argument("key", required=False)
 @click.argument("value", required=False)
 def config(key: str | None, value: str | None) -> None:

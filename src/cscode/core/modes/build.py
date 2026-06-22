@@ -21,7 +21,6 @@ def create_build_agent(provider: LLMProvider, registry: ToolRegistry) -> Agent:
         provider=provider,
         registry=registry,
         options=AgentOptions(
-            max_tool_rounds=25,
             system_prompt=BUILD_SYSTEM_PROMPT,
             timeout=600.0,
         ),

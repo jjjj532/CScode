@@ -26,8 +26,11 @@ export const api = {
 
   sessions: {
     list: () => request<Session[]>('/api/sessions'),
-    create: () => request<Session>('/api/sessions', { method: 'POST' }),
+    create: () => request<Session>('/api/sessions', { method: 'POST', body: '{}' }),
     delete: (id: string) => request<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
+    update: (id: string, data: { title: string }) => request<void>(`/api/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    export: (id: string) => request<Record<string, unknown>>(`/api/sessions/${id}/export`),
+    import: (data: Record<string, unknown>) => request<Session>('/api/sessions/import', { method: 'POST', body: JSON.stringify(data) }),
     messages: (id: string) => request<Message[]>(`/api/sessions/${id}/messages`),
   },
 
@@ -41,11 +44,6 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-    },
-    stream: (message: string, sessionId?: string) => {
-      const params = new URLSearchParams({ message });
-      if (sessionId) params.set('session_id', sessionId);
-      return fetch(`/api/chat/stream?${params}`, { method: 'POST' });
     },
   },
 

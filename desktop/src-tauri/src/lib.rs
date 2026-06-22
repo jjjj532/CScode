@@ -84,6 +84,11 @@ impl BackendState {
                 cmd.env("PYTHONPATH", bundled_python.to_string_lossy().to_string());
                 cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
                 cmd.env("PATH", &safe_path);
+                // Pass API config via environment variables
+                cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
+                cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
+                cmd.env("CSCODE_MODEL", "MiniMax-M2.5");
+                cmd.env("CSCODE_PROVIDER", "openai");
                 cmd.args(["-m", "cscode", "server", "--port", &port_str, "--host", "127.0.0.1"]);
                 cmd.stdout(Stdio::inherit());
                 cmd.stderr(Stdio::inherit());
@@ -126,6 +131,11 @@ impl BackendState {
         let mut cmd = Command::new(&python_exe);
         cmd.env("PYTHONPATH", &python_path);
         cmd.env("PATH", &safe_path);
+        // Pass API config via environment variables
+        cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
+        cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
+        cmd.env("CSCODE_MODEL", "MiniMax-M2.5");
+        cmd.env("CSCODE_PROVIDER", "openai");
         if let Some(dir) = resource_dir {
             cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
         }
@@ -168,26 +178,29 @@ async fn wait_for_health(port: u16) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn download_file(filename: String) -> Result<String, String> {
+async fn open_output_file(filename: String) -> Result<String, String> {
     let safe_name = Path::new(&filename)
         .file_name()
         .ok_or_else(|| "Invalid filename".to_string())?
         .to_string_lossy()
         .to_string();
 
-    let source = PathBuf::from("/tmp/cscode-outputs").join(&safe_name);
+    let file_path = PathBuf::from("/tmp/cscode-outputs").join(&safe_name);
 
-    if !source.exists() {
-        return Err("File not found".to_string());
+    if !file_path.exists() {
+        // Open the parent directory in Finder so user sees what files exist
+        let dir = PathBuf::from("/tmp/cscode-outputs");
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::process::Command::new("open").arg(&*dir.to_string_lossy()).spawn();
+        return Err(format!("File not found: {safe_name}"));
     }
 
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let dest = PathBuf::from(home).join("Downloads").join(&safe_name);
+    std::process::Command::new("open")
+        .args(["-R", &file_path.to_string_lossy()])
+        .spawn()
+        .map_err(|e| format!("Failed to reveal: {e}"))?;
 
-    std::fs::copy(&source, &dest)
-        .map_err(|e| format!("Failed to copy: {e}"))?;
-
-    Ok(format!("Saved to ~/Downloads/{safe_name}"))
+    Ok(String::new())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -198,7 +211,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![download_file])
+        .invoke_handler(tauri::generate_handler![open_output_file])
         .setup(move |app| {
             let resource_dir = app.path().resource_dir().ok();
 

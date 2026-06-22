@@ -1,6 +1,6 @@
 {
   "productName": "CScode",
-  "version": "0.2.10",
+  "version": "0.2.16",
   "identifier": "com.cscode.app",
   "build": {
     "frontendDist": "../dist",
@@ -9,6 +9,7 @@
     "beforeBuildCommand": ""
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",

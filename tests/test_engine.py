@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -153,3 +153,81 @@ class TestEngine:
         agent.options.max_tool_rounds = 3
         response = await agent.run("Loop")
         assert isinstance(response, str)
+
+
+class TestRunLoopEvents:
+    @pytest.mark.asyncio
+    async def test_run_loop_events_emits_correct_events(self):
+        """Verify run_loop_events emits step.started, text.ended, and step.ended for direct response."""
+        from cscode.core.engine import Agent, AgentOptions
+        from cscode.core.messages import Message, MessageRole
+
+        class MockProvider:
+            async def complete(self, messages, tools=None):
+                return LLMResult(content="Hello!", tool_calls=None)
+
+        config = Config(api_key="test", model="test-model")
+        registry = MagicMock()
+        registry.to_llm_tools.return_value = []
+
+        agent = Agent(config=config, provider=MockProvider(), registry=registry, options=AgentOptions(max_tool_rounds=5))
+
+        events = []
+        async def on_event(e):
+            events.append(e)
+
+        messages = [Message(role=MessageRole.USER, content="hi")]
+        result = await agent.run_loop_events(messages, on_event=on_event)
+
+        assert result == "Hello!"
+        event_types = [e["type"] for e in events]
+        assert "step.started" in event_types
+        assert "text.ended" in event_types
+        assert events[-1]["type"] == "step.ended"
+
+    @pytest.mark.asyncio
+    async def test_run_loop_events_tool_call_flow(self):
+        """Verify run_loop_events emits tool.called, tool.success, and step.ended with tool_use."""
+        from cscode.core.engine import Agent, AgentOptions
+        from cscode.core.messages import Message, MessageRole
+
+        call_count = 0
+
+        class MockProvider:
+            async def complete(self, messages, tools=None):
+                nonlocal call_count
+                if call_count == 0:
+                    call_count += 1
+                    return LLMResult(
+                        content="",
+                        tool_calls=[{
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "echo", "arguments": '{"text": "hi"}'},
+                        }],
+                    )
+                return LLMResult(content="Done", tool_calls=None)
+
+        config = Config(api_key="test", model="test-model")
+        registry = MagicMock()
+        registry.to_llm_tools.return_value = []
+        registry.execute_tool_call = AsyncMock()
+        registry.execute_tool_call.return_value = ToolResult(success=True, data="echoed: hi")
+
+        agent = Agent(config=config, provider=MockProvider(), registry=registry, options=AgentOptions(max_tool_rounds=5))
+
+        events = []
+        async def on_event(e):
+            events.append(e)
+
+        messages = [Message(role=MessageRole.USER, content="echo hi")]
+        result = await agent.run_loop_events(messages, on_event=on_event)
+
+        assert result == "Done"
+        event_types = [e["type"] for e in events]
+        assert "tool.called" in event_types
+        assert "tool.success" in event_types
+        assert "tool.failed" not in event_types
+        assert events[-1]["type"] == "step.ended"
+        tool_use_ended = [e for e in events if e["type"] == "step.ended" and e["data"]["finish_reason"] == "tool_use"]
+        assert len(tool_use_ended) == 1

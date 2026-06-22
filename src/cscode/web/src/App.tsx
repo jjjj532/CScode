@@ -3,6 +3,9 @@ import { Titlebar } from './components/layout/Titlebar';
 import { Sidebar } from './components/layout/Sidebar';
 import { MainContent } from './components/layout/MainContent';
 import { SettingsPanel } from './components/ui/SettingsPanel';
+import { ToastContainer } from './components/ui/ToastContainer';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { CommandPalette } from './components/ui/CommandPalette';
 import { useUIStore } from './stores/useUIStore';
 import { useConfigStore } from './stores/useConfigStore';
 import { useSessionStore } from './stores/useSessionStore';
@@ -31,14 +34,18 @@ function App() {
   }, [setSessions]);
 
   return (
-    <div className="h-full flex flex-col bg-v2-bg-deep text-v2-text-primary">
-      <Titlebar />
-      <div className="flex-1 flex min-h-0">
-        <Sidebar />
-        <MainContent />
+    <ErrorBoundary>
+      <CommandPalette />
+      <div className="h-full flex flex-col bg-v2-bg-deep text-v2-text-primary">
+        <Titlebar />
+        <div className="flex-1 flex min-h-0">
+          <Sidebar />
+          <MainContent />
+        </div>
+        {settingsOpen && <SettingsPanel />}
+        <ToastContainer />
       </div>
-      {settingsOpen && <SettingsPanel />}
-    </div>
+    </ErrorBoundary>
   );
 }
 

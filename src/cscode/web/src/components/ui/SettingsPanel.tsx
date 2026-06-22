@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useConfigStore, type Config } from '../../stores/useConfigStore';
+import { useToastStore } from '../../stores/useToastStore';
 import { themes } from '../../themes';
+import { api } from '../../lib/api';
 
 const PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
@@ -26,6 +28,7 @@ export function SettingsPanel() {
 
   const config = useConfigStore((s) => s.config);
   const setConfig = useConfigStore((s) => s.setConfig);
+  const addToast = useToastStore((s) => s.addToast);
 
   const [form, setForm] = useState<Config>({
     provider: 'openai',
@@ -39,26 +42,44 @@ export function SettingsPanel() {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [customProviderName, setCustomProviderName] = useState('');
 
   useEffect(() => {
-    if (config) setForm(config);
+    if (config) {
+      // Only update if config is different from current form
+      const configJson = JSON.stringify(config);
+      const formJson = JSON.stringify(form);
+      if (configJson !== formJson) {
+        setForm(config);
+        if (config.provider && !['openai', 'anthropic', 'gemini', 'ollama', 'custom'].includes(config.provider)) {
+          setCustomProviderName(config.provider);
+          setForm((prev) => ({ ...prev, provider: 'custom' }));
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
+
+  const resolvedProvider = form.provider === 'custom' ? (customProviderName || 'custom') : form.provider;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [setSettingsOpen]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      if (res.ok) {
-        setConfig(form);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
+      const payload = { ...form, provider: resolvedProvider };
+      await api.config.save(payload);
+      setConfig(payload);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      console.error('Failed to save config', e);
+      addToast('Failed to save settings', 'error');
     } finally {
       setSaving(false);
     }
@@ -97,9 +118,10 @@ export function SettingsPanel() {
               <label className="block text-xs font-medium text-v2-text-secondary mb-1">Custom Provider Name</label>
               <input
                 type="text"
-                value={form.provider}
-                onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
+                value={customProviderName}
+                onChange={(e) => setCustomProviderName(e.target.value)}
+                placeholder="e.g. my-provider"
+                className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary placeholder-v2-text-muted"
               />
             </div>
           )}
@@ -107,17 +129,23 @@ export function SettingsPanel() {
           {/* Model */}
           <div>
             <label className="block text-xs font-medium text-v2-text-secondary mb-1">Model</label>
-            <select
-              value={form.model}
-              onChange={(e) => setForm({ ...form, model: e.target.value })}
-              className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
-            >
-              {form.provider === 'custom' ? (
-                <option value={form.model}>{form.model || 'Enter model name'}</option>
-              ) : (
-                models.map((m) => <option key={m} value={m}>{m}</option>)
-              )}
-            </select>
+            {form.provider === 'custom' ? (
+              <input
+                type="text"
+                value={form.model}
+                onChange={(e) => setForm({ ...form, model: e.target.value })}
+                placeholder="Enter model name"
+                className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary placeholder-v2-text-muted"
+              />
+            ) : (
+              <select
+                value={form.model}
+                onChange={(e) => setForm({ ...form, model: e.target.value })}
+                className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
+              >
+                {models.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
           </div>
 
           {/* API Base URL */}

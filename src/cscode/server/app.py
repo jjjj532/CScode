@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,20 +23,33 @@ from cscode.core.messages import Message, MessageRole
 from cscode.providers import create_provider
 from cscode.storage.db import Database
 from cscode.storage.session import SessionStore
+from cscode.storage.event_store import EventStore
+from cscode.server.compactor import Compactor
+from cscode.server.coordinator import SessionCoordinator
+from cscode.server.projector import Projector
 from cscode.tools.base import ToolRegistry
+from cscode.tools.apply_patch import ApplyPatchTool
 from cscode.tools.bash import BashTool
 from cscode.tools.browser import BrowserTool
 from cscode.tools.edit import EditTool
 from cscode.tools.glob import GlobTool
 from cscode.tools.grep import GrepTool
 from cscode.tools.ls import LsTool
+from cscode.tools.question import QuestionTool
 from cscode.tools.read import ReadTool
+from cscode.tools.skill import SkillTool
+from cscode.tools.todowrite import TodoWriteTool
+from cscode.tools.webfetch import WebFetchTool
+from cscode.tools.websearch import WebSearchTool
 from cscode.tools.write import WriteTool
 
 api_router = APIRouter(prefix="/api")
 
 # Output directory for user-facing generated files
 OUTPUTS_DIR = Path("/tmp/cscode-outputs")
+
+# Auto-compaction: compact after each agent run if events exceed threshold
+COMPACTION_THRESHOLD = 100  # relevant events (prompt.admitted + text.ended + tool.success + tool.failed)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Find web dist in multiple locations
@@ -43,38 +59,38 @@ def find_web_dist() -> Path:
     resource_dir = os.environ.get("CSCORE_RESOURCE_DIR")
     if resource_dir:
         bundled = Path(resource_dir) / "web-dist"
-        print(f"DEBUG: CSCORE_RESOURCE_DIR={resource_dir}, bundled={bundled}, exists={bundled.exists()}")
+        logger.debug("CSCORE_RESOURCE_DIR={resource_dir}, bundled={bundled}, exists={bundled.exists()}")
         if bundled.exists():
-            print(f"DEBUG: returning bundled web-dist at {bundled}")
+            logger.debug("returning bundled web-dist at %s", bundled)
             return bundled
 
     # 2. Try to find the app bundle by checking the executable path FIRST
     try:
         import sys
         exe_path = Path(sys.executable).resolve()
-        print(f"DEBUG find_web_dist: exe_path={exe_path}")
+        logger.debug("find_web_dist: exe_path=%s", exe_path)
         # Check if we're in a macOS app bundle (Contents/MacOS/)
         if exe_path.parent.name == "MacOS" and exe_path.parent.parent.name == "Contents":
             resources = exe_path.parent.parent / "Resources" / "web-dist"
-            print(f"DEBUG: checking resources={resources}, exists={resources.exists()}")
+            logger.debug("checking resources={resources}, exists={resources.exists()}")
             if resources.exists():
-                print(f"DEBUG: returning resources={resources}")
+                logger.debug("returning resources={resources}")
                 return resources
     except Exception as e:
-        print(f"DEBUG: exe_path check failed: {e}")
+        logger.debug("exe_path check failed: {e}")
 
     # 3. Try to find the app bundle by checking the current working directory
     try:
         cwd = Path.cwd()
-        print(f"DEBUG: cwd={cwd}")
+        logger.debug("cwd={cwd}")
         # Check if we're in a macOS app bundle (Contents/MacOS/)
         if cwd.name == "MacOS" and cwd.parent.name == "Contents":
             resources = cwd.parent / "Resources" / "web-dist"
-            print(f"DEBUG: checking cwd resources={resources}, exists={resources.exists()}")
+            logger.debug("checking cwd resources={resources}, exists={resources.exists()}")
             if resources.exists():
                 return resources
     except Exception as e:
-        print(f"DEBUG: cwd check failed: {e}")
+        logger.debug("cwd check failed: {e}")
 
     # 4. Bundled location (PyInstaller)
     if hasattr(__import__('sys'), 'frozen'):
@@ -87,19 +103,19 @@ def find_web_dist() -> Path:
     try:
         import sys
         exe_path = Path(sys.executable).resolve()
-        print(f"DEBUG: checking parents of exe_path={exe_path}")
+        logger.debug("checking parents of exe_path={exe_path}")
         for parent in exe_path.parents:
             if parent.name == "Contents":
                 resources = parent / "Resources" / "web-dist"
-                print(f"DEBUG: checking parent resources={resources}, exists={resources.exists()}")
+                logger.debug("checking parent resources={resources}, exists={resources.exists()}")
                 if resources.exists():
                     return resources
     except Exception as e:
-        print(f"DEBUG: parent check failed: {e}")
+        logger.debug("parent check failed: {e}")
 
     # 6. Development location
     dev_path = Path(__file__).resolve().parent.parent / "web" / "dist"
-    print(f"DEBUG: dev_path={dev_path}, exists={dev_path.exists()}")
+    logger.debug("dev_path={dev_path}, exists={dev_path.exists()}")
     if dev_path.exists():
         return dev_path
 
@@ -116,7 +132,7 @@ WEB_DIST = find_web_dist()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _session_store, _agent
+    global _db, _session_store, _agent, _event_store, _coordinator, _projector, _compactor
 
     resource_dir = os.environ.get("CSCORE_RESOURCE_DIR", "")
     if resource_dir:
@@ -124,11 +140,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if os.path.isdir(python_dir):
             existing = os.environ.get("PYTHONPATH", "")
             os.environ["PYTHONPATH"] = f"{python_dir}{os.pathsep}{existing}" if existing else python_dir
-            print(f"DEBUG: Set PYTHONPATH for subprocesses: {python_dir}")
+            logger.debug("Set PYTHONPATH for subprocesses: {python_dir}")
 
-    _db = Database()
+    db_path = os.environ.get("CSCODE_DB_PATH")
+    _db = Database(db_path=db_path)
     await _db.init()
     _session_store = SessionStore(_db)
+    _event_store = EventStore(_db)
+    _coordinator = SessionCoordinator()
+    _projector = Projector(_db)
+    _compactor = Compactor(_db, _event_store, _projector)
 
     os.makedirs("/tmp/cscode-outputs", exist_ok=True)
     template_path = "/tmp/cscode-outputs/xlsx_template.py"
@@ -148,12 +169,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     registry.register(GlobTool())
     registry.register(LsTool())
     registry.register(BrowserTool())
+    registry.register(TodoWriteTool())
+    registry.register(SkillTool())
+    registry.register(QuestionTool())
+    registry.register(WebFetchTool())
+    registry.register(WebSearchTool())
+    registry.register(ApplyPatchTool())
     _agent = Agent(
         config=config,
         provider=provider,
         registry=registry,
         options=AgentOptions(
-            max_tool_rounds=15,
             timeout=600.0,
             system_prompt="""You are CScode, an AI-powered coding assistant.
 
@@ -173,8 +199,8 @@ TC002,登录失败,P0,用户未登录,1.打开APP 2.输入错误密码,提示密
   This is faster than writing openpyxl code from scratch. The xlsx_template.py auto-formats with headers, filter, and freeze panes.
 
 Save ALL user-facing generated files to /tmp/cscode-outputs/. When a file is ready, output exactly ONE download link like this:
-**下载链接：** /outputs/filename.ext
-Do NOT output Markdown link syntax like [text](/outputs/...). Do NOT output a second "路径" line.
+**下载链接：** [filename.ext](/outputs/filename.ext)
+Do NOT output a second "路径" line.
 
 BROWSER AUTOMATION - When you need to interact with a real website:
 1. Use browser.open to open a URL: browser action=open url=https://example.com
@@ -211,7 +237,7 @@ IMPORTANT: You have a browser automation tool! Use it to interact with REAL webs
         await _db.close()
 
 
-app = FastAPI(title="CScode API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="CScode API", version="0.2.16", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -224,6 +250,11 @@ app.add_middleware(
 _db: Database | None = None
 _session_store: SessionStore | None = None
 _agent: Agent | None = None
+_event_store: EventStore | None = None
+_coordinator: SessionCoordinator | None = None
+_projector: Projector | None = None
+_compactor: Compactor | None = None
+_active_agent_tasks: dict[str, asyncio.Task] = {}
 
 
 class ChatResponse(BaseModel):
@@ -275,6 +306,15 @@ async def chat(request: Request) -> ChatResponse:
         body = await request.json()
         message = body.get("message", "")
         session_id = body.get("session_id", None)
+        files_data = body.get("files", [])
+        for f in files_data:
+            if isinstance(f, dict):
+                import base64
+                try:
+                    file_bytes = base64.b64decode(f.get("content", ""))
+                except Exception:
+                    file_bytes = f.get("content", "").encode("utf-8")
+                files.append((f.get("name", "file"), file_bytes))
 
     return await _handle_chat(message, session_id, files)
 
@@ -305,10 +345,19 @@ async def chat_stream(request: Request) -> StreamingResponse:
         body = await request.json()
         message = body.get("message", "")
         session_id = body.get("session_id", None)
+        files_data = body.get("files", [])
+        for f in files_data:
+            if isinstance(f, dict):
+                import base64
+                try:
+                    file_bytes = base64.b64decode(f.get("content", ""))
+                except Exception:
+                    file_bytes = f.get("content", "").encode("utf-8")
+                files.append((f.get("name", "file"), file_bytes))
 
     async def event_stream() -> AsyncGenerator[str, None]:
         nonlocal session_id
-        global _agent, _session_store, _db
+        global _agent, _session_store, _db, _event_store, _coordinator, _projector, _compactor
         if _agent is None or _session_store is None:
             yield f"data: {json.dumps({'type': 'error', 'content': 'Server not initialized'})}\n\n"
             return
@@ -319,9 +368,11 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 store = ConfigStore(_db)
                 saved_config = await store.get()
                 if saved_config:
-                    from cscode.core.config import Config
+                    from cscode.core.config import Config, load_config
                     from cscode.providers import create_provider
-                    config = Config.from_dict(saved_config)
+                    db_config = Config.from_dict(saved_config)
+                    base_config = load_config()
+                    config = base_config.merge(db_config)
                     provider = create_provider(config)
                     _agent.provider = provider
                     _agent.config = config
@@ -330,13 +381,13 @@ async def chat_stream(request: Request) -> StreamingResponse:
             logging.warning(f"Failed to load config from DB: {e}")
 
         session_id = session_id or str(uuid.uuid4())
-        yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
         try:
-
+            is_new_session = False
             if _session_store is not None:
                 session = await _session_store.get(session_id)
                 if session is None:
+                    is_new_session = True
                     from cscode.core.config import ConfigStore
                     config_data = None
                     if _db is not None:
@@ -352,6 +403,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         model = config_data.get("model", "gpt-4o")
 
                     await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
+                    yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
             existing_messages: list[Message] = []
             if _session_store is not None:
@@ -384,31 +436,81 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 file_context = "\n\n" + header + "\n\n".join(parts)
 
             messages = list(existing_messages)
-            # Limit to recent messages to prevent API errors
-            MAX_MESSAGES = 20
-            if len(messages) > MAX_MESSAGES:
-                messages = messages[-MAX_MESSAGES:]
-            if _agent.options.system_prompt and (not messages or messages[0].role != MessageRole.SYSTEM or _agent.options.system_prompt not in messages[0].content):
+            from cscode.core.compression import ContextCompressor
+            compressor = ContextCompressor(threshold=100_000, keep_recent=20)
+            if compressor.needs_compression(messages):
+                messages = compressor.compress(messages)
+            if _agent.options.system_prompt and (not messages or messages[0].role != MessageRole.SYSTEM):
                 messages.insert(0, Message(role=MessageRole.SYSTEM, content=_agent.options.system_prompt))
             if file_context:
                 messages.append(Message(role=MessageRole.SYSTEM, content=file_context))
             user_text = message.strip() if message else "请分析附件内容"
             messages.append(Message(role=MessageRole.USER, content=user_text))
 
-            # Save user message immediately so frontend session reload finds it
+            # Append prompt.admitted event to EventStore
+            if _event_store is not None:
+                await _event_store.append(session_id, [
+                    {"type": "prompt.admitted", "data": {"content": message, "files": attached_filenames}}
+                ])
+
+            # Save user message immediately (before agent) to prevent data loss on failure
             if _session_store is not None:
                 await _session_store.save_messages(session_id, messages)
 
             queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
             async def on_event(event: dict[str, Any]) -> None:
                 await queue.put(event)
+                # Also persist relevant events to EventStore
+                if _event_store is not None:
+                    evt_type = event.get("type", "")
+                    persist_map = {
+                        "step.started": True,
+                        "text.ended": True,
+                        "step.ended": True,
+                        "tool.called": True,
+                        "tool.success": True,
+                        "tool.failed": True,
+                    }
+                    if evt_type in persist_map:
+                        await _event_store.append(session_id, [
+                            {"type": evt_type, "data": event.get("data", {})}
+                        ])
 
             before = time.time()
             dynamic_timeout = _detect_timeout(message, files, attached_filenames)
-            agent_task = asyncio.create_task(
-                _agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout, on_event=on_event)
-            )
 
+            async def process():
+                await _agent.run_loop_events(
+                    messages,
+                    on_event=on_event,
+                    attached_filenames=attached_filenames if attached_filenames else None,
+                    timeout=dynamic_timeout,
+                )
+
+            # Use Coordinator to prevent concurrent processing of same session
+            # run() not wake(): caller must wait until handler actually executes
+            async def run_with_coordinator():
+                if _coordinator is not None:
+                    await _coordinator.run(session_id, process)
+                else:
+                    await process()
+
+            # Cancel any existing agent task for this session before starting new one
+            old_task = _active_agent_tasks.get(session_id)
+            if old_task and not old_task.done():
+                logger.info("Cancelling previous agent task for session %s", session_id)
+                old_task.cancel()
+                try:
+                    await asyncio.wait_for(old_task, timeout=10.0)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
+                logger.info("Previous agent task cancelled for session %s", session_id)
+
+            agent_task = asyncio.create_task(run_with_coordinator())
+            _active_agent_tasks[session_id] = agent_task
+
+            last_event_time = time.time()
+            last_status_time = time.time()
             while True:
                 if await request.is_disconnected():
                     agent_task.cancel()
@@ -430,19 +532,90 @@ async def chat_stream(request: Request) -> StreamingResponse:
                                 yield f"data: {json.dumps({'type': 'file_created', 'filename': f.name})}\n\n"
                         yield f"data: {json.dumps({'type': 'complete', 'content': response})}\n\n"
                     except Exception as e:
+                        # Save any partial progress before yielding error
+                        if _session_store is not None:
+                            messages.append(Message(
+                                role=MessageRole.ASSISTANT,
+                                content=f"[Task interrupted by error: {e}]"
+                            ))
+                            await _session_store.save_messages(session_id, messages)
                         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                    finally:
+                        # Generate title for new sessions (even on failure)
+                        if _session_store is not None and _agent is not None:
+                            session = await _session_store.get(session_id)
+                            is_new = session is None or (session.title in ("New Session", "New Chat"))
+                            if is_new:
+                                generated_title = None
+                                try:
+                                    if _agent.provider is not None:
+                                        title_msgs = [
+                                            Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
+                                            Message(role=MessageRole.USER, content=message),
+                                        ]
+                                        title_result = await _agent.provider.complete(title_msgs, tools=None)
+                                        generated_title = title_result.content.strip().strip('"\'.,!?')
+                                except Exception:
+                                    pass
+                                if not generated_title:
+                                    generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                                await _session_store.update_title(session_id, generated_title)
+                                yield f"data: {json.dumps({'type': 'session:title', 'title': generated_title})}\n\n"
+                    # Auto-compact if threshold exceeded (fire-and-forget)
+                    asyncio.create_task(_auto_compact(session_id))
                     break
 
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                    last_event_time = time.time()
                     yield f"data: {json.dumps(event)}\n\n"
                 except asyncio.TimeoutError:
+                    now = time.time()
+                    # Send keepalive if no events for 10 seconds
+                    if now - last_event_time > 10:
+                        yield ": keepalive\n\n"
+                        last_event_time = now
+                    # Send status event every 60 seconds so frontend knows agent is alive
+                    if now - last_status_time > 60:
+                        yield f"data: {json.dumps({'type': 'status', 'message': 'Agent is working...'})}\n\n"
+                        last_status_time = now
                     continue
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
+        finally:
+            if _active_agent_tasks.get(session_id) is agent_task:
+                del _active_agent_tasks[session_id]
+            if not agent_task.done():
+                logger.info("Generator exiting, cancelling agent task for session %s", session_id)
+                agent_task.cancel()
+                try:
+                    await asyncio.wait_for(agent_task, timeout=10.0)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
+
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@api_router.get("/events")
+async def event_stream(session_id: str, after_seq: int = 0) -> StreamingResponse:
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    async def stream():
+        try:
+            import asyncio
+            import json
+            async for event in _event_store.subscribe(session_id, after_seq):
+                yield f"event: {event.type}\ndata: {json.dumps(event.data)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 async def _handle_chat(
@@ -457,12 +630,14 @@ async def _handle_chat(
         if _db is not None:
             store = ConfigStore(_db)
             saved_config = await store.get()
-            print(f"DEBUG: Saved config: {saved_config}")
+            logger.debug("Saved config: {saved_config}")
             if saved_config:
-                from cscode.core.config import Config
+                from cscode.core.config import Config, load_config
                 from cscode.providers import create_provider
-                config = Config.from_dict(saved_config)
-                print(f"DEBUG: Loaded model: {config.model}, provider: {config.provider}")
+                db_config = Config.from_dict(saved_config)
+                base_config = load_config()
+                config = base_config.merge(db_config)
+                logger.debug("Loaded model: {config.model}, provider: {config.provider}")
                 provider = create_provider(config)
                 _agent.provider = provider
                 _agent.config = config
@@ -493,15 +668,15 @@ async def _handle_chat(
                     provider_name = config_data.get("provider", "openai")
                     model = config_data.get("model", "gpt-4o")
 
-                print(f"DEBUG: Creating new session {session_id} with provider={provider_name}, model={model}")
+                logger.debug("Creating new session {session_id} with provider={provider_name}, model={model}")
                 await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
-                print("DEBUG: Session created successfully")
+                logger.debug("Session created successfully")
 
         # Load existing messages for this session
         existing_messages: list[Message] = []
         if _session_store is not None:
             existing_messages = await _session_store.get_messages(session_id)
-        print(f"PERF: load_messages={time.time()-t0:.2f}s")
+        logger.debug("load_messages={time.time()-t0:.2f}s")
         t1 = time.time()
 
         # Build file context if files were uploaded
@@ -530,13 +705,13 @@ async def _handle_chat(
                 "Use Read tool if you need to read any file's content.\n\n"
             )
             file_context = "\n\n" + header + "\n\n".join(parts)
-        print(f"PERF: parse_files={time.time()-t1:.2f}s, file_context_len={len(file_context)}")
+        logger.debug("parse_files={time.time()-t1:.2f}s, file_context_len={len(file_context)}")
         t2 = time.time()
 
         # Build messages with history
         messages = list(existing_messages)
         # Add system prompt on first message if not already present
-        if _agent.options.system_prompt and (not existing_messages or existing_messages[0].role != MessageRole.SYSTEM or _agent.options.system_prompt not in existing_messages[0].content):
+        if _agent.options.system_prompt and (not existing_messages or existing_messages[0].role != MessageRole.SYSTEM):
             messages.insert(0, Message(role=MessageRole.SYSTEM, content=_agent.options.system_prompt))
         # File context as SYSTEM must come BEFORE user message
         if file_context:
@@ -544,17 +719,60 @@ async def _handle_chat(
         user_text = message.strip() if message else "请分析附件内容"
         messages.append(Message(role=MessageRole.USER, content=user_text))
 
-        # Run agent with full message history
-        print(f"PERF: build_messages={time.time()-t2:.2f}s, total_messages={len(messages)}, total_chars={sum(len(m.content) for m in messages)}")
-        t3 = time.time()
-        dynamic_timeout = _detect_timeout(message, files, attached_filenames)
-        response = await _agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout)
-        print(f"PERF: agent_run_loop={time.time()-t3:.2f}s")
-
-        # Save updated messages to session
+        # Save user message immediately (before agent) to prevent data loss on failure
         if _session_store is not None:
             await _session_store.save_messages(session_id, messages)
-        print(f"PERF: total_handle_chat={time.time()-t0:.2f}s")
+
+        # Run agent with full message history
+        logger.debug("build_messages={time.time()-t2:.2f}s, total_messages={len(messages)}, total_chars={sum(len(m.content) for m in messages)}")
+        t3 = time.time()
+        dynamic_timeout = _detect_timeout(message, files, attached_filenames)
+        try:
+            response = await _agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout)
+        except Exception as e:
+            if _session_store is not None:
+                messages.append(Message(
+                    role=MessageRole.ASSISTANT,
+                    content=f"[Task interrupted by error: {e}]"
+                ))
+                await _session_store.save_messages(session_id, messages)
+            raise
+        logger.debug("agent_run_loop={time.time()-t3:.2f}s")
+
+        # Save updated messages to session (now includes assistant response)
+        if _session_store is not None:
+            await _session_store.save_messages(session_id, messages)
+
+        # Auto-generate title for new sessions
+        if _agent is not None:
+            session = await _session_store.get(session_id)
+            is_new = session is None or (session.title in ("New Session", "New Chat"))
+            if is_new:
+                try:
+                    if _agent.provider is not None:
+                        title_msgs = [
+                            Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
+                            Message(role=MessageRole.USER, content=message),
+                        ]
+                        title_result = await _agent.provider.complete(title_msgs, tools=None)
+                        generated_title = title_result.content.strip().strip('"\'.,!?')
+                        if generated_title and _session_store is not None:
+                            await _session_store.update_title(session_id, generated_title)
+                            logger.debug("Auto-generated title: {generated_title}")
+                except Exception:
+                    pass
+                # Update title with fallback even if LLM title generation fails
+                if _session_store is not None:
+                    session = await _session_store.get(session_id)
+                    if session is not None and session.title in ("New Session", "New Chat"):
+                        fallback = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                        await _session_store.update_title(session_id, fallback)
+
+        # Auto-compact if threshold exceeded (fire-and-forget)
+        import asyncio
+        asyncio.create_task(_auto_compact(session_id))
+
+        logger.debug("total_handle_chat={time.time()-t0:.2f}s")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -598,13 +816,12 @@ async def get_config() -> dict[str, Any]:
 @api_router.post("/config")
 async def save_config(request: ConfigRequest) -> dict[str, Any]:
     config_data = request.model_dump(exclude_none=True)
+    config_data.pop("api_key", None)
 
     from cscode.core.config import ConfigStore
     if _db is not None:
         store = ConfigStore(_db)
         await store.save(config_data)
-
-    config_data.pop("api_key", None)
     return {"status": "saved", "config": config_data}
 
 
@@ -617,7 +834,10 @@ async def create_session(request: SessionCreateRequest) -> dict[str, Any]:
     return {
         "id": session.id,
         "title": session.title,
+        "provider": session.provider,
+        "model": session.model,
         "created_at": session.created_at.isoformat() if session.created_at else "",
+        "updated_at": session.updated_at.isoformat() if session.updated_at else "",
     }
 
 
@@ -628,6 +848,69 @@ async def delete_session(session_id: str) -> dict[str, str]:
 
     await _session_store.delete(session_id)
     return {"status": "deleted", "id": session_id}
+
+
+@api_router.patch("/sessions/{session_id}")
+async def update_session(session_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    if _session_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    title = request.get("title")
+    if title:
+        await _session_store.update_title(session_id, title)
+
+    return {"status": "updated", "id": session_id}
+
+
+@api_router.get("/sessions/{session_id}/export")
+async def export_session(session_id: str) -> dict[str, Any]:
+    if _session_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session = await _session_store.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = await _session_store.get_messages(session_id)
+    return {
+        "id": session.id,
+        "title": session.title,
+        "provider": session.provider,
+        "model": session.model,
+        "created_at": session.created_at.isoformat() if session.created_at else "",
+        "updated_at": session.updated_at.isoformat() if session.updated_at else "",
+        "messages": [
+            {
+                "role": msg.role.value,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat() if msg.created_at else "",
+            }
+            for msg in messages
+        ],
+    }
+
+
+@api_router.post("/sessions/import")
+async def import_session(request: dict[str, Any]) -> dict[str, Any]:
+    if _session_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    title = request.get("title", "Imported Session")
+    provider = request.get("provider", "openai")
+    model = request.get("model", "gpt-4o")
+    messages_data = request.get("messages", [])
+
+    session = await _session_store.create(title=title, provider=provider, model=model)
+    messages = [
+        Message(role=MessageRole(m["role"]), content=m["content"]) for m in messages_data
+    ]
+    await _session_store.save_messages(session.id, messages)
+
+    return {
+        "id": session.id,
+        "title": session.title,
+        "created_at": session.created_at.isoformat() if session.created_at else "",
+    }
 
 
 @api_router.get("/sessions/{session_id}/messages")
@@ -642,23 +925,75 @@ async def get_session_messages(session_id: str) -> list[dict[str, Any]]:
             "content": msg.content,
             "created_at": msg.created_at.isoformat() if msg.created_at else "",
         }
-        for msg in msgs
+        for msg in msgs if not (msg.role == MessageRole.ASSISTANT and not msg.content)
     ]
+
+
+@api_router.get("/files/search")
+async def search_files(q: str = "") -> list[str]:
+    import fnmatch
+    import os
+
+    if not q or not q.strip():
+        return []
+
+    cwd = os.getcwd()
+    results: list[str] = []
+
+    for root, dirs, files in os.walk(cwd):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "__pycache__", ".git", ".venv", "dist", "build")]
+        for f in files:
+            if f.startswith("."):
+                continue
+            rel_path = os.path.relpath(os.path.join(root, f), cwd)
+            if fnmatch.fnmatch(f, q) or fnmatch.fnmatch(rel_path, q) or q.lower() in f.lower():
+                results.append(rel_path)
+            if len(results) >= 50:
+                break
+        if len(results) >= 50:
+            break
+
+    return results
+
+
+async def _try_open_file(file_path: Path) -> None:
+    """Try to open a file with the default app. Non-blocking."""
+    import asyncio
+    import platform
+    system = platform.system()
+    try:
+        cmd = ["open", str(file_path)] if system == "Darwin" else (
+            ["start", "", str(file_path)] if system == "Windows" else ["xdg-open", str(file_path)]
+        )
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr_data = await proc.communicate()
+        if proc.returncode != 0:
+            stderr_text = stderr_data.decode(errors="replace").strip()
+            logger.warning("Failed to open file %s: returncode=%d stderr=%s",
+                           file_path, proc.returncode, stderr_text)
+        else:
+            logger.info("Opened file %s via %s", file_path, cmd[0])
+    except Exception as e:
+        logger.warning("Failed to open file %s (exception): %s", file_path, e)
 
 
 @api_router.get("/download/{filename:path}")
 async def download_file(filename: str, raw: bool = False, quiet: bool = False) -> Any:
-    """Serve file content (raw=true) or copy to ~/Downloads/."""
+    """Serve file content (raw=true) or open the file directly from /tmp/cscode-outputs/."""
     import platform
-    import shutil
     import subprocess
+    import asyncio
     from urllib.parse import quote
 
     from fastapi.responses import FileResponse
+    from fastapi import HTTPException
 
     file_path = OUTPUTS_DIR / filename
     if not file_path.exists() or not file_path.is_file():
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="File not found")
 
     if raw:
@@ -673,17 +1008,20 @@ async def download_file(filename: str, raw: bool = False, quiet: bool = False) -
             headers={"Content-Disposition": disposition},
         )
 
-    downloads_dir = Path.home() / "Downloads"
-    downloads_dir.mkdir(exist_ok=True)
-    dest = downloads_dir / file_path.name
+    if not quiet:
+        asyncio.create_task(_try_open_file(file_path))
+
+    # Always serve the file as download; _try_open_file runs concurrently
+    basename = file_path.name
     try:
-        shutil.copy2(file_path, dest)
-        if not quiet and platform.system() == "Darwin":
-            subprocess.run(["open", "-R", str(dest)], check=False)
-        return {"status": "ok", "dest": str(dest), "filename": file_path.name}
-    except Exception as e:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=str(e))
+        basename.encode("ascii")
+        disposition = f'attachment; filename="{basename}"'
+    except UnicodeEncodeError:
+        disposition = f"attachment; filename*=UTF-8\'\'{quote(basename, encoding='utf-8')}"
+    return FileResponse(
+        str(file_path),
+        headers={"Content-Disposition": disposition},
+    )
 
 
 app.include_router(api_router)
@@ -694,11 +1032,11 @@ app.mount("/outputs", StaticFiles(directory=str(OUTPUTS_DIR), check_dir=True), n
 if WEB_DIST.exists():
     # Mount assets directory at /assets FIRST - before any routes
     assets_dir = WEB_DIST / "assets"
-    print(f"DEBUG: assets_dir={assets_dir}, exists={assets_dir.exists()}")
+    logger.debug("assets_dir={assets_dir}, exists={assets_dir.exists()}")
     if assets_dir.exists():
-        print(f"DEBUG: assets_dir contents: {list(assets_dir.iterdir())}")
+        logger.debug("assets_dir contents: {list(assets_dir.iterdir())}")
         app.mount("/assets", StaticFiles(directory=str(assets_dir), html=False, check_dir=True), name="assets")
-        print("DEBUG: Assets mounted at /assets")
+        logger.debug("Assets mounted at /assets")
 
     # Test endpoint
     @app.get("/assets/test")
@@ -719,7 +1057,7 @@ if WEB_DIST.exists():
     @app.get("/{path:path}")
     async def serve_static(path: str) -> Any:
         file_path = WEB_DIST / path
-        print(f"DEBUG serve_static: path={path}, file_path={file_path}, exists={file_path.exists()}")
+        logger.debug("serve_static: path=%s, file_path=%s, exists=%s", path, file_path, file_path.exists())
         if file_path.exists() and file_path.is_file():
             return FileResponse(str(file_path))
         return {"detail": "Not found"}
@@ -780,6 +1118,20 @@ def _detect_timeout(message: str, files: list[Any] | None, attached_filenames: l
     if len(message) < 50 and not files:
         return 180.0  # Increased from 120
     return 300.0
+
+
+async def _auto_compact(session_id: str) -> None:
+    global _compactor, _event_store
+    if _compactor is None or _event_store is None:
+        return
+    try:
+        events = await _event_store.read(session_id)
+        relevant = [e for e in events if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed")]
+        if len(relevant) >= COMPACTION_THRESHOLD:
+            await _compactor.compact(session_id)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Auto-compaction failed")
 
 
 

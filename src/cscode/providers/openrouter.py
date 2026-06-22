@@ -43,7 +43,7 @@ class OpenRouterProvider(LLMProvider):
                 "HTTP-Referer": "https://cscode.dev",
                 "X-Title": "CScode",
             },
-            timeout=httpx.Timeout(120.0),
+            timeout=httpx.Timeout(600.0),
         ) as client:
             try:
                 response = await client.post("/chat/completions", json=body)

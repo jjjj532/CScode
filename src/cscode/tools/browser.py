@@ -116,7 +116,15 @@ class BrowserTool(BaseTool):
                     html = await _page.locator(selector).inner_html()
                 else:
                     html = await _page.content()
-                return ToolResult(success=True, data=html[:50000])  # Limit to 50k chars
+                import re
+                html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
+                html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL)
+                html = re.sub(r'<svg[^>]*>.*?</svg>', '', html, flags=re.DOTALL)
+                html = re.sub(r'\s+', ' ', html).strip()
+                truncated = html[:8000]
+                if len(html) > 8000:
+                    truncated += "\n\n[truncated: output too long]"
+                return ToolResult(success=True, data=truncated)
 
             elif action == "wait":
                 selector = args.get("selector")

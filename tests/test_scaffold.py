@@ -1,12 +1,27 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from cscode import __version__
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+
+
+def _make_env() -> dict:
+    """Create subprocess environment with PYTHONPATH set to include src/."""
+    env = os.environ.copy()
+    existing_path = env.get("PYTHONPATH", "")
+    if existing_path:
+        env["PYTHONPATH"] = f"{SRC_DIR}{os.pathsep}{existing_path}"
+    else:
+        env["PYTHONPATH"] = str(SRC_DIR)
+    return env
 
 
 def test_package_importable():
@@ -19,11 +34,13 @@ def test_package_importable():
 
 def test_cli_help():
     """验证 cs --help 输出帮助信息"""
+    env = _make_env()
     result = subprocess.run(
         [sys.executable, "-m", "cscode", "--help"],
         capture_output=True,
         text=True,
         cwd=PROJECT_ROOT,
+        env=env,
     )
     assert result.returncode == 0
     assert "CScode" in result.stdout or "cscode" in result.stdout.lower()
@@ -32,14 +49,16 @@ def test_cli_help():
 
 def test_cli_version():
     """验证 cs --version 输出版本号"""
+    env = _make_env()
     result = subprocess.run(
         [sys.executable, "-m", "cscode", "--version"],
         capture_output=True,
         text=True,
         cwd=PROJECT_ROOT,
+        env=env,
     )
     assert result.returncode == 0
-    assert "0.2.10" in result.stdout
+    assert __version__ in result.stdout
 
 
 def test_pyproject_toml_exists():

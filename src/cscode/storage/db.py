@@ -10,8 +10,9 @@ class Database:
     def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
             db_path = Path.home() / ".config" / "cscode" / "cscode.db"
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db_path = Path(db_path)
+        db_path = Path(db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db_path = db_path
         self.conn: aiosqlite.Connection
 
     async def init(self) -> None:
@@ -28,7 +29,7 @@ class Database:
         row = await cursor.fetchone()
         current_version = row[0] if row is not None and row[0] is not None else 0
 
-        migrations = [_migration_001, _migration_002]
+        migrations = [_migration_001, _migration_002, _migration_003, _migration_004]
         for i, migration in enumerate(migrations, start=1):
             if i > current_version:
                 await migration(self.conn)
@@ -80,3 +81,40 @@ async def _migration_002(conn: aiosqlite.Connection) -> None:
             data TEXT
         )
     """)
+
+
+async def _migration_003(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_sequences (
+            aggregate_id TEXT PRIMARY KEY,
+            seq INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aggregate_id TEXT NOT NULL,
+            seq INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            data TEXT NOT NULL DEFAULT '{}',
+            created_at REAL NOT NULL,
+            UNIQUE(aggregate_id, seq)
+        )
+    """)
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_events_aggregate ON events(aggregate_id, seq)")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id)")
+
+
+
+async def _migration_004(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS context_epochs (
+            session_id TEXT NOT NULL,
+            epoch INTEGER NOT NULL,
+            baseline_seq INTEGER NOT NULL,
+            snapshot TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL,
+            PRIMARY KEY (session_id, epoch)
+        )
+    """)
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_epochs_session ON context_epochs(session_id, epoch)")

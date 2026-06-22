@@ -23,7 +23,7 @@ class AnthropicProvider(LLMProvider):
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json",
             },
-            timeout=httpx.Timeout(120.0),
+            timeout=httpx.Timeout(600.0),
         )
 
     @property
