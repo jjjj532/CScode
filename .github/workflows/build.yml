@@ -109,7 +109,7 @@ jobs:
         run: |
           PYTHON="python3"
           if [ "$RUNNER_OS" = "Windows" ]; then PYTHON="python"; fi
-          # Install ALL dependencies to a temp dir, then zip them.
+          # Install ALL dependencies to a temp dir, then zip them using Python.
           # Using a zip avoids thousands of files in Tauri resources, which
           # crashes the build script on Windows (MAX_PATH / enumeration limits).
           TMPDIR=$(mktemp -d)
@@ -119,13 +119,25 @@ jobs:
           # Remove __pycache__, tests, and bin
           find "$TMPDIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
           rm -rf "$TMPDIR/bin" 2>/dev/null || true
-          # Create the zip (only the installed packages, NOT cscode itself)
+          # Create the zip using Python (cross-platform, unlike 'zip' command)
           mkdir -p desktop/src-tauri/resources
-          cd "$TMPDIR"
-          # Exclude cscode package — we'll bundle source separately
-          zip -r9 "$OLDPWD/desktop/src-tauri/resources/site-packages.zip" . \
-            -x "cscode/**" "cscode-*.dist-info/**" 2>&1 | tail -3
-          cd "$OLDPWD"
+          $PYTHON -c "
+import zipfile, os
+from pathlib import Path
+srcdir = Path('$TMPDIR')
+out = Path('desktop/src-tauri/resources/site-packages.zip')
+with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
+    for f in srcdir.rglob('*'):
+        if f.is_file():
+            rel = f.relative_to(srcdir)
+            parts = rel.parts
+            # Exclude cscode package — we bundle source separately
+            if parts[0] == 'cscode' or parts[0].startswith('cscode-'):
+                continue
+            arcname = str(rel)
+            zf.write(f, arcname)
+print(f'Created {out} with {len(zf.namelist())} entries')
+" 2>&1
           rm -rf "$TMPDIR"
           echo "=== site-packages.zip size ==="
           ls -lh desktop/src-tauri/resources/site-packages.zip
