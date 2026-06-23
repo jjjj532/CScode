@@ -266,7 +266,7 @@ async def test_get_execution_report(db):
         ("session-1", "TC-002", "browser", "UNVERIFIED", 0, '{}', ""),
     )
 
-    report = tracker.get_execution_report("session-1")
+    report = await tracker.get_execution_report("session-1")
     assert report["summary"]["executed"] == 1
     assert report["summary"]["unverified"] == 1
     assert len(report["details"]) == 2
@@ -345,13 +345,13 @@ class TaskTracker:
 
     def _verify_evidence(self, tool: str, evidence: dict) -> bool:
         if tool == "browser":
-            return evidence.get("html", False) and bool(evidence.get("screenshot_path") or evidence.get("content_length", 0) > 0)
+            return bool(evidence.get("screenshot_path")) and evidence.get("html", False)
         if tool == "bash":
             return evidence.get("content_length", 0) > 0
         return bool(evidence)
 
-    def get_execution_report(self, session_id: str) -> dict:
-        rows = self.db.fetchall(
+    async def get_execution_report(self, session_id: str) -> dict:
+        rows = await self.db.fetchall(
             "SELECT task_id, status, verified, evidence, result_summary, created_at "
             "FROM task_verifications WHERE session_id = ? ORDER BY created_at",
             (session_id,),
@@ -674,7 +674,14 @@ Add constant after imports:
 EVIDENCE_DIR = "/tmp/cscode-outputs/evidence"
 ```
 
-Modify the `execute` method to inject evidence. Replace the entire method body after `action = args.get("action", "")` with evidence injection at each return point. The key change: before each `return ToolResult(...)`, add:
+Modify the `execute` method to inject evidence. Replace the entire method body with context-aware evidence injection. Add `context` parameter to `execute`:
+
+```python
+async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
+    session_id = context.get("session_id", "") if context else ""
+```
+
+Then before each `return ToolResult(...)`, add:
 
 ```python
 task_id = args.get("task_id", "")
@@ -685,7 +692,7 @@ evidence = {
     "content_length": 0,
     "timestamp": datetime.now(timezone.utc).isoformat(),
 }
-verified = True
+verified = bool(evidence["screenshot_path"]) and evidence["html"]
 ```
 
 Then for specific actions, set evidence fields:
@@ -697,15 +704,16 @@ elif action == "screenshot":
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     if task_id:
         os.makedirs(EVIDENCE_DIR, exist_ok=True)
-        path = os.path.join(EVIDENCE_DIR, f"{task_id}_screenshot.png")
+        path = os.path.join(EVIDENCE_DIR, f"{session_id}_{task_id}_screenshot.png")
     assert _page is not None
     await _page.screenshot(path=path, full_page=True)
     evidence["screenshot_path"] = path
     evidence["content_length"] = os.path.getsize(path) if os.path.exists(path) else 0
+    verified = bool(evidence["screenshot_path"])
     result = ToolResult(
         success=True,
         data=f"Screenshot saved to {path}",
-        metadata={"path": path, "task_id": task_id, "evidence": json.dumps(evidence), "verified": str(evidence["content_length"] > 0)},
+        metadata={"task_id": task_id, "evidence": json.dumps(evidence), "verified": str(verified)},
     )
     return result
 ```
@@ -721,7 +729,8 @@ elif action == "get_text":
     evidence["html"] = bool(text)
     evidence["html_length"] = len(text) if text else 0
     evidence["content_length"] = len(text) if text else 0
-    verified = bool(text)
+    # get_text 单独不满足验证（缺 screenshot_path），必须配合 screenshot 调用
+    verified = bool(evidence["screenshot_path"]) and evidence["html"]
     return ToolResult(
         success=True,
         data=text or "",
@@ -749,7 +758,8 @@ elif action == "get_html":
     evidence["html"] = bool(html)
     evidence["html_length"] = len(html)
     evidence["content_length"] = len(html)
-    verified = bool(html)
+    # get_html 单独不满足验证（缺 screenshot_path），必须配合 screenshot 调用
+    verified = bool(evidence["screenshot_path"]) and evidence["html"]
     return ToolResult(
         success=True,
         data=truncated,
@@ -938,6 +948,10 @@ After `_compactor = Compactor(...)` (line 152), add:
 ```python
 from cscode.core.tracker import TaskTracker
 _tracker = TaskTracker(_db)
+
+# 证据目录预创建
+EVIDENCE_DIR = "/tmp/cscode-outputs/evidence"
+os.makedirs(EVIDENCE_DIR, exist_ok=True)
 ```
 
 - [ ] **Step 2: Add tracker.handle_event call in on_event callback**
@@ -960,7 +974,7 @@ async def get_verification_report(session_id: str):
     if _tracker is None:
         return {"error": "TaskTracker not initialized"}
 
-    report = _tracker.get_execution_report(session_id)
+    report = await _tracker.get_execution_report(session_id)
 
     # Calculate SKIPPED: expected tasks not in verification table
     all_expected = await _db.fetchall(

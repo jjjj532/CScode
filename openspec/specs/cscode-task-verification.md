@@ -84,18 +84,20 @@ CREATE INDEX idx_tv_session ON task_verifications(session_id);
 CREATE INDEX idx_tv_status ON task_verifications(session_id, status);
 ```
 
-**证据存储策略：** 截图/大内容存储到文件系统（`/tmp/cscode-outputs/evidence/`），数据库只存文件路径，避免表膨胀。
+**证据存储策略：** 截图/大内容存储到文件系统（`/tmp/cscode-outputs/evidence/`），数据库只存文件路径，避免表膨胀。截图表名格式为 `{session_id}_{task_id}_screenshot.png`，防止跨会话冲突。
 
 ```python
 # evidence JSON 示例
 {
-    "screenshot_path": "/tmp/cscode-outputs/evidence/TC-001_screenshot.png",
+    "screenshot_path": "/tmp/cscode-outputs/evidence/sess-abc_TC-001_screenshot.png",
     "html": true,
     "html_length": 1234,
     "content_length": 1234,
     "timestamp": "2026-06-23T10:30:00"
 }
 ```
+
+**证据目录：** 在 `app.py` 启动时预创建 `/tmp/cscode-outputs/evidence/`，不由 screenshot action 动态创建。旧证据文件不清除，由用户按需手动清理。
 
 ### 2.3 新增 `expected_tasks` 表（记录用户要求的任务列表）
 
@@ -190,21 +192,20 @@ class TaskTracker:
         )
 
     def _verify_evidence(self, tool: str, evidence: dict) -> bool:
-        """严格验证：浏览器操作必须有截图 AND HTML"""
+        """严格验证：浏览器操作必须有截图 AND HTML；Bash 必须有输出"""
         if tool == "browser":
-            return evidence.get("screenshot", False) and evidence.get("html", False)
+            return bool(evidence.get("screenshot_path")) and evidence.get("html", False)
         if tool == "bash":
             return evidence.get("content_length", 0) > 0
         return bool(evidence)
 
-    def get_execution_report(self, session_id: str) -> dict:
+    async def get_execution_report(self, session_id: str) -> dict:
         """查询会话的验证报告"""
-        cursor = self.db.conn.execute(
+        rows = await self.db.fetchall(
             "SELECT task_id, status, verified, evidence, result_summary, created_at "
             "FROM task_verifications WHERE session_id = ? ORDER BY created_at",
-            [session_id]
+            (session_id,),
         )
-        rows = cursor.fetchall()
         executed = [r for r in rows if r["status"] == "EXECUTED"]
         failed = [r for r in rows if r["status"] == "FAILED"]
         unverified = [r for r in rows if r["status"] == "UNVERIFIED"]
@@ -302,11 +303,14 @@ async def execute(self, args: dict[str, Any]) -> ToolResult:
     task_id = args.get("task_id", "")
     # ... 原有执行逻辑 ...
     
-    # 截图操作：保存到 evidence 目录
+    # 截图操作：保存到 evidence 目录，文件名含 session_id 防冲突
     if action == "screenshot":
-        os.makedirs(EVIDENCE_DIR, exist_ok=True)
-        evidence_path = os.path.join(EVIDENCE_DIR, f"{task_id}_screenshot.png") if task_id else path
-        # ... 截图保存 ...
+        evidence_path = path
+        if task_id:
+            os.makedirs(EVIDENCE_DIR, exist_ok=True)
+            session_id = args.get("_session_id", "")
+            evidence_path = os.path.join(EVIDENCE_DIR, f"{session_id}_{task_id}_screenshot.png")
+        # ... 截图保存到 evidence_path ...
     
     # 构建 evidence（存路径，不存内容）
     evidence = {
@@ -317,17 +321,23 @@ async def execute(self, args: dict[str, Any]) -> ToolResult:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     
-    # 内容获取操作：空结果 = 未验证
-    verified = True
-    if action in ("screenshot", "get_html", "get_text"):
-        if not result.data:
-            verified = False
+    # 浏览器验证：必须有截图路径 AND HTML 内容
+    verified = bool(evidence["screenshot_path"]) and evidence["html"]
     
     result.metadata["task_id"] = task_id
     result.metadata["evidence"] = json.dumps(evidence)
     result.metadata["verified"] = str(verified)
     return result
 ```
+
+**证据目录预创建：** 在 `app.py` 启动时，`/tmp/cscode-outputs` 创建之后：
+
+```python
+EVIDENCE_DIR = "/tmp/cscode-outputs/evidence"
+os.makedirs(EVIDENCE_DIR, exist_ok=True)
+```
+
+**浏览器截图验证规则：** 单次工具调用必须同时有 `screenshot_path` 和 `html=True` 才算 EXECUTED。LLM 需要分别调用 screenshot 和 get_text/get_html 两个操作，两个操作分别记录到 `task_verifications` 表，各自独立验证。一个截图操作只记录 `screenshot_path`（html=False），一个 get_text 操作只记录 `html=True`（screenshot_path=""），**没有一个单项操作能单独通过验证**——LLM 必须同时执行两者。
 
 ### 5.2 Bash 工具
 
@@ -371,12 +381,12 @@ class BashTool(BaseTool):
 @app.get("/sessions/{session_id}/verification-report")
 async def get_verification_report(session_id: str):
     """返回基于数据库投影的验证报告，非 LLM 生成"""
-    report = tracker.get_execution_report(session_id)
+    report = await _tracker.get_execution_report(session_id)
 
     # 计算 SKIPPED：用户要求的 task_ids 中不在投影表的
-    all_expected = await db.fetch_all(
+    all_expected = await _db.fetchall(
         "SELECT task_id FROM expected_tasks WHERE session_id = ?",
-        [session_id]
+        (session_id,),
     )
     expected_ids = {r["task_id"] for r in all_expected}
     recorded_ids = {d["task_id"] for d in report["details"]}
@@ -384,7 +394,7 @@ async def get_verification_report(session_id: str):
 
     report["summary"]["skipped"] = len(skipped)
     report["details"].extend([
-        {"task_id": tid, "status": "SKIPPED", "evidence": {}, "timestamp": None}
+        {"task_id": tid, "status": "SKIPPED", "evidence": {}, "result_summary": "", "timestamp": None}
         for tid in skipped
     ])
 
@@ -613,6 +623,9 @@ async def on_tool_success(self, event: Event):
 | 大量事件影响性能 | 查询变慢 | status 索引 + 截图存文件系统 + 定期归档 |
 | tool.failed 丢失追踪 | 失败用例无记录 | tool.failed 事件同样携带 task_id，写入 status=FAILED |
 | TodoWriteTool 无 session_id | expected_tasks 写入失败 | 通过 ToolRegistry context 参数传递 |
+| 截图文件跨会话冲突 | 后一个会话覆盖前一个的截图 | 文件名格式 `{session_id}_{task_id}_screenshot.png` |
+| `get_execution_report` 同步/异步不一致 | 运行时 `await` 调用同步方法会崩溃 | 改为 `async def`，API 调用加 `await` |
+| 证据目录未预创建 | 截图操作找不到目录 | app.py 启动时 `os.makedirs(EVIDENCE_DIR, exist_ok=True)` |
 
 ## 11. 验收标准
 
