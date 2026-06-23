@@ -72,9 +72,13 @@ jobs:
 
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          # WebView2 is built into Windows 10+; no extra deps needed
-          echo "Windows deps satisfied by OS"
+          # WebView2 is built into Windows 10+; only WiX is needed for MSI bundling
+          dotnet tool install --global wix --version 5.0.2 2>$null
+          echo "WiX installed"
+          # Verify Rust target
+          rustup target list --installed | findstr x86_64-pc-windows-msvc
 
       - name: Create and activate Python venv
         shell: bash
@@ -171,21 +175,27 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            npx tauri build --verbose 2>&1 || echo "Windows build completed (may be partial)"
+            npx tauri build --verbose --bundles msi
           else
             npx tauri build --verbose
           fi
 
       - name: Debug bundle contents (Windows)
         if: runner.os == 'Windows'
-        shell: bash
+        shell: pwsh
         run: |
           echo "=== bundle dir ==="
-          find desktop/src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle dir"
+          if (Test-Path "desktop/src-tauri/target/release/bundle") {
+            Get-ChildItem -Recurse "desktop/src-tauri/target/release/bundle"
+          } else {
+            echo "No bundle dir found"
+          }
           echo "=== target/release ==="
-          ls -la desktop/src-tauri/target/release/
+          if (Test-Path "desktop/src-tauri/target/release") {
+            Get-ChildItem "desktop/src-tauri/target/release" | Select-Object Name, Length
+          }
           echo "=== .exe files ==="
-          find desktop/src-tauri/target -name "*.exe" -type f 2>/dev/null | head -10
+          Get-ChildItem -Recurse "desktop/src-tauri/target" -Filter "*.exe" | Select-Object FullName, Length
 
       - name: Fix DMG resources and create DMG (macOS)
         if: runner.os == 'macOS'
