@@ -208,16 +208,13 @@ jobs:
             echo "PATH=$PATH"
           fi
           if [ "$RUNNER_OS" = "macOS" ]; then
-            npx tauri build --verbose --bundles app > /tmp/tauri-build.log 2>&1; rc=$?
+            npx tauri build --verbose --bundles app > ../tauri-build.log 2>&1; rc=$?
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            # First check if it compiles
-            cargo check > /tmp/cargocheck.log 2>&1; cargo_rc=$?
-            # Try full build (MSI bundling)
-            npx tauri build --verbose --bundles msi > /tmp/tauri-build.log 2>&1; rc=$?
+            cargo check > ../cargocheck.log 2>&1; cargo_rc=$?
+            npx tauri build --verbose --bundles msi > ../tauri-build.log 2>&1; rc=$?
           else
-            npx tauri build --verbose > /tmp/tauri-build.log 2>&1; rc=$?
+            npx tauri build --verbose > ../tauri-build.log 2>&1; rc=$?
           fi
-          exit $rc
           exit $rc
 
       - name: Upload build logs (always)
@@ -226,8 +223,8 @@ jobs:
         with:
           name: build-logs-${{ runner.os }}
           path: |
-            /tmp/tauri-build.log
-            /tmp/cargocheck.log
+            tauri-build.log
+            cargocheck.log
           compression-level: 0
 
       - name: Debug bundle contents (Windows)
