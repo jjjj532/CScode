@@ -218,13 +218,15 @@ jobs:
           elif [ "$RUNNER_OS" = "Windows" ]; then
             cargo check > "$GITHUB_WORKSPACE/cargocheck.log" 2>&1; cargo_rc=$?
             echo "# CARGO_CHECK_EXIT=$cargo_rc"
-            npx tauri build --verbose --bundles msi > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
-            echo "# TAURI_BUILD_EXIT=$rc"
+            # Step 1: no-bundle to test Rust compilation
+            npx tauri build --verbose --no-bundle > "$GITHUB_WORKSPACE/tauri-build-nobundle.log" 2>&1; rc=$?
+            echo "# NOBUNDLE_EXIT=$rc"
+            cp "$GITHUB_WORKSPACE/tauri-build-nobundle.log" "$GITHUB_WORKSPACE/tauri-build.log"
           else
             npx tauri build --verbose > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
           fi
           # Show logs in step output
-          for logf in "$GITHUB_WORKSPACE/tauri-build.log" "$GITHUB_WORKSPACE/cargocheck.log"; do
+          for logf in "$GITHUB_WORKSPACE/tauri-build.log" "$GITHUB_WORKSPACE/tauri-build-nobundle.log" "$GITHUB_WORKSPACE/cargocheck.log"; do
             if [ -f "$logf" ] && [ -s "$logf" ]; then
               echo "=== tail $(basename $logf) ==="
               tail -20 "$logf"
@@ -237,23 +239,16 @@ jobs:
         shell: bash
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "=== tauri-build.log ==="
-          if [ -f "$GITHUB_WORKSPACE/tauri-build.log" ]; then
-            ls -la "$GITHUB_WORKSPACE/tauri-build.log"
-            head -100 "$GITHUB_WORKSPACE/tauri-build.log"
-          else
-            echo "NOT FOUND"
-            find "$GITHUB_WORKSPACE" -name "tauri-build.log" 2>/dev/null || echo "no tauri-build.log in workspace"
-            find / -name "tauri-build.log" -maxdepth 4 2>/dev/null || echo "no tauri-build.log anywhere"
-          fi
-          echo "=== cargocheck.log ==="
-          if [ -f "$GITHUB_WORKSPACE/cargocheck.log" ]; then
-            ls -la "$GITHUB_WORKSPACE/cargocheck.log"
-            head -100 "$GITHUB_WORKSPACE/cargocheck.log"
-          else
-            echo "NOT FOUND"
-            find "$GITHUB_WORKSPACE" -name "cargocheck.log" 2>/dev/null || echo "no cargocheck.log in workspace"
-          fi
+          for f in tauri-build.log tauri-build-nobundle.log cargocheck.log; do
+            echo "=== $f ==="
+            if [ -f "$GITHUB_WORKSPACE/$f" ]; then
+              ls -la "$GITHUB_WORKSPACE/$f"
+              head -100 "$GITHUB_WORKSPACE/$f"
+            else
+              echo "NOT FOUND"
+              find "$GITHUB_WORKSPACE" -name "$f" 2>/dev/null || echo "no $f in workspace"
+            fi
+          done
 
       - name: Upload build logs
         if: always()
@@ -262,6 +257,7 @@ jobs:
           name: build-logs-${{ runner.os }}
           path: |
             tauri-build.log
+            tauri-build-nobundle.log
             cargocheck.log
 
       - name: Debug bundle contents (Windows)
