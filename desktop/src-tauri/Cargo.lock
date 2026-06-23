@@ -436,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "cscode-desktop"
-version = "0.2.16"
+version = "0.2.17"
 dependencies = [
  "reqwest 0.12.28",
  "serde",

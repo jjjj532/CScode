@@ -237,7 +237,7 @@ IMPORTANT: You have a browser automation tool! Use it to interact with REAL webs
         await _db.close()
 
 
-app = FastAPI(title="CScode API", version="0.2.16", lifespan=lifespan)
+app = FastAPI(title="CScode API", version="0.2.17", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
