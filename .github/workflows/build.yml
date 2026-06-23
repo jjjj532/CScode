@@ -214,17 +214,17 @@ jobs:
             echo "PATH=$PATH"
           fi
           if [ "$RUNNER_OS" = "macOS" ]; then
-            npx tauri build --verbose --bundles app > ../tauri-build.log 2>&1; rc=$?
+            npx tauri build --verbose --bundles app > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            cargo check > ../cargocheck.log 2>&1; cargo_rc=$?
+            cargo check > "$GITHUB_WORKSPACE/cargocheck.log" 2>&1; cargo_rc=$?
             echo "# CARGO_CHECK_EXIT=$cargo_rc"
-            npx tauri build --verbose --bundles msi > ../tauri-build.log 2>&1; rc=$?
+            npx tauri build --verbose --bundles msi > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
             echo "# TAURI_BUILD_EXIT=$rc"
           else
-            npx tauri build --verbose > ../tauri-build.log 2>&1; rc=$?
+            npx tauri build --verbose > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
           fi
-          # Show logs in step output (cross-platform, unlike 'tee')
-          for logf in ../tauri-build.log ../cargocheck.log; do
+          # Show logs in step output
+          for logf in "$GITHUB_WORKSPACE/tauri-build.log" "$GITHUB_WORKSPACE/cargocheck.log"; do
             if [ -f "$logf" ] && [ -s "$logf" ]; then
               echo "=== tail $(basename $logf) ==="
               tail -20 "$logf"
@@ -232,7 +232,30 @@ jobs:
           done
           exit $rc
 
-      - name: Upload build logs (always)
+      - name: Debug build logs
+        if: always()
+        shell: bash
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "=== tauri-build.log ==="
+          if [ -f "$GITHUB_WORKSPACE/tauri-build.log" ]; then
+            ls -la "$GITHUB_WORKSPACE/tauri-build.log"
+            head -100 "$GITHUB_WORKSPACE/tauri-build.log"
+          else
+            echo "NOT FOUND"
+            find "$GITHUB_WORKSPACE" -name "tauri-build.log" 2>/dev/null || echo "no tauri-build.log in workspace"
+            find / -name "tauri-build.log" -maxdepth 4 2>/dev/null || echo "no tauri-build.log anywhere"
+          fi
+          echo "=== cargocheck.log ==="
+          if [ -f "$GITHUB_WORKSPACE/cargocheck.log" ]; then
+            ls -la "$GITHUB_WORKSPACE/cargocheck.log"
+            head -100 "$GITHUB_WORKSPACE/cargocheck.log"
+          else
+            echo "NOT FOUND"
+            find "$GITHUB_WORKSPACE" -name "cargocheck.log" 2>/dev/null || echo "no cargocheck.log in workspace"
+          fi
+
+      - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -240,7 +263,6 @@ jobs:
           path: |
             tauri-build.log
             cargocheck.log
-          compression-level: 0
 
       - name: Debug bundle contents (Windows)
         if: runner.os == 'Windows'
