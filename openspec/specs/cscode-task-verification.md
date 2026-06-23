@@ -270,61 +270,150 @@ async def get_verification_report(session_id: str):
 
 ## 7. 会话内容乱窜修复
 
-**修改位置：** 前端 `useChat.ts`
+**问题：** 当用户快速切换会话时，旧会话的 SSE 事件可能被应用到新激活的会话，导致内容串扰。
+
+**根因：** `useChat.ts` 的 `isCurrent()` 只检查 `streamControllers[sid] === controller`，不检查 `activeSessionId`。当用户切换到新会话后，旧流的 controller 仍在 map 中，事件会错误地应用到当前激活的会话。
+
+**修改位置：** `src/cscode/web/src/hooks/useChat.ts`，第 137 行
 
 ```typescript
+// 修改前：
+const isCurrent = () => streamControllers[sid] === controller;
+
+// 修改后：
 const isCurrent = () => {
   const activeId = useSessionStore.getState().activeSessionId;
   return streamControllers[sid] === controller && activeId === sid;
 };
 ```
 
-## 8. task_id 传递机制
+## 8. task_id 传递机制（完整数据流）
 
-**问题：** `task_id`（如 TC001）如何从 LLM 调用传递到工具层，再写入事件？
+### 8.1 整体流程
 
-**方案：** 利用现有的 `todowrite` 工具作为桥梁。
-
-1. LLM 通过 `todowrite` 创建任务列表时，同时将任务写入 `expected_tasks` 表
-2. LLM 调用 browser/bash 时，在参数中携带 `task_id`
-3. 工具层从参数中提取 `task_id`，注入到返回结果中
-4. `tool.success` 事件自然携带 `task_id`
-
-**修改点：**
-
-```python
-# todowrite.py — 执行时同步写入 expected_tasks
-async def execute(self, todos: list, session_id: str):
-    for todo in todos:
-        await db.execute(
-            "INSERT OR IGNORE INTO expected_tasks (session_id, task_id, description) VALUES (?, ?, ?)",
-            [session_id, todo.get("id", todo["content"][:20]), todo["content"]]
-        )
-    # ... 原有逻辑
+```
+LLM 调用 todowrite(id="TC001", ...)
+    ↓
+TodoWriteTool.execute() → INSERT INTO expected_tasks (session_id, task_id, description)
+    ↓
+LLM 调用 browser(action="screenshot", task_id="TC001")
+    ↓
+BrowserTool.execute() → 提取 task_id，注入 ToolResult.metadata
+    ↓
+engine.py 发送 tool.success 事件 → data 包含 task_id + evidence
+    ↓
+EventStore.append() → 写入 events 表（data 字段为 JSON）
+    ↓
+TaskTracker.on_tool_success() → 写入 task_verifications 投影表
 ```
 
+### 8.2 关键决策
+
+| 决策点 | 方案 | 理由 |
+|--------|------|------|
+| task_id 生成 | LLM 自己生成（如 TC-001） | 灵活，LLM 可按用例编号命名 |
+| TodoWriteTool 注入 session_id | 通过构造函数注入 db 连接，从调用上下文获取 session_id | TodoWriteTool 本身不持有 session_id，需外部注入 |
+| TodoWriteTool 注入 db | 构造函数注入 Database 实例 | 与现有架构一致（EventStore 同样注入 Database） |
+| tool.success 事件扩展 | 修改 engine.py 的 _emit 调用，将 fn_args + metadata 传入 data | 现有事件只含 name + result[:200]，需扩展 |
+| TaskTracker 获取 session_id | 从事件的 aggregate_id 提取 | EventStore 的 aggregate_id 即 session_id |
+
+### 8.3 修改点
+
+**todowrite.py — 注入 db + 同步写入 expected_tasks：**
+
 ```python
-# browser.py — 从参数提取 task_id
-async def execute(self, action: str, task_id: str = None, **kwargs):
-    result = await self._execute_action(action, **kwargs)
-    result["task_id"] = task_id  # 透传到事件
-    # ... evidence 逻辑
+class TodoWriteTool(BaseTool):
+    def __init__(self, db: Database | None = None):
+        self._db = db
+
+    async def execute(self, args: dict[str, Any]) -> ToolResult:
+        todos = args["todos"]
+        # 同步写入 expected_tasks（如果有 db 连接）
+        if self._db:
+            for t in todos:
+                task_id = t.get("id", t["content"][:20])
+                await self._db.execute(
+                    "INSERT OR IGNORE INTO expected_tasks (session_id, task_id, description) "
+                    "VALUES (?, ?, ?)",
+                    (args.get("_session_id", ""), task_id, t["content"])
+                )
+        # ... 原有格式化逻辑
 ```
+
+**browser.py — 参数 schema 新增 task_id + execute 注入 metadata：**
+
+```python
+class BrowserTool(BaseTool):
+    parameters = {
+        "type": "object",
+        "properties": {
+            "action": {...},
+            "task_id": {"type": "string", "description": "Optional test case ID for tracking"},
+            # ... 其他字段不变
+        },
+        "required": ["action"],
+    }
+
+    async def execute(self, args: dict[str, Any]) -> ToolResult:
+        task_id = args.get("task_id")
+        # ... 原有执行逻辑 ...
+        # 在返回前注入 evidence 到 metadata
+        result.metadata["task_id"] = task_id or ""
+        result.metadata["evidence"] = json.dumps({...})
+        result.metadata["verified"] = str(verified)
+        return result
+```
+
+**engine.py — tool.success 事件扩展（run_loop_events 方法，约第 416 行）：**
+
+```python
+# 修改前：
+await _emit({"type": "tool.success", "data": {"name": func_name, "result": (tool_result.data or "")[:200]}})
+
+# 修改后：
+await _emit({"type": "tool.success", "data": {
+    "name": func_name,
+    "result": (tool_result.data or "")[:200],
+    "args": fn_args,                              # 包含 task_id
+    "metadata": tool_result.metadata,              # 包含 evidence, verified
+}})
+```
+
+**TaskTracker 从事件提取数据：**
+
+```python
+async def on_tool_success(self, event: Event):
+    """事件回调：tool.success → 写入投影表"""
+    data = event.data
+    args = data.get("args", {})
+    metadata = data.get("metadata", {})
+    
+    task_id = args.get("task_id") or metadata.get("task_id", "unknown")
+    if task_id == "unknown":
+        return  # 非测试任务，跳过
+    
+    evidence = json.loads(metadata.get("evidence", "{}"))
+    verified = metadata.get("verified") == "True"
+    
+    await self.db.execute(
+        "INSERT OR REPLACE INTO task_verifications ...",
+        [event.aggregate_id, task_id, data["name"], int(verified), ...]
+    )
 
 ## 9. 实现优先级
 
 | 优先级 | 任务 | 涉及文件 | 理由 |
 |--------|------|---------|------|
-| P0 | 修复会话内容乱窜 | `useChat.ts` | 阻塞用户体验，必须先解决 |
-| P1 | 增强系统提示词 | `app.py` | 最简单，立即生效 |
+| P0 | 修复会话内容乱窜 | `web/src/hooks/useChat.ts` | 阻塞用户体验，必须先解决 |
+| P1 | 增强系统提示词 | `server/app.py` | 最简单，立即生效 |
 | P1 | TaskTracker 投影器 | `core/tracker.py`（新增） | 核心追踪能力 |
-| P1 | 数据库迁移（新增表） | `storage/db.py` | 投影表 + expected_tasks 表 |
-| P1 | TodoWrite 同步 expected_tasks | `tools/todowrite.py` | task_id 传递桥梁 |
-| P2 | Browser 工具 evidence + task_id | `tools/browser.py` | 需要修改工具执行 |
-| P2 | Bash 工具 evidence + task_id | `tools/bash.py` | 需要修改工具执行 |
-| P2 | 事件 store 扩展 | `storage/event_store.py` | tool.success 新增字段 |
-| P2 | 报告 API | `app.py` | 依赖 TaskTracker |
-| P2 | TaskTracker 集成注册 | `app.py` | 启动时订阅事件 |
+| P1 | 数据库迁移 v005（新增表） | `storage/db.py` | task_verifications + expected_tasks 表 |
+| P1 | TodoWrite 注入 db + 同步 expected_tasks | `tools/todowrite.py` | task_id 传递桥梁 |
+| P2 | Browser 工具 evidence + task_id | `tools/browser.py` | 参数 schema + execute 修改 |
+| P2 | Bash 工具 evidence + task_id | `tools/bash.py` | 参数 schema + execute 修改 |
+| P2 | engine.py tool.success 事件扩展 | `core/engine.py` | 传递 args + metadata 到事件 |
+| P2 | 报告 API | `server/app.py` | 依赖 TaskTracker |
+| P2 | TaskTracker 集成注册 | `server/app.py` | 启动时订阅事件 |
 
 ## 10. 验收标准
 
