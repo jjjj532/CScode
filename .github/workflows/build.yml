@@ -117,7 +117,10 @@ jobs:
           # Using a zip avoids thousands of files in Tauri resources, which
           # crashes the build script on Windows (MAX_PATH / enumeration limits).
           TMPDIR=$(mktemp -d)
-          $PYTHON -m pip install --target="$TMPDIR" . 2>&1 | tail -5
+          # Install deps; capture full output but only show last lines on success
+          $PYTHON -m pip install --target="$TMPDIR" . > /tmp/pip-install.log 2>&1 || { cat /tmp/pip-install.log; exit 1; }
+          tail -5 /tmp/pip-install.log
+          rm -f /tmp/pip-install.log
           # Remove playwright driver (not needed, huge)
           rm -rf "$TMPDIR/playwright/driver" 2>/dev/null || true
           # Remove __pycache__, tests, and bin
@@ -166,6 +169,26 @@ jobs:
           echo "=== resource file count ==="
           find desktop/src-tauri/resources -type f | wc -l
 
+      - name: Validate resources
+        shell: bash
+        run: |
+          errors=0
+          if [ ! -f desktop/src-tauri/resources/site-packages.zip ]; then
+            echo "::error::Missing site-packages.zip"
+            errors=$((errors+1))
+          fi
+          if [ ! -f desktop/src-tauri/resources/python/cscode/server/app.py ]; then
+            echo "::error::Missing python/cscode/server/app.py"
+            errors=$((errors+1))
+          fi
+          if [ ! -f desktop/src-tauri/resources/python/cscode/web/dist/index.html ]; then
+            echo "::error::Missing python/cscode/web/dist/index.html"
+            errors=$((errors+1))
+          fi
+          echo "=== resource tree ==="
+          find desktop/src-tauri/resources -type f | sort
+          if [ "$errors" -gt 0 ]; then exit 1; fi
+
       - name: Install Tauri npm dependencies
         working-directory: desktop
         run: npm ci
@@ -187,7 +210,12 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            npx tauri build --verbose --bundles msi
+            # First check if it compiles without bundling
+            echo "=== Attempting cargo check first ==="
+            cargo check 2>&1
+            echo "=== Cargo check done ==="
+            # Try MSI bundling
+            npx tauri build --verbose 2>&1
           else
             npx tauri build --verbose
           fi
@@ -249,7 +277,7 @@ jobs:
           compression-level: 0
 
   create-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !cancelled()
     needs: build
     runs-on: ubuntu-22.04
     steps:
