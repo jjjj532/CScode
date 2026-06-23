@@ -134,7 +134,10 @@ export function useChat() {
 
           try {
             const event = JSON.parse(trimmed.slice(6));
-            const isCurrent = () => streamControllers[sid] === controller;
+            const isCurrent = () => {
+              const activeId = useSessionStore.getState().activeSessionId;
+              return streamControllers[sid] === controller && activeId === sid;
+            };
 
             switch (event.type) {
               case 'session':
