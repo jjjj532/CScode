@@ -220,8 +220,8 @@ jobs:
           exit $rc
           exit $rc
 
-      - name: Upload build logs (if failed)
-        if: failure()
+      - name: Upload build logs (always)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs-${{ runner.os }}
