@@ -79,6 +79,10 @@ jobs:
           echo "WiX installed"
           # Verify Rust target
           rustup target list --installed | findstr x86_64-pc-windows-msvc
+          # Add dotnet tools to GITHUB_PATH for subsequent bash steps
+          $dotnetTools = "$env:USERPROFILE\.dotnet\tools"
+          echo "Adding to PATH: $dotnetTools"
+          echo "$dotnetTools" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Create and activate Python venv
         shell: bash
@@ -170,6 +174,16 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
+          # Debug pre-build checks
+          echo "=== Rust check ==="
+          rustc --version
+          cargo --version
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "=== dotnet tools PATH ==="
+            which wix 2>/dev/null && wix --version || echo "wix not in PATH"
+            # Check if dotnet tools are in PATH
+            echo "PATH=$PATH"
+          fi
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
