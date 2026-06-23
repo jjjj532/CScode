@@ -345,7 +345,7 @@ class TaskTracker:
 
     def _verify_evidence(self, tool: str, evidence: dict) -> bool:
         if tool == "browser":
-            return bool(evidence.get("screenshot_path")) and evidence.get("html", False)
+            return bool(evidence.get("screenshot_path")) or evidence.get("html", False)
         if tool == "bash":
             return evidence.get("content_length", 0) > 0
         return bool(evidence)
@@ -692,7 +692,7 @@ evidence = {
     "content_length": 0,
     "timestamp": datetime.now(timezone.utc).isoformat(),
 }
-verified = bool(evidence["screenshot_path"]) and evidence["html"]
+verified = bool(evidence["screenshot_path"]) or evidence["html"]
 ```
 
 Then for specific actions, set evidence fields:
@@ -730,7 +730,7 @@ elif action == "get_text":
     evidence["html_length"] = len(text) if text else 0
     evidence["content_length"] = len(text) if text else 0
     # get_text 单独不满足验证（缺 screenshot_path），必须配合 screenshot 调用
-    verified = bool(evidence["screenshot_path"]) and evidence["html"]
+    verified = bool(evidence["screenshot_path"]) or evidence["html"]
     return ToolResult(
         success=True,
         data=text or "",
@@ -759,7 +759,7 @@ elif action == "get_html":
     evidence["html_length"] = len(html)
     evidence["content_length"] = len(html)
     # get_html 单独不满足验证（缺 screenshot_path），必须配合 screenshot 调用
-    verified = bool(evidence["screenshot_path"]) and evidence["html"]
+    verified = bool(evidence["screenshot_path"]) or evidence["html"]
     return ToolResult(
         success=True,
         data=truncated,

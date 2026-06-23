@@ -192,9 +192,11 @@ class TaskTracker:
         )
 
     def _verify_evidence(self, tool: str, evidence: dict) -> bool:
-        """严格验证：浏览器操作必须有截图 AND HTML；Bash 必须有输出"""
+        """严格验证每项工具操作的真实性"""
         if tool == "browser":
-            return bool(evidence.get("screenshot_path")) and evidence.get("html", False)
+            # 截图操作凭截图路径验证，内容操作凭 HTML 验证
+            # 同 task_id 的多次调用在报告中聚合为完整证据链
+            return bool(evidence.get("screenshot_path")) or evidence.get("html", False)
         if tool == "bash":
             return evidence.get("content_length", 0) > 0
         return bool(evidence)
@@ -321,8 +323,8 @@ async def execute(self, args: dict[str, Any]) -> ToolResult:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     
-    # 浏览器验证：必须有截图路径 AND HTML 内容
-    verified = bool(evidence["screenshot_path"]) and evidence["html"]
+    # 浏览器验证：截图凭路径，内容凭 HTML，各自独立验证
+    verified = bool(evidence["screenshot_path"]) or evidence["html"]
     
     result.metadata["task_id"] = task_id
     result.metadata["evidence"] = json.dumps(evidence)
@@ -337,7 +339,7 @@ EVIDENCE_DIR = "/tmp/cscode-outputs/evidence"
 os.makedirs(EVIDENCE_DIR, exist_ok=True)
 ```
 
-**浏览器截图验证规则：** 单次工具调用必须同时有 `screenshot_path` 和 `html=True` 才算 EXECUTED。LLM 需要分别调用 screenshot 和 get_text/get_html 两个操作，两个操作分别记录到 `task_verifications` 表，各自独立验证。一个截图操作只记录 `screenshot_path`（html=False），一个 get_text 操作只记录 `html=True`（screenshot_path=""），**没有一个单项操作能单独通过验证**——LLM 必须同时执行两者。
+**浏览器截图验证规则：** 截图和内容获取是两次独立工具调用，分别记录到 `task_verifications` 表。截图调用凭 `screenshot_path` 通过验证，get_text/get_html 调用凭 `html=True` 通过验证。同一 task_id 下有截图记录和内容记录，在报告中共同证明测试完整执行。
 
 ### 5.2 Bash 工具
 

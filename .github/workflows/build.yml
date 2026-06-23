@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -202,15 +203,31 @@ jobs:
       - name: Build Tauri app
         working-directory: desktop
         shell: bash
+        env:
+          RUST_BACKTRACE: full
+          CARGO_INCREMENTAL: 0
+          GH_TOKEN: ${{ github.token }}
         run: |
+          BUILD_LOG=$(mktemp)
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            cargo build --release --manifest-path src-tauri/Cargo.toml
-            npx tauri build --verbose --bundles nsis
+            cargo build --release --manifest-path src-tauri/Cargo.toml > "$BUILD_LOG" 2>&1; rc1=$?
+            cat "$BUILD_LOG"
+            if [ $rc1 -ne 0 ]; then
+              gh issue create --title "Windows cargo build failure" --label "ci" --body "$(head -200 "$BUILD_LOG")" || true
+              exit $rc1
+            fi
+            npx tauri build --verbose --bundles nsis > "$BUILD_LOG" 2>&1; rc2=$?
+            cat "$BUILD_LOG"
+            if [ $rc2 -ne 0 ]; then
+              gh issue create --title "Windows tauri build failure" --label "ci" --body "$(head -200 "$BUILD_LOG")" || true
+              exit $rc2
+            fi
           else
             npx tauri build --verbose
           fi
+          rm -f "$BUILD_LOG"
 
       - name: Debug build output (Windows)
         if: runner.os == 'Windows' && failure()
