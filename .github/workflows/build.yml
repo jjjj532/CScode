@@ -96,8 +96,18 @@ jobs:
       - name: Copy web dist to desktop
         shell: bash
         run: |
-          mkdir -p desktop/src-tauri/web-dist
-          cp -r src/cscode/web/dist/* desktop/src-tauri/web-dist/
+          set -euxo pipefail
+          mkdir -p desktop/src-tauri/web-dist desktop/dist
+          # Use dot-source copy instead of glob to avoid nullglob issues
+          if [ -d src/cscode/web/dist ] && [ "$(ls -A src/cscode/web/dist 2>/dev/null)" ]; then
+            cp -r src/cscode/web/dist/. desktop/src-tauri/web-dist/
+            echo "web-dist: copied $(find desktop/src-tauri/web-dist -type f | wc -l) files"
+          else
+            echo "ERROR: src/cscode/web/dist is missing or empty!"
+            ls -la src/cscode/web/dist/ 2>/dev/null || echo "dist dir not found"
+            ls -la src/cscode/web/ 2>/dev/null || echo "web dir not found"
+            exit 1
+          fi
           # Restore spinner page for Tauri frontendDist
           echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>CScode</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;opacity:1;transition:opacity .2s ease}body.fade-out{opacity:0}.spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#646cff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div></body></html>' > desktop/dist/index.html
 
