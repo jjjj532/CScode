@@ -212,13 +212,15 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            cargo build --release --manifest-path src-tauri/Cargo.toml > "$BUILD_LOG" 2>&1; rc1=$?
+            # Step 1: cargo build
+            cargo build --release --manifest-path src-tauri/Cargo.toml > "$BUILD_LOG" 2>&1 && rc1=0 || rc1=$?
             cat "$BUILD_LOG"
             if [ $rc1 -ne 0 ]; then
               gh issue create --title "Windows cargo build failure" --label "ci" --body "$(head -200 "$BUILD_LOG")" || true
               exit $rc1
             fi
-            npx tauri build --verbose --bundles nsis > "$BUILD_LOG" 2>&1; rc2=$?
+            # Step 2: tauri build
+            npx tauri build --verbose --bundles nsis > "$BUILD_LOG" 2>&1 && rc2=0 || rc2=$?
             cat "$BUILD_LOG"
             if [ $rc2 -ne 0 ]; then
               gh issue create --title "Windows tauri build failure" --label "ci" --body "$(head -200 "$BUILD_LOG")" || true
