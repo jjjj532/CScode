@@ -208,17 +208,28 @@ jobs:
             echo "PATH=$PATH"
           fi
           if [ "$RUNNER_OS" = "macOS" ]; then
-            npx tauri build --verbose --bundles app
+            npx tauri build --verbose --bundles app 2>&1 | tee /tmp/tauri-build.log; rc=${PIPESTATUS[0]}
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            # First check if it compiles without bundling
+            # First check if it compiles
             echo "=== Attempting cargo check first ==="
-            cargo check 2>&1
-            echo "=== Cargo check done ==="
-            # Try MSI bundling
-            npx tauri build --verbose 2>&1
+            cargo check 2>&1 | tee /tmp/cargocheck.log; cargo_rc=${PIPESTATUS[0]}
+            echo "=== Cargo check done (exit=$cargo_rc) ==="
+            # Try full build
+            npx tauri build --verbose 2>&1 | tee /tmp/tauri-build.log; rc=${PIPESTATUS[0]}
           else
-            npx tauri build --verbose
+            npx tauri build --verbose 2>&1 | tee /tmp/tauri-build.log; rc=${PIPESTATUS[0]}
           fi
+          exit $rc
+
+      - name: Upload build logs (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ runner.os }}
+          path: |
+            /tmp/tauri-build.log
+            /tmp/cargocheck.log
+          compression-level: 0
 
       - name: Debug bundle contents (Windows)
         if: runner.os == 'Windows'
