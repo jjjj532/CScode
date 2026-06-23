@@ -210,8 +210,10 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app > ../tauri-build.log 2>&1; rc=$?
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            cargo check > ../cargocheck.log 2>&1; cargo_rc=$?
-            npx tauri build --verbose --bundles msi > ../tauri-build.log 2>&1; rc=$?
+            cargo check 2>&1 | tee ../cargocheck.log; cargo_rc=${PIPESTATUS[0]}
+            echo "CARGO_CHECK_EXIT=$cargo_rc"
+            npx tauri build --verbose 2>&1 | tee ../tauri-build.log; rc=${PIPESTATUS[0]}
+            echo "TAURI_BUILD_EXIT=$rc"
           else
             npx tauri build --verbose > ../tauri-build.log 2>&1; rc=$?
           fi
