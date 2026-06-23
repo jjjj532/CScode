@@ -216,13 +216,20 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app > ../tauri-build.log 2>&1; rc=$?
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            cargo check 2>&1 | tee ../cargocheck.log; cargo_rc=${PIPESTATUS[0]}
-            echo "CARGO_CHECK_EXIT=$cargo_rc"
-            npx tauri build --verbose 2>&1 | tee ../tauri-build.log; rc=${PIPESTATUS[0]}
-            echo "TAURI_BUILD_EXIT=$rc"
+            cargo check > ../cargocheck.log 2>&1; cargo_rc=$?
+            echo "# CARGO_CHECK_EXIT=$cargo_rc"
+            npx tauri build --verbose --bundles msi > ../tauri-build.log 2>&1; rc=$?
+            echo "# TAURI_BUILD_EXIT=$rc"
           else
             npx tauri build --verbose > ../tauri-build.log 2>&1; rc=$?
           fi
+          # Show logs in step output (cross-platform, unlike 'tee')
+          for logf in ../tauri-build.log ../cargocheck.log; do
+            if [ -f "$logf" ] && [ -s "$logf" ]; then
+              echo "=== tail $(basename $logf) ==="
+              tail -20 "$logf"
+            fi
+          done
           exit $rc
 
       - name: Upload build logs (always)
