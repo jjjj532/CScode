@@ -121,23 +121,7 @@ jobs:
           rm -rf "$TMPDIR/bin" 2>/dev/null || true
           # Create the zip using Python (cross-platform, unlike 'zip' command)
           mkdir -p desktop/src-tauri/resources
-          $PYTHON -c "
-import zipfile, os
-from pathlib import Path
-srcdir = Path('$TMPDIR')
-out = Path('desktop/src-tauri/resources/site-packages.zip')
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
-    for f in srcdir.rglob('*'):
-        if f.is_file():
-            rel = f.relative_to(srcdir)
-            parts = rel.parts
-            # Exclude cscode package — we bundle source separately
-            if parts[0] == 'cscode' or parts[0].startswith('cscode-'):
-                continue
-            arcname = str(rel)
-            zf.write(f, arcname)
-print(f'Created {out} with {len(zf.namelist())} entries')
-" 2>&1
+          $PYTHON -c "import zipfile,os,sys;from pathlib import Path;tmpdir=sys.argv[1];srcdir=Path(tmpdir);out=Path('desktop/src-tauri/resources/site-packages.zip');zf=zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED);[zf.write(f,str(f.relative_to(srcdir))) for f in srcdir.rglob('*') if f.is_file() and not str(f.relative_to(srcdir)).startswith('cscode')];print(f'Created site-packages.zip with {len(zf.namelist())} entries')" "$TMPDIR" 2>&1
           rm -rf "$TMPDIR"
           echo "=== site-packages.zip size ==="
           ls -lh desktop/src-tauri/resources/site-packages.zip
