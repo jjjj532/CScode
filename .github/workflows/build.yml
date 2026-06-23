@@ -203,65 +203,26 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
-          # Debug pre-build checks
-          echo "=== Rust check ==="
-          rustc --version
-          cargo --version
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            echo "=== dotnet tools PATH ==="
-            which wix 2>/dev/null && wix --version || echo "wix not in PATH"
-            # Check if dotnet tools are in PATH
-            echo "PATH=$PATH"
-          fi
           if [ "$RUNNER_OS" = "macOS" ]; then
-            npx tauri build --verbose --bundles app > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
+            npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            # Step 1: cargo build (compile Rust only)
-            cargo build --release > "$GITHUB_WORKSPACE/cargocheck.log" 2>&1; cargo_rc=$?
-            echo "::notice::CARGO_BUILD_EXIT=$cargo_rc"
-            # Show cargo build errors as annotations
-            if [ -f "$GITHUB_WORKSPACE/cargocheck.log" ]; then
-              head -5 "$GITHUB_WORKSPACE/cargocheck.log" | while read line; do
-                echo "::warning file=cargocheck.log::$line"
-              done
-            fi
-            # Step 2: bundle with NSIS
-            npx tauri build --verbose --bundles nsis > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
-            echo "::notice::TAURI_BUILD_EXIT=$rc"
-            if [ -f "$GITHUB_WORKSPACE/tauri-build.log" ]; then
-              head -10 "$GITHUB_WORKSPACE/tauri-build.log" | while read line; do
-                echo "::error file=tauri-build.log::$line"
-              done
-            fi
+            cargo build --release --manifest-path src-tauri/Cargo.toml
+            npx tauri build --verbose --bundles nsis
           else
-            npx tauri build --verbose > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
+            npx tauri build --verbose
           fi
-          exit $rc
 
-      - name: Debug build logs
-        if: always()
+      - name: Debug build output (Windows)
+        if: runner.os == 'Windows' && failure()
         shell: bash
         run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          for f in tauri-build.log cargocheck.log; do
-            echo "=== $f ==="
-            if [ -f "$GITHUB_WORKSPACE/$f" ]; then
-              ls -la "$GITHUB_WORKSPACE/$f"
-              head -100 "$GITHUB_WORKSPACE/$f"
-            else
-              echo "NOT FOUND"
-              find "$GITHUB_WORKSPACE" -name "$f" 2>/dev/null || echo "no $f in workspace"
-            fi
-          done
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs-${{ runner.os }}
-          path: |
-            tauri-build.log
-            cargocheck.log
+          echo "::notice::Windows build failed. Check step log for details."
+          echo "=== disk usage ==="
+          df -h
+          echo "=== Rust target dir ==="
+          ls -la desktop/src-tauri/target/release/ 2>/dev/null || echo "no target/release"
+          echo "=== cargo home ==="
+          du -sh "$CARGO_HOME" 2>/dev/null || true
 
       - name: Debug bundle contents (Windows)
         if: runner.os == 'Windows'
