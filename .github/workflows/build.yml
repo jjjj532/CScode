@@ -73,7 +73,8 @@ jobs:
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install -y webkit2gtk 2>$null || true
+          # WebView2 is built into Windows 10+; no extra deps needed
+          echo "Windows deps satisfied by OS"
 
       - name: Create and activate Python venv
         shell: bash
@@ -100,30 +101,44 @@ jobs:
           # Restore spinner page for Tauri frontendDist
           echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>CScode</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;opacity:1;transition:opacity .2s ease}body.fade-out{opacity:0}.spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#646cff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div></body></html>' > desktop/dist/index.html
 
-      - name: Bundle Python source for Tauri resources
+      - name: Install ALL pip deps into bundled Python
         shell: bash
         run: |
-          mkdir -p desktop/src-tauri/python
-          # Copy Python source files (cross-platform find approach)
+          PYTHON="python3"
+          if [ "$RUNNER_OS" = "Windows" ]; then PYTHON="python"; fi
+          # Install cscode + all dependencies (and transitive deps) into target dir
+          # so the bundled .app can run Python server without needing a venv
+          $PYTHON -m pip install --target=desktop/src-tauri/python . 2>&1 | tail -10
+          # Remove Playwright browser binaries (too large, not needed in desktop app)
+          rm -rf desktop/src-tauri/python/playwright/driver 2>/dev/null || true
+          echo "=== Bundled python dir size ==="
+          du -sh desktop/src-tauri/python/
+          echo "=== Total files ==="
+          find desktop/src-tauri/python -type f | wc -l
+
+      - name: Bundle Python source overlay + web/dist
+        shell: bash
+        run: |
+          # Overlay source files on top of pip-installed packages, ensuring
+          # all .py files and web/dist are present (pip install might exclude
+          # web/dist due to .gitignore 'dist/' rule)
           cd src
           for f in $(find cscode -path '*/web/dist' -prune -o -path '*/node_modules' -prune -o -type f -name '*.py' -print); do
             mkdir -p "../desktop/src-tauri/python/$(dirname $f)"
             cp "$f" "../desktop/src-tauri/python/$f"
           done
-          # Copy web/dist
+          # Copy web/dist (guaranteed to be present after overlay)
           mkdir -p ../desktop/src-tauri/python/cscode/web
           cp -r cscode/web/dist ../desktop/src-tauri/python/cscode/web/
           cd ..
           find desktop/src-tauri/python -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-          echo "Python source bundled"
+          echo "=== Final bundled python dir size ==="
           du -sh desktop/src-tauri/python/
-
-      - name: Install pip deps into bundled Python
-        shell: bash
-        run: |
-          PYTHON="python3"
-          if [ "$RUNNER_OS" = "Windows" ]; then PYTHON="python"; fi
-          $PYTHON -m pip install --target=desktop/src-tauri/python python-multipart python-docx openpyxl 2>&1 | tail -3
+          # Verify critical files exist
+          echo "=== Verify app.py exists ==="
+          test -f desktop/src-tauri/python/cscode/server/app.py && echo "OK" || echo "MISSING"
+          echo "=== Verify web/dist exists ==="
+          test -f desktop/src-tauri/python/cscode/web/dist/index.html && echo "OK" || echo "MISSING"
 
       - name: Debug - check files
         shell: bash

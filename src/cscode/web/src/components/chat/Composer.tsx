@@ -4,6 +4,7 @@ import { useChat } from '../../hooks/useChat';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useConfigStore } from '../../stores/useConfigStore';
 import { AutocompletePopup } from '../ui/AutocompletePopup';
+import { api } from '../../lib/api';
 
 // Per-session sending guard — prevents the component-level useRef from
 // blocking sends to a different session while another session's stream runs.
@@ -20,6 +21,8 @@ export function Composer() {
   const addSessionAttachment = useSessionStore((s) => s.addSessionAttachment);
   const removeSessionAttachment = useSessionStore((s) => s.removeSessionAttachment);
   const clearSessionAttachments = useSessionStore((s) => s.clearSessionAttachments);
+  const addSession = useSessionStore((s) => s.addSession);
+  const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const attachedFiles = activeSessionId ? (sessionAttachments[activeSessionId] || []) : [];
   const config = useConfigStore((s) => s.config);
 
@@ -79,14 +82,13 @@ export function Composer() {
     const isSessionLoading = sid ? (sessionLoading[sid] || false) : false;
     if ((!text && attachedFiles.length === 0) || isSessionLoading) return;
 
-    if (!sid) return;
-
     // Per-session guard: don't allow concurrent sends to the same session
-    if (sendingSessions[sid]) {
+    const guardKey = sid || '__null__';
+    if (sendingSessions[guardKey]) {
       console.log('[Composer] handleSend SKIPPED: session=%s already sending', sid);
       return;
     }
-    sendingSessions[sid] = true;
+    sendingSessions[guardKey] = true;
 
     const filesToSend = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
 
@@ -94,12 +96,12 @@ export function Composer() {
     setMentionQuery(null);
 
     try {
-      await sendMessage(text, sid, filesToSend);
-      if (filesToSend) clearSessionAttachments(sid);
+      const returnedSid = await sendMessage(text, sid || undefined, filesToSend);
+      if (filesToSend && returnedSid) clearSessionAttachments(returnedSid as string);
     } catch (err) {
       console.error('Chat error:', err);
     } finally {
-      sendingSessions[sid] = false;
+      sendingSessions[guardKey] = false;
     }
   }, [input, sessionLoading, activeSessionId, attachedFiles, sendMessage, clearSessionAttachments]);
 
@@ -122,27 +124,39 @@ export function Composer() {
   };
 
   const handleAttachFile = async () => {
+    let sid = activeSessionId;
+    // Auto-create session if none exists, so files can be attached
+    if (!sid) {
+      try {
+        const session = await api.sessions.create();
+        addSession(session);
+        setActiveSession(session.id);
+        sid = session.id;
+      } catch (e) {
+        console.error('Failed to create session for attachment', e);
+        return;
+      }
+    }
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const { readFile } = await import('@tauri-apps/plugin-fs');
       const selected = await open({ multiple: true, title: 'Select files' });
       if (!selected) return;
       const paths: string[] = Array.isArray(selected) ? selected : [selected];
-      if (!activeSessionId) return;
       for (const pathStr of paths) {
         const bytes = await readFile(pathStr);
         const name = pathStr.split('/').pop() || 'file';
         const file = new File([bytes], name);
-        useSessionStore.getState().addSessionAttachment(activeSessionId, file);
+        useSessionStore.getState().addSessionAttachment(sid, file);
       }
     } catch (err) {
-      if (!activeSessionId) return;
+      if (!sid) return;
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
       fileInput.multiple = true;
       fileInput.onchange = () => {
         if (fileInput.files) {
-          Array.from(fileInput.files).forEach((f) => useSessionStore.getState().addSessionAttachment(activeSessionId!, f));
+          Array.from(fileInput.files).forEach((f) => useSessionStore.getState().addSessionAttachment(sid, f));
         }
       };
       fileInput.click();

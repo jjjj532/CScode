@@ -58,22 +58,35 @@ impl BackendState {
 
         // Finder launches apps with a minimal PATH; set it to find python3
         let path = std::env::var("PATH").unwrap_or_default();
-        let safe_path = format!(
-            "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:{}",
-            path
-        );
+        let safe_path = if cfg!(target_os = "windows") {
+            format!("{};{}", path, std::env::var("APPDATA").unwrap_or_default())
+        } else {
+            format!(
+                "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:{}",
+                path
+            )
+        };
 
-        // Locate python3: check common locations first, then rely on PATH
-        let python_candidates = [
-            "/usr/local/bin/python3",
-            "/opt/homebrew/bin/python3",
-            "/usr/bin/python3",
-        ];
+        // Locate Python: search common locations, then rely on PATH
+        let python_candidates: Vec<String> = if cfg!(target_os = "windows") {
+            vec![
+                "python.exe".to_string(),
+                "python3.exe".to_string(),
+                "py.exe".to_string(),
+            ]
+        } else {
+            vec![
+                "/usr/local/bin/python3".to_string(),
+                "/opt/homebrew/bin/python3".to_string(),
+                "/usr/bin/python3".to_string(),
+                "python3".to_string(),
+            ]
+        };
         let python_exe = python_candidates
             .iter()
-            .find(|p| Path::new(p).exists())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "python3".to_string());
+            .find(|p| Path::new(p).exists() || which_simple(p))
+            .cloned()
+            .unwrap_or_else(|| String::from("python3"));
 
         // 1. Try bundled Python source in Resources/python/
         if let Some(dir) = resource_dir {
@@ -177,6 +190,19 @@ async fn wait_for_health(port: u16) -> Result<(), String> {
     Err(format!("Backend at {url} did not become ready within 30 seconds"))
 }
 
+/// Check if a command name exists in PATH by trying to spawn it with --version
+fn which_simple(cmd: &str) -> bool {
+    std::process::Command::new(cmd)
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()
+        .and_then(|mut c| c.wait().ok())
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 async fn open_output_file(filename: String) -> Result<String, String> {
     let safe_name = Path::new(&filename)
@@ -185,22 +211,77 @@ async fn open_output_file(filename: String) -> Result<String, String> {
         .to_string_lossy()
         .to_string();
 
-    let file_path = PathBuf::from("/tmp/cscode-outputs").join(&safe_name);
+    let output_dir = std::env::temp_dir().join("cscode-outputs");
+    let file_path = output_dir.join(&safe_name);
 
     if !file_path.exists() {
-        // Open the parent directory in Finder so user sees what files exist
-        let dir = PathBuf::from("/tmp/cscode-outputs");
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = std::process::Command::new("open").arg(&*dir.to_string_lossy()).spawn();
+        // Open the parent directory in file manager so user sees what files exist
+        let _ = std::fs::create_dir_all(&output_dir);
+        let _ = open_in_file_manager(&output_dir);
         return Err(format!("File not found: {safe_name}"));
     }
 
-    std::process::Command::new("open")
-        .args(["-R", &file_path.to_string_lossy()])
-        .spawn()
+    reveal_in_file_manager(&file_path)
         .map_err(|e| format!("Failed to reveal: {e}"))?;
 
     Ok(String::new())
+}
+
+#[cfg(target_os = "macos")]
+fn open_in_file_manager(path: &Path) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("Failed to open: {e}"))?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
+    std::process::Command::new("open")
+        .args(["-R", &path.to_string_lossy()])
+        .spawn()
+        .map_err(|e| format!("Failed to reveal: {e}"))?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn open_in_file_manager(path: &Path) -> Result<(), String> {
+    std::process::Command::new("xdg-open")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("Failed to open: {e}"))?;
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
+    // xdg-open doesn't support -R; open the parent dir instead
+    if let Some(parent) = path.parent() {
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| format!("Failed to reveal: {e}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn open_in_file_manager(path: &Path) -> Result<(), String> {
+    std::process::Command::new("explorer")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("Failed to open: {e}"))?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
+    std::process::Command::new("explorer")
+        .args(["/select,", &path.to_string_lossy()])
+        .spawn()
+        .map_err(|e| format!("Failed to reveal: {e}"))?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
