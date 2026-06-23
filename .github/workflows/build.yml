@@ -216,17 +216,17 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            cargo check > "$GITHUB_WORKSPACE/cargocheck.log" 2>&1; cargo_rc=$?
-            echo "# CARGO_CHECK_EXIT=$cargo_rc"
-            # Step 1: no-bundle to test Rust compilation
-            npx tauri build --verbose --no-bundle > "$GITHUB_WORKSPACE/tauri-build-nobundle.log" 2>&1; rc=$?
-            echo "# NOBUNDLE_EXIT=$rc"
-            cp "$GITHUB_WORKSPACE/tauri-build-nobundle.log" "$GITHUB_WORKSPACE/tauri-build.log"
+            # Step 1: cargo build (compile Rust only)
+            cargo build --release > "$GITHUB_WORKSPACE/cargocheck.log" 2>&1; cargo_rc=$?
+            echo "# CARGO_BUILD_EXIT=$cargo_rc"
+            # Step 2: bundle with NSIS (no WiX needed)
+            npx tauri build --verbose --bundles nsis > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
+            echo "# TAURI_BUILD_EXIT=$rc"
           else
             npx tauri build --verbose > "$GITHUB_WORKSPACE/tauri-build.log" 2>&1; rc=$?
           fi
           # Show logs in step output
-          for logf in "$GITHUB_WORKSPACE/tauri-build.log" "$GITHUB_WORKSPACE/tauri-build-nobundle.log" "$GITHUB_WORKSPACE/cargocheck.log"; do
+          for logf in "$GITHUB_WORKSPACE/tauri-build.log" "$GITHUB_WORKSPACE/cargocheck.log"; do
             if [ -f "$logf" ] && [ -s "$logf" ]; then
               echo "=== tail $(basename $logf) ==="
               tail -20 "$logf"
@@ -239,7 +239,7 @@ jobs:
         shell: bash
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          for f in tauri-build.log tauri-build-nobundle.log cargocheck.log; do
+          for f in tauri-build.log cargocheck.log; do
             echo "=== $f ==="
             if [ -f "$GITHUB_WORKSPACE/$f" ]; then
               ls -la "$GITHUB_WORKSPACE/$f"
@@ -257,7 +257,6 @@ jobs:
           name: build-logs-${{ runner.os }}
           path: |
             tauri-build.log
-            tauri-build-nobundle.log
             cargocheck.log
 
       - name: Debug bundle contents (Windows)
