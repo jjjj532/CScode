@@ -88,13 +88,21 @@ impl BackendState {
             .cloned()
             .unwrap_or_else(|| String::from("python3"));
 
-        // 1. Try bundled Python source in Resources/python/
+        // 1. Try bundled resources in Resources/
         if let Some(dir) = resource_dir {
-            let bundled_python = dir.join("python");
-            eprintln!("Trying bundled python: {}", bundled_python.display());
-            if bundled_python.join("cscode").join("server").join("app.py").exists() {
+            let python_src = dir.join("resources").join("python");
+            let site_packages_zip = dir.join("resources").join("site-packages.zip");
+            eprintln!("Trying bundled resources: {}", python_src.display());
+            if python_src.join("cscode").join("server").join("app.py").exists() {
+                // PYTHONPATH = resources/python (cscode source) + resources/site-packages.zip (deps)
+                let mut pythonpath = python_src.to_string_lossy().to_string();
+                if site_packages_zip.exists() {
+                    pythonpath.push_str(&format!("{}", std::path::MAIN_SEPARATOR));
+                    pythonpath.push_str(&site_packages_zip.to_string_lossy());
+                }
+
                 let mut cmd = Command::new(&python_exe);
-                cmd.env("PYTHONPATH", bundled_python.to_string_lossy().to_string());
+                cmd.env("PYTHONPATH", &pythonpath);
                 cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
                 cmd.env("PATH", &safe_path);
                 // Pass API config via environment variables
@@ -108,12 +116,12 @@ impl BackendState {
 
                 match cmd.spawn() {
                     Ok(child) => {
-                        eprintln!("Started server from bundled python source");
+                        eprintln!("Started server from bundled resources");
                         self.child = Some(child);
                         return Ok(());
                     }
                     Err(e) => {
-                        eprintln!("Bundled python failed: {e}, falling back to dev mode");
+                        eprintln!("Bundled resources failed: {e}, falling back to dev mode");
                     }
                 }
             }

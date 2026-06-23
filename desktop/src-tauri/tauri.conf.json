@@ -36,8 +36,7 @@
       "icons/128x128@2x.png"
     ],
     "resources": [
-      "web-dist/**/*",
-      "python/**/*"
+      "resources/**/*"
     ]
   }
 }

@@ -97,72 +97,74 @@ jobs:
           npm ci
           npx vite build
 
-      - name: Copy web dist to desktop
+      - name: Create spinner page (Tauri frontendDist)
         shell: bash
         run: |
-          set -euxo pipefail
-          mkdir -p desktop/src-tauri/web-dist desktop/dist
-          # Use dot-source copy instead of glob to avoid nullglob issues
-          if [ -d src/cscode/web/dist ] && [ "$(ls -A src/cscode/web/dist 2>/dev/null)" ]; then
-            cp -r src/cscode/web/dist/. desktop/src-tauri/web-dist/
-            echo "web-dist: copied $(find desktop/src-tauri/web-dist -type f | wc -l) files"
-          else
-            echo "ERROR: src/cscode/web/dist is missing or empty!"
-            ls -la src/cscode/web/dist/ 2>/dev/null || echo "dist dir not found"
-            ls -la src/cscode/web/ 2>/dev/null || echo "web dir not found"
-            exit 1
-          fi
+          mkdir -p desktop/dist
           # Restore spinner page for Tauri frontendDist
           echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>CScode</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;opacity:1;transition:opacity .2s ease}body.fade-out{opacity:0}.spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#646cff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div></body></html>' > desktop/dist/index.html
 
-      - name: Install ALL pip deps into bundled Python
+      - name: Bundle Python deps as site-packages.zip
         shell: bash
         run: |
           PYTHON="python3"
           if [ "$RUNNER_OS" = "Windows" ]; then PYTHON="python"; fi
-          # Install cscode + all dependencies (and transitive deps) into target dir
-          # so the bundled .app can run Python server without needing a venv
-          $PYTHON -m pip install --target=desktop/src-tauri/python . 2>&1 | tail -10
-          # Remove Playwright browser binaries (too large, not needed in desktop app)
-          rm -rf desktop/src-tauri/python/playwright/driver 2>/dev/null || true
-          echo "=== Bundled python dir size ==="
-          du -sh desktop/src-tauri/python/
-          echo "=== Total files ==="
-          find desktop/src-tauri/python -type f | wc -l
+          # Install ALL dependencies to a temp dir, then zip them.
+          # Using a zip avoids thousands of files in Tauri resources, which
+          # crashes the build script on Windows (MAX_PATH / enumeration limits).
+          TMPDIR=$(mktemp -d)
+          $PYTHON -m pip install --target="$TMPDIR" . 2>&1 | tail -5
+          # Remove playwright driver (not needed, huge)
+          rm -rf "$TMPDIR/playwright/driver" 2>/dev/null || true
+          # Remove __pycache__, tests, and bin
+          find "$TMPDIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          rm -rf "$TMPDIR/bin" 2>/dev/null || true
+          # Create the zip (only the installed packages, NOT cscode itself)
+          mkdir -p desktop/src-tauri/resources
+          cd "$TMPDIR"
+          # Exclude cscode package — we'll bundle source separately
+          zip -r9 "$OLDPWD/desktop/src-tauri/resources/site-packages.zip" . \
+            -x "cscode/**" "cscode-*.dist-info/**" 2>&1 | tail -3
+          cd "$OLDPWD"
+          rm -rf "$TMPDIR"
+          echo "=== site-packages.zip size ==="
+          ls -lh desktop/src-tauri/resources/site-packages.zip
 
-      - name: Bundle Python source overlay + web/dist
+      - name: Bundle cscode source + web/dist
         shell: bash
         run: |
-          # Overlay source files on top of pip-installed packages, ensuring
-          # all .py files and web/dist are present (pip install might exclude
-          # web/dist due to .gitignore 'dist/' rule)
+          mkdir -p desktop/src-tauri/resources/python
+          # Copy only cscode source files (not pip deps) — ~100 files
           cd src
           for f in $(find cscode -path '*/web/dist' -prune -o -path '*/node_modules' -prune -o -type f -name '*.py' -print); do
-            mkdir -p "../desktop/src-tauri/python/$(dirname $f)"
-            cp "$f" "../desktop/src-tauri/python/$f"
+            mkdir -p "../desktop/src-tauri/resources/python/$(dirname $f)"
+            cp "$f" "../desktop/src-tauri/resources/python/$f"
           done
-          # Copy web/dist (guaranteed to be present after overlay)
-          mkdir -p ../desktop/src-tauri/python/cscode/web
-          cp -r cscode/web/dist ../desktop/src-tauri/python/cscode/web/
+          # Copy web/dist for embedded serving
+          mkdir -p ../desktop/src-tauri/resources/python/cscode/web
+          cp -r cscode/web/dist ../desktop/src-tauri/resources/python/cscode/web/
           cd ..
-          find desktop/src-tauri/python -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-          echo "=== Final bundled python dir size ==="
-          du -sh desktop/src-tauri/python/
-          # Verify critical files exist
-          echo "=== Verify app.py exists ==="
-          test -f desktop/src-tauri/python/cscode/server/app.py && echo "OK" || echo "MISSING"
-          echo "=== Verify web/dist exists ==="
-          test -f desktop/src-tauri/python/cscode/web/dist/index.html && echo "OK" || echo "MISSING"
+          find desktop/src-tauri/resources/python -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "=== Source files bundled ==="
+          find desktop/src-tauri/resources/python -type f | wc -l
+          echo "=== Verify app.py ==="
+          test -f desktop/src-tauri/resources/python/cscode/server/app.py && echo "OK" || echo "MISSING"
+          echo "=== Verify web/dist ==="
+          test -f desktop/src-tauri/resources/python/cscode/web/dist/index.html && echo "OK" || echo "MISSING"
 
       - name: Debug - check files
         shell: bash
         run: |
           echo "=== desktop/src-tauri/ dirs ==="
           ls -la desktop/src-tauri/
+          echo "=== desktop/src-tauri/resources/ ==="
+          ls -la desktop/src-tauri/resources/ 2>/dev/null || echo "no resources dir"
+          echo "=== resources site-packages.zip ==="
+          ls -lh desktop/src-tauri/resources/site-packages.zip 2>/dev/null || echo "no zip"
           echo "=== desktop/dist exists ==="
           test -f desktop/dist/index.html && echo "YES" || echo "NO"
-          echo "=== tauri CLI check ==="
-          cd desktop && npx tauri --version 2>&1 || echo "CLI NOT FOUND"
+          echo "=== resource file count ==="
+          find desktop/src-tauri/resources -type f | wc -l
 
       - name: Install Tauri npm dependencies
         working-directory: desktop
@@ -197,26 +199,28 @@ jobs:
           echo "=== .exe files ==="
           Get-ChildItem -Recurse "desktop/src-tauri/target" -Filter "*.exe" | Select-Object FullName, Length
 
-      - name: Fix DMG resources and create DMG (macOS)
+      - name: Verify bundle resources (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP_PATH="desktop/src-tauri/target/release/bundle/macos/CScode.app"
+          echo "=== app bundle resources ==="
+          ls -la "$APP_PATH/Contents/Resources/" 2>/dev/null || echo "No Resources dir"
+          echo "=== site-packages.zip ==="
+          ls -lh "$APP_PATH/Contents/Resources/resources/site-packages.zip" 2>/dev/null || echo "NO ZIP FOUND"
+          echo "=== python src ==="
+          test -f "$APP_PATH/Contents/Resources/resources/python/cscode/server/app.py" && echo "app.py OK" || echo "app.py MISSING"
+          echo "=== web dist ==="
+          test -f "$APP_PATH/Contents/Resources/resources/python/cscode/web/dist/index.html" && echo "web/dist OK" || echo "web/dist MISSING"
+
+      - name: Create DMG (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           APP_PATH="desktop/src-tauri/target/release/bundle/macos/CScode.app"
           DMG_DIR="desktop/src-tauri/target/release/bundle/dmg"
           mkdir -p "$DMG_DIR"
-          
-          # Ensure web-dist is in Resources
-          if [ ! -d "$APP_PATH/Contents/Resources/web-dist" ]; then
-            mkdir -p "$APP_PATH/Contents/Resources/web-dist"
-            cp -r src/cscode/web/dist/* "$APP_PATH/Contents/Resources/web-dist/"
-          fi
-          
-          # Ensure python source is in Resources
-          if [ ! -d "$APP_PATH/Contents/Resources/python" ]; then
-            mkdir -p "$APP_PATH/Contents/Resources/python"
-            cp -r desktop/src-tauri/python/* "$APP_PATH/Contents/Resources/python/"
-          fi
-          
+
           # Create DMG from the corrected .app
           STAGING="/tmp/cscode-dmg-$$"
           mkdir -p "$STAGING"
