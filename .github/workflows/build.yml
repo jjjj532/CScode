@@ -83,6 +83,12 @@ jobs:
           $dotnetTools = "$env:USERPROFILE\.dotnet\tools"
           echo "Adding to PATH: $dotnetTools"
           echo "$dotnetTools" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          # Verify WiX is accessible
+          & "$dotnetTools\wix.exe" --version 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "WiX not in expected path, trying dotnet wix"
+            dotnet wix --version 2>&1
+          }
 
       - name: Create and activate Python venv
         shell: bash
