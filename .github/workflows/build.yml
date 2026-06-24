@@ -28,6 +28,12 @@ jobs:
             target: aarch64-apple-darwin
             ext: ""
             pkg: dmg
+            arch: arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            ext: ""
+            pkg: dmg
+            arch: x86_64
           - os: windows-2022
             target: x86_64-pc-windows-msvc
             ext: .exe
@@ -267,8 +273,9 @@ jobs:
           cp -rf "$APP_PATH" "$STAGING/"
           ln -s /Applications "$STAGING/Applications"
           VERSION=$(grep '"version"' desktop/src-tauri/tauri.conf.json | cut -d'"' -f4)
+          ARCH=${{ matrix.arch }}
           rm -f "$DMG_DIR"/*.dmg
-          hdiutil create -volname "CScode" -srcfolder "$STAGING" -ov -format UDZO -imagekey zlib-level=9 "$DMG_DIR/CScode_${VERSION}_x64.dmg"
+          hdiutil create -volname "CScode" -srcfolder "$STAGING" -ov -format UDZO -imagekey zlib-level=9 "$DMG_DIR/CScode_${VERSION}_${ARCH}.dmg"
           rm -rf "$STAGING"
 
       - name: Upload installer artifacts
