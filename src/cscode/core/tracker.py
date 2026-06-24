@@ -29,7 +29,12 @@ class TaskTracker:
 
         if evt_type == "tool.success":
             evidence_raw = metadata.get("evidence", "{}")
-            evidence = json.loads(evidence_raw) if isinstance(evidence_raw, str) else evidence_raw
+            evidence = evidence_raw
+            if isinstance(evidence_raw, str):
+                try:
+                    evidence = json.loads(evidence_raw)
+                except json.JSONDecodeError:
+                    evidence = {}
             verified = self._verify_evidence(tool_name, evidence)
             status = "EXECUTED" if verified else "UNVERIFIED"
             result_summary = data.get("result", "")[:500]
@@ -48,6 +53,8 @@ class TaskTracker:
         )
 
     def _verify_evidence(self, tool: str, evidence: dict) -> bool:
+        if not isinstance(evidence, dict):
+            return False
         if tool == "browser":
             return bool(evidence.get("screenshot_path")) or evidence.get("html", False)
         if tool == "bash":
