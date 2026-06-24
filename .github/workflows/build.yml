@@ -129,7 +129,7 @@ jobs:
           tail -5 /tmp/pip-install.log
           rm -f /tmp/pip-install.log
           # Remove playwright driver (not needed, huge)
-          rm -rf "$TMPDIR/playwright/driver" 2>/dev/null || true
+          # Keep playwright/driver so browser tool works out of the box
           # Remove __pycache__, tests, and bin
           find "$TMPDIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
           rm -rf "$TMPDIR/bin" 2>/dev/null || true
