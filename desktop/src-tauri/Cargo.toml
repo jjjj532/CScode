@@ -4,7 +4,7 @@ version = "0.2.18"
 edition = "2021"
 
 [lib]
-name = "cscode_desktop"
+name = "cscode_app"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
