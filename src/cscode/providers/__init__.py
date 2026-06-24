@@ -27,6 +27,9 @@ def create_provider(config: Config) -> LLMProvider:
         case "openrouter":
             from cscode.providers.openrouter import OpenRouterProvider
             return OpenRouterProvider(config)
+        case "custom" | "scnet":
+            from cscode.providers.openai import OpenAIProvider
+            return OpenAIProvider(config)
         case _:
             msg = f"Unknown provider: {provider}"
             raise ProviderError(msg)
