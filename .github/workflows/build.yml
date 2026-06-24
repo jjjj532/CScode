@@ -212,14 +212,31 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
+            # Pre-fetch crates to warm the cache (mitigates network timeouts)
+            cargo fetch --manifest-path src-tauri/Cargo.toml 2>&1
             set +e
-            cargo build --release --manifest-path src-tauri/Cargo.toml > /tmp/cargo.log 2>&1; rc1=$?
+            # Retry up to 3 times for network resilience
+            for attempt in 1 2 3; do
+              cargo build --release --manifest-path src-tauri/Cargo.toml > /tmp/cargo.log 2>&1; rc1=$?
+              if [ $rc1 -eq 0 ]; then break; fi
+              if [ $attempt -lt 3 ]; then
+                echo "::warning::cargo build attempt $attempt failed with $rc1, retrying..."
+                sleep 10
+              fi
+            done
             set -e
             echo "::notice::CARGO_BUILD_EXIT_CODE=$rc1"
             head -50 /tmp/cargo.log
             if [ $rc1 -ne 0 ]; then exit $rc1; fi
             set +e
-            npx tauri build --verbose --bundles nsis > /tmp/tauri.log 2>&1; rc2=$?
+            for attempt in 1 2 3; do
+              npx tauri build --verbose --bundles nsis > /tmp/tauri.log 2>&1; rc2=$?
+              if [ $rc2 -eq 0 ]; then break; fi
+              if [ $attempt -lt 3 ]; then
+                echo "::warning::tauri build attempt $attempt failed with $rc2, retrying..."
+                sleep 10
+              fi
+            done
             set -e
             echo "::notice::TAURI_BUILD_EXIT_CODE=$rc2"
             head -200 /tmp/tauri.log
@@ -235,13 +252,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "::notice::=== Cargo build error (first 20 lines) ==="
-          lineno=0
-          while IFS= read -r line || [ -n "$line" ]; do
-            lineno=$((lineno + 1))
-            echo "::error file=cargo.log,line=$lineno::$line"
-            if [ $lineno -ge 20 ]; then break; fi
-          done < /tmp/cargo.log
+          echo "::notice::=== Cargo build error (last 30 lines) ==="
+          if [ -s /tmp/cargo.log ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              echo "::error file=cargo.log::$line"
+            done < <(tail -30 /tmp/cargo.log)
+          fi
           echo "::notice::=== Creating GitHub issue ==="
           if [ -s /tmp/cargo.log ]; then
             { echo "## Windows cargo build failure"; echo; head -200 /tmp/cargo.log; } > /tmp/body.md
