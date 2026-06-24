@@ -57,7 +57,7 @@ impl BackendState {
 
         let port_str = self.port.to_string();
 
-        // Finder launches apps with a minimal PATH; set it to find python3
+        // Build safe PATH for Playwright Chromium discovery
         let path = std::env::var("PATH").unwrap_or_default();
         let safe_path = if cfg!(target_os = "windows") {
             format!("{};{}", path, std::env::var("APPDATA").unwrap_or_default())
@@ -68,7 +68,40 @@ impl BackendState {
             )
         };
 
-        // Locate Python: search common locations, then rely on PATH
+        // 1. Try PyInstaller-bundled binary (self-contained, no Python needed)
+        if let Some(dir) = resource_dir {
+            #[cfg(target_os = "windows")]
+            let backend_bin = dir.join("resources").join("cscode-backend").join("cscode-backend.exe");
+            #[cfg(not(target_os = "windows"))]
+            let backend_bin = dir.join("resources").join("cscode-backend").join("cscode-backend");
+
+            eprintln!("Checking for PyInstaller binary: {}", backend_bin.display());
+            if backend_bin.exists() {
+                let mut cmd = Command::new(&backend_bin);
+                cmd.env("PATH", &safe_path);
+                cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
+                cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
+                cmd.env("CSCODE_MODEL", "MiniMax-M2.5");
+                cmd.env("CSCODE_PROVIDER", "openai");
+                cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
+                cmd.args(["--port", &port_str, "--host", "127.0.0.1"]);
+                cmd.stdout(Stdio::inherit());
+                cmd.stderr(Stdio::inherit());
+
+                match cmd.spawn() {
+                    Ok(child) => {
+                        eprintln!("Started PyInstaller backend from bundled resources");
+                        self.child = Some(child);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        eprintln!("PyInstaller backend failed: {e}, falling back to Python");
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback: legacy Python-based launch (for development)
         let python_candidates: Vec<String> = if cfg!(target_os = "windows") {
             vec![
                 "python.exe".to_string(),
@@ -89,13 +122,11 @@ impl BackendState {
             .cloned()
             .unwrap_or_else(|| String::from("python3"));
 
-        // 1. Try bundled resources in Resources/
+        // 2a. Try legacy bundled resources (site-packages.zip + python/)
         if let Some(dir) = resource_dir {
             let python_src = dir.join("resources").join("python");
             let site_packages_zip = dir.join("resources").join("site-packages.zip");
-            eprintln!("Trying bundled resources: {}", python_src.display());
             if python_src.join("cscode").join("server").join("app.py").exists() {
-                // PYTHONPATH = resources/python (cscode source) + resources/site-packages.zip (deps)
                 let mut pythonpath = python_src.to_string_lossy().to_string();
                 if site_packages_zip.exists() {
                     pythonpath.push_str(&format!("{}", std::path::MAIN_SEPARATOR));
@@ -106,7 +137,6 @@ impl BackendState {
                 cmd.env("PYTHONPATH", &pythonpath);
                 cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
                 cmd.env("PATH", &safe_path);
-                // Pass API config via environment variables
                 cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
                 cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
                 cmd.env("CSCODE_MODEL", "MiniMax-M2.5");
@@ -117,18 +147,18 @@ impl BackendState {
 
                 match cmd.spawn() {
                     Ok(child) => {
-                        eprintln!("Started server from bundled resources");
+                        eprintln!("Started server from legacy bundled resources");
                         self.child = Some(child);
                         return Ok(());
                     }
                     Err(e) => {
-                        eprintln!("Bundled resources failed: {e}, falling back to dev mode");
+                        eprintln!("Legacy bundled resources failed: {e}, falling back to dev mode");
                     }
                 }
             }
         }
 
-        // 2. Fallback: development project
+        // 2b. Fallback: development project
         let mut possible_paths: Vec<PathBuf> = vec![
             PathBuf::from("/Users/mac/AI/CScode"),
             PathBuf::from("."),
@@ -153,7 +183,6 @@ impl BackendState {
         let mut cmd = Command::new(&python_exe);
         cmd.env("PYTHONPATH", &python_path);
         cmd.env("PATH", &safe_path);
-        // Pass API config via environment variables
         cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
         cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
         cmd.env("CSCODE_MODEL", "MiniMax-M2.5");

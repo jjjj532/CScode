@@ -19,9 +19,9 @@ create_dmg() {
   mkdir -p "$APP_PATH/Contents/Resources/web-dist"
   cp -r "$PROJECT_DIR/src/cscode/web/dist/"* "$APP_PATH/Contents/Resources/web-dist/"
 
-  rm -rf "$APP_PATH/Contents/Resources/python"
-  mkdir -p "$APP_PATH/Contents/Resources/python"
-  cp -r "$PROJECT_DIR/desktop/src-tauri/python/"* "$APP_PATH/Contents/Resources/python/"
+  rm -rf "$APP_PATH/Contents/Resources/cscode-backend"
+  mkdir -p "$APP_PATH/Contents/Resources/cscode-backend"
+  cp -r "$PROJECT_DIR/desktop/src-tauri/resources/cscode-backend/"* "$APP_PATH/Contents/Resources/cscode-backend/"
 
   STAGING="/tmp/cscode-dmg-$$"
   mkdir -p "$STAGING"
@@ -88,24 +88,20 @@ cat > "$PROJECT_DIR/desktop/dist/index.html" << 'SPINNER'
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>CScode</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;opacity:1;transition:opacity .2s ease}body.fade-out{opacity:0}.spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#646cff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div></body></html>
 SPINNER
 
-# Step 3: Bundle Python source into Tauri resources
+# Step 3: Build PyInstaller backend
 echo ""
-echo ">>> Step 3: Bundling Python source..."
-rm -rf "$PROJECT_DIR/desktop/src-tauri/python"
-mkdir -p "$PROJECT_DIR/desktop/src-tauri/python"
-cd "$PROJECT_DIR/src"
-rsync -a --include='*/' --include='*.py' --include='*.json' --include='*.yaml' --include='*.yml' --exclude='*' --exclude='web/dist' --exclude='node_modules' cscode/ "$PROJECT_DIR/desktop/src-tauri/python/cscode/"
-cp -r "$PROJECT_DIR/src/cscode/web/dist" "$PROJECT_DIR/desktop/src-tauri/python/cscode/web/"
-find "$PROJECT_DIR/desktop/src-tauri/python" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-echo "Python source bundled at desktop/src-tauri/python/"
-du -sh "$PROJECT_DIR/desktop/src-tauri/python/"
-
-# Step 3b: Install pip dependencies
-echo ""
-echo ">>> Step 3b: Installing pip dependencies..."
-pip3 install --target="$PROJECT_DIR/desktop/src-tauri/python" python-multipart python-docx openpyxl playwright 2>&1 | tail -3
-echo "pip deps installed"
-playwright install chromium 2>&1 | tail -3
+echo ">>> Step 3: Building PyInstaller backend..."
+pip3 install pyinstaller 2>&1 | tail -3
+pip3 install . 2>&1 | tail -3
+rm -rf "$PROJECT_DIR/dist/cscode-backend" "$PROJECT_DIR/cscode-backend.spec"
+pyinstaller --onedir --name cscode-backend \
+  --add-data "src/cscode/web/dist:web/dist" \
+  desktop/backend-server.py --clean --noconfirm 2>&1 | tail -3
+mkdir -p "$PROJECT_DIR/desktop/src-tauri/resources"
+rm -rf "$PROJECT_DIR/desktop/src-tauri/resources/cscode-backend"
+cp -r "$PROJECT_DIR/dist/cscode-backend" "$PROJECT_DIR/desktop/src-tauri/resources/"
+echo "PyInstaller backend built:"
+du -sh "$PROJECT_DIR/desktop/src-tauri/resources/cscode-backend/"
 
 # Step 4: Build Tauri .app
 echo ""

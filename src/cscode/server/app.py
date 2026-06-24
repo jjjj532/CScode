@@ -258,7 +258,7 @@ CRITICAL RULES FOR TESTING — VIOLATION WILL BE DETECTED:
         await _db.close()
 
 
-app = FastAPI(title="CScode API", version="0.2.99", lifespan=lifespan)
+app = FastAPI(title="CScode API", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

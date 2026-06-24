@@ -115,86 +115,44 @@ jobs:
           # Restore spinner page for Tauri frontendDist
           echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>CScode</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;opacity:1;transition:opacity .2s ease}body.fade-out{opacity:0}.spinner{width:28px;height:28px;border:3px solid #ddd;border-top-color:#646cff;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="spinner"></div></body></html>' > desktop/dist/index.html
 
-      - name: Bundle Python deps as site-packages.zip
+      - name: Build PyInstaller backend
         shell: bash
         run: |
           PYTHON="python3"
           if [ "$RUNNER_OS" = "Windows" ]; then PYTHON="python"; fi
-          # Install ALL dependencies to a temp dir, then zip them using Python.
-          # Using a zip avoids thousands of files in Tauri resources, which
-          # crashes the build script on Windows (MAX_PATH / enumeration limits).
-          TMPDIR=$(mktemp -d)
-          # Install deps; capture full output but only show last lines on success
-          $PYTHON -m pip install --target="$TMPDIR" . > /tmp/pip-install.log 2>&1 || { cat /tmp/pip-install.log; exit 1; }
-          tail -5 /tmp/pip-install.log
-          rm -f /tmp/pip-install.log
-          # Remove playwright driver (not needed, huge)
-          # Keep playwright/driver so browser tool works out of the box
-          # Remove __pycache__, tests, and bin
-          find "$TMPDIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-          rm -rf "$TMPDIR/bin" 2>/dev/null || true
-          # Create the zip using Python (cross-platform, unlike 'zip' command)
+          $PYTHON -m pip install pyinstaller
+          # Install cscode normally (non-editable) so PyInstaller finds it
+          $PYTHON -m pip install . > /tmp/pip-install.log 2>&1 || { cat /tmp/pip-install.log; exit 1; }
+          tail -3 /tmp/pip-install.log
+          # Build with --onedir (fast startup, ~190MB)
+          pyinstaller --onedir --name cscode-backend \
+            --add-data "src/cscode/web/dist:web/dist" \
+            desktop/backend-server.py --clean --noconfirm
+          # Copy to Tauri resources
           mkdir -p desktop/src-tauri/resources
-          $PYTHON -c "import zipfile,os,sys;from pathlib import Path;tmpdir=sys.argv[1];srcdir=Path(tmpdir);out=Path('desktop/src-tauri/resources/site-packages.zip');zf=zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED);[zf.write(f,str(f.relative_to(srcdir))) for f in srcdir.rglob('*') if f.is_file() and not str(f.relative_to(srcdir)).startswith('cscode')];print(f'Created site-packages.zip with {len(zf.namelist())} entries')" "$TMPDIR" 2>&1
-          rm -rf "$TMPDIR"
-          echo "=== site-packages.zip size ==="
-          ls -lh desktop/src-tauri/resources/site-packages.zip
-
-      - name: Bundle cscode source + web/dist
-        shell: bash
-        run: |
-          mkdir -p desktop/src-tauri/resources/python
-          # Copy only cscode source files (not pip deps) — ~100 files
-          cd src
-          for f in $(find cscode -path '*/web/dist' -prune -o -path '*/node_modules' -prune -o -type f -name '*.py' -print); do
-            mkdir -p "../desktop/src-tauri/resources/python/$(dirname $f)"
-            cp "$f" "../desktop/src-tauri/resources/python/$f"
-          done
-          # Copy web/dist for embedded serving
-          mkdir -p ../desktop/src-tauri/resources/python/cscode/web
-          cp -r cscode/web/dist ../desktop/src-tauri/resources/python/cscode/web/
-          cd ..
-          find desktop/src-tauri/resources/python -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-          echo "=== Source files bundled ==="
-          find desktop/src-tauri/resources/python -type f | wc -l
-          echo "=== Verify app.py ==="
-          test -f desktop/src-tauri/resources/python/cscode/server/app.py && echo "OK" || echo "MISSING"
-          echo "=== Verify web/dist ==="
-          test -f desktop/src-tauri/resources/python/cscode/web/dist/index.html && echo "OK" || echo "MISSING"
+          cp -r dist/cscode-backend desktop/src-tauri/resources/
+          echo "=== PyInstaller output ==="
+          du -sh dist/cscode-backend/
+          find dist/cscode-backend -type f | wc -l
+          echo "files"
+          echo "=== Verify binary ==="
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            test -f desktop/src-tauri/resources/cscode-backend/cscode-backend.exe && echo "OK" || echo "MISSING"
+          else
+            test -f desktop/src-tauri/resources/cscode-backend/cscode-backend && echo "OK" || echo "MISSING"
+          fi
+          echo "=== Verify web/dist in binary ==="
+          test -d dist/cscode-backend/_internal/web/dist && echo "OK" || echo "MISSING"
 
       - name: Debug - check files
         shell: bash
         run: |
-          echo "=== desktop/src-tauri/ dirs ==="
-          ls -la desktop/src-tauri/
           echo "=== desktop/src-tauri/resources/ ==="
           ls -la desktop/src-tauri/resources/ 2>/dev/null || echo "no resources dir"
-          echo "=== resources site-packages.zip ==="
-          ls -lh desktop/src-tauri/resources/site-packages.zip 2>/dev/null || echo "no zip"
-          echo "=== desktop/dist exists ==="
-          test -f desktop/dist/index.html && echo "YES" || echo "NO"
           echo "=== resource file count ==="
           find desktop/src-tauri/resources -type f | wc -l
-
-      - name: Validate resources
-        shell: bash
-        run: |
-          errors=0
-          if [ ! -f desktop/src-tauri/resources/site-packages.zip ]; then
-            echo "::error::Missing site-packages.zip"
-            errors=$((errors+1))
-          fi
-          if [ ! -f desktop/src-tauri/resources/python/cscode/server/app.py ]; then
-            echo "::error::Missing python/cscode/server/app.py"
-            errors=$((errors+1))
-          fi
-          if [ ! -f desktop/src-tauri/resources/python/cscode/web/dist/index.html ]; then
-            echo "::error::Missing python/cscode/web/dist/index.html"
-            errors=$((errors+1))
-          fi
-          echo "=== resource tree ==="
-          find desktop/src-tauri/resources -type f | sort
-          if [ "$errors" -gt 0 ]; then exit 1; fi
+          echo "=== desktop/dist exists ==="
+          test -f desktop/dist/index.html && echo "YES" || echo "NO"
 
       - name: Install Tauri npm dependencies
         working-directory: desktop

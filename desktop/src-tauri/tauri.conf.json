@@ -1,6 +1,6 @@
 {
   "productName": "CScode",
-  "version": "0.2.99",
+  "version": "0.3.0",
   "identifier": "com.cscode.app",
   "build": {
     "frontendDist": "../dist",
@@ -37,7 +37,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/**/*"
+      "resources/cscode-backend/**/*",
+      "resources/web-dist/**/*"
     ]
   }
 }
