@@ -228,7 +228,7 @@ class Agent:
                             continue
                         elif perm == PermissionResult.ASK:
                             await _emit({"type": "permission:ask", "name": func_name, "args": fn_args})
-                    context = {"session_id": self.session_id}
+                    context = {"session_id": self.session_id, "on_event": _emit}
                     tool_result = await self.registry.execute_tool_call(tool_call, context=context)
                     # Truncate result for display (~200 chars)
                     result_preview = (tool_result.data or tool_result.error or "")[:200]
@@ -413,7 +413,7 @@ class Agent:
                             continue
                         elif perm == PermissionResult.ASK:
                             await _emit({"type": "permission:ask", "name": func_name, "args": fn_args})
-                    context = {"session_id": self.session_id}
+                    context = {"session_id": self.session_id, "on_event": _emit}
                     tool_result = await self.registry.execute_tool_call(tool_call, context=context)
                     if tool_result.success:
                         await _emit({"type": "tool.success", "data": {"name": func_name, "result": (tool_result.data or "")[:200]}})
