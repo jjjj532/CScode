@@ -49,7 +49,7 @@ class MCPClient:
             {
                 "protocolVersion": "2025-03-26",
                 "capabilities": {},
-                "clientInfo": {"name": "cscode", "version": "0.2.18"},
+                "clientInfo": {"name": "cscode", "version": "0.2.99"},
             },
         )
         await self._notify("notifications/initialized", {})

@@ -87,7 +87,7 @@ fileicon set dist/cscode-desktop desktop/src-tauri/icons/cscode.icns
 3. **Spinner 页**: 生成 `desktop/dist/index.html`（Tauri 需要的 frontendDist）
 4. **Python 依赖打包**:
    - `pip install --target=TMPDIR .` 安装到临时目录
-   - 删除 playwright driver、`__pycache__`、`bin/`
+   - 删除 `__pycache__`、`bin/`（保留 `playwright/driver` 确保 browser 工具开箱即用）
    - Python zipfile 打包为 `site-packages.zip`（避免 Tauri build script 枚举 4426 个文件崩溃）
 5. **源码打包**: 复制 `src/cscode/**/*.py` + `web/dist` 到 `resources/python/`
 6. **资源验证**: 检查 `site-packages.zip`、`app.py`、`index.html` 存在
