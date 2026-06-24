@@ -42,8 +42,9 @@ impl BackendState {
         }
         #[cfg(target_os = "windows")]
         {
+            let cmd = format!("for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :{}') do taskkill /f /pid %a", port);
             let output = Command::new("cmd")
-                .args(["/C", "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :{}') do taskkill /f /pid %a", port])
+                .args(["/C", &cmd])
                 .output()
                 .map_err(|e| format!("Failed to kill process: {e}"))?;
         }
