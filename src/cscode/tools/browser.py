@@ -205,6 +205,7 @@ class BrowserTool(BaseTool):
                     success=False,
                     data="",
                     error=f"Unknown action: {action}. Available: open, click, type, press, screenshot, get_text, get_html, wait, scroll, close, status",
+                    metadata={"task_id": task_id, "evidence": json.dumps(evidence), "verified": "False"},
                 )
 
         except Exception as e:
