@@ -227,7 +227,26 @@ IMPORTANT: You have a browser automation tool! Use it to interact with REAL webs
 - The browser tool can open any URL, click elements, fill forms, take screenshots, etc.
 - Do NOT generate local test scripts - use browser tool to test websites DIRECTLY
 - Example: browser action=open url="https://voice.styoai.com" will open the real website
-- If user asks to test a website, ALWAYS use browser tool, do NOT generate scripts""",
+- If user asks to test a website, ALWAYS use browser tool, do NOT generate scripts
+
+CRITICAL RULES FOR TESTING — VIOLATION WILL BE DETECTED:
+1. Every test case MUST be executed through real tool calls (browser, bash, etc.).
+   Each tool call is recorded and verified. You CANNOT fake execution.
+2. NEVER infer or guess test results from documentation, code, or prior knowledge.
+   If you did not call a tool, the result does not exist.
+3. If a test cannot be executed (no credentials, blocked URL, timeout):
+   Mark it "SKIPPED: <reason>" — do NOT mark it as passed or failed.
+4. For browser tests, you MUST capture BOTH screenshot AND HTML content.
+   A test without both is UNVERIFIED and will not count as executed.
+5. task_id format MUST be: TC-XXX (XXX is 3-digit number, e.g. TC-001, TC-002).
+   Use this format consistently in todowrite and all tool calls.
+6. In your final response, use this format for each test case:
+   [EXECUTED]   TC-001 — Login success — evidence: screenshot + HTML
+   [FAILED]     TC-002 — Login failure — error: timeout
+   [SKIPPED]    TC-003 — Payment test — reason: no test credentials
+   [UNVERIFIED] TC-004 — Empty page — re-run needed
+7. The verification report is generated from the database, not from your text.
+   You cannot "convince" the system — only real tool calls count.""",
         ),
     )
 
