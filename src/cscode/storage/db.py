@@ -29,7 +29,7 @@ class Database:
         row = await cursor.fetchone()
         current_version = row[0] if row is not None and row[0] is not None else 0
 
-        migrations = [_migration_001, _migration_002, _migration_003, _migration_004]
+        migrations = [_migration_001, _migration_002, _migration_003, _migration_004, _migration_005]
         for i, migration in enumerate(migrations, start=1):
             if i > current_version:
                 await migration(self.conn)
@@ -42,6 +42,10 @@ class Database:
     async def fetchone(self, query: str, params: tuple[Any, ...] = ()) -> aiosqlite.Row | None:
         cursor = await self.conn.execute(query, params)
         return await cursor.fetchone()
+
+    async def fetchall(self, query: str, params: tuple[Any, ...] = ()) -> list[aiosqlite.Row]:
+        cursor = await self.conn.execute(query, params)
+        return await cursor.fetchall()
 
     async def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
         await self.conn.execute(query, params)
@@ -118,3 +122,33 @@ async def _migration_004(conn: aiosqlite.Connection) -> None:
         )
     """)
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_epochs_session ON context_epochs(session_id, epoch)")
+
+
+async def _migration_005(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS expected_tasks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id  TEXT NOT NULL,
+            task_id     TEXT NOT NULL,
+            description TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(session_id, task_id)
+        )
+    """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS task_verifications (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id  TEXT NOT NULL,
+            task_id     TEXT NOT NULL,
+            tool_name   TEXT NOT NULL,
+            status      TEXT NOT NULL DEFAULT 'UNVERIFIED',
+            verified    INTEGER NOT NULL,
+            evidence    TEXT NOT NULL,
+            result_summary TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(session_id, task_id, tool_name)
+        )
+    """)
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_tv_session ON task_verifications(session_id)")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_tv_status ON task_verifications(session_id, status)")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_et_session ON expected_tasks(session_id)")
