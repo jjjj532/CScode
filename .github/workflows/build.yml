@@ -246,14 +246,29 @@ jobs:
       - name: Debug build output (Windows)
         if: runner.os == 'Windows' && failure()
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "::notice::Windows build failed. Check step log for details."
-          echo "=== disk usage ==="
-          df -h
-          echo "=== Rust target dir ==="
-          ls -la desktop/src-tauri/target/release/ 2>/dev/null || echo "no target/release"
-          echo "=== cargo home ==="
-          du -sh "$CARGO_HOME" 2>/dev/null || true
+          for f in /tmp/cargo.log /tmp/tauri.log; do
+            if [ -f "$f" ]; then
+              size=$(wc -c < "$f")
+              echo "::notice::$f size=$size"
+              echo "=== $f (first 5 lines) ==="
+              head -5 "$f"
+            fi
+          done
+          # Try creating an issue from the log files
+          for f in /tmp/cargo.log /tmp/tauri.log; do
+            if [ -f "$f" ] && [ -s "$f" ]; then
+              basename=$(basename $f)
+              { echo "## Windows build failure log ($basename)"; echo; head -200 "$f"; } > /tmp/build-issue.md
+              gh issue create \
+                --title "Windows build failure - $basename" \
+                --label "ci" \
+                --body-file /tmp/build-issue.md \
+                --repo ${{ github.repository }} 2>&1 && echo "::notice::Issue created from $f" || echo "::error::gh issue create from $f failed with $?"
+            fi
+          done
 
       - name: Debug bundle contents (Windows)
         if: runner.os == 'Windows'
