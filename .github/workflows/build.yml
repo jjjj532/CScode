@@ -217,9 +217,12 @@ jobs:
             echo "::notice::CARGO_BUILD_EXIT_CODE=$rc1"
             head -50 /tmp/cargo.log
             if [ $rc1 -ne 0 ]; then
-              head -200 /tmp/cargo.log > /tmp/build-error.txt
-              gh issue create --title "Windows cargo build failure ($rc1)" --label "ci" --body-file /tmp/build-error.txt --repo ${{ github.repository }} 2>&1 || echo "gh issue create failed with $?"
-              gh api repos/${{ github.repository }}/issues -f title="Windows cargo build failure ($rc1)" -f body="$(head -200 /tmp/cargo.log)" --jq '.html_url' 2>&1 || echo "gh api create issue failed with $?"
+              {
+                echo "## cargo build --release failed (exit $rc1)"
+                echo
+                head -200 /tmp/cargo.log
+              } > /tmp/build-error-body.md
+              gh issue create --title "Windows cargo build failure (exit $rc1)" --label "ci" --body-file /tmp/build-error-body.md --repo ${{ github.repository }} 2>&1 && echo "::notice::ISSUE_CREATED" || echo "::error::gh issue create failed with $?"
               exit $rc1
             fi
             # Step 2: tauri build
@@ -227,8 +230,12 @@ jobs:
             echo "::notice::TAURI_BUILD_EXIT_CODE=$rc2"
             head -200 /tmp/tauri.log
             if [ $rc2 -ne 0 ]; then
-              head -200 /tmp/tauri.log > /tmp/build-error.txt
-              gh api repos/${{ github.repository }}/issues -f title="Windows tauri build failure ($rc2)" -f body="$(head -200 /tmp/tauri.log)" --jq '.html_url' 2>&1 || echo "gh api create issue failed with $?"
+              {
+                echo "## tauri build --bundles nsis failed (exit $rc2)"
+                echo
+                head -200 /tmp/tauri.log
+              } > /tmp/build-error-body.md
+              gh issue create --title "Windows tauri build failure (exit $rc2)" --label "ci" --body-file /tmp/build-error-body.md --repo ${{ github.repository }} 2>&1 && echo "::notice::ISSUE_CREATED" || echo "::error::gh issue create failed with $?"
               exit $rc2
             fi
           else
