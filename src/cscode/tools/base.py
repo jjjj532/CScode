@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
@@ -40,6 +41,7 @@ class BaseTool(ABC):
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, BaseTool] = {}
+        self._context_support: dict[str, bool | None] = {}
 
     def register(self, tool: BaseTool) -> None:
         if tool.name in self._tools:
@@ -80,8 +82,12 @@ class ToolRegistry:
                 data="",
                 error=f"Unknown tool: {name}",
             )
-        import inspect
-        sig = inspect.signature(tool.execute)
-        if "context" in sig.parameters:
+        if name not in self._context_support:
+            try:
+                sig = inspect.signature(tool.execute)
+                self._context_support[name] = "context" in sig.parameters
+            except ValueError:
+                self._context_support[name] = False
+        if self._context_support[name]:
             return await tool.execute(args, context=context)
         return await tool.execute(args)
