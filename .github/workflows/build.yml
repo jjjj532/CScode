@@ -212,32 +212,18 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then
             npx tauri build --verbose --bundles app
           elif [ "$RUNNER_OS" = "Windows" ]; then
-            # Step 1: cargo build
-            set +e; cargo build --release --manifest-path src-tauri/Cargo.toml > /tmp/cargo.log 2>&1; rc1=$?; set -e
+            set +e
+            cargo build --release --manifest-path src-tauri/Cargo.toml > /tmp/cargo.log 2>&1; rc1=$?
+            set -e
             echo "::notice::CARGO_BUILD_EXIT_CODE=$rc1"
             head -50 /tmp/cargo.log
-            if [ $rc1 -ne 0 ]; then
-              {
-                echo "## cargo build --release failed (exit $rc1)"
-                echo
-                head -200 /tmp/cargo.log
-              } > /tmp/build-error-body.md
-              gh issue create --title "Windows cargo build failure (exit $rc1)" --label "ci" --body-file /tmp/build-error-body.md --repo ${{ github.repository }} 2>&1 && echo "::notice::ISSUE_CREATED" || echo "::error::gh issue create failed with $?"
-              exit $rc1
-            fi
-            # Step 2: tauri build
-            set +e; npx tauri build --verbose --bundles nsis > /tmp/tauri.log 2>&1; rc2=$?; set -e
+            if [ $rc1 -ne 0 ]; then exit $rc1; fi
+            set +e
+            npx tauri build --verbose --bundles nsis > /tmp/tauri.log 2>&1; rc2=$?
+            set -e
             echo "::notice::TAURI_BUILD_EXIT_CODE=$rc2"
             head -200 /tmp/tauri.log
-            if [ $rc2 -ne 0 ]; then
-              {
-                echo "## tauri build --bundles nsis failed (exit $rc2)"
-                echo
-                head -200 /tmp/tauri.log
-              } > /tmp/build-error-body.md
-              gh issue create --title "Windows tauri build failure (exit $rc2)" --label "ci" --body-file /tmp/build-error-body.md --repo ${{ github.repository }} 2>&1 && echo "::notice::ISSUE_CREATED" || echo "::error::gh issue create failed with $?"
-              exit $rc2
-            fi
+            if [ $rc2 -ne 0 ]; then exit $rc2; fi
           else
             npx tauri build --verbose
           fi
@@ -249,26 +235,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for f in /tmp/cargo.log /tmp/tauri.log; do
-            if [ -f "$f" ]; then
-              size=$(wc -c < "$f")
-              echo "::notice::$f size=$size"
-              echo "=== $f (first 5 lines) ==="
-              head -5 "$f"
-            fi
-          done
-          # Try creating an issue from the log files
-          for f in /tmp/cargo.log /tmp/tauri.log; do
-            if [ -f "$f" ] && [ -s "$f" ]; then
-              basename=$(basename $f)
-              { echo "## Windows build failure log ($basename)"; echo; head -200 "$f"; } > /tmp/build-issue.md
-              gh issue create \
-                --title "Windows build failure - $basename" \
-                --label "ci" \
-                --body-file /tmp/build-issue.md \
-                --repo ${{ github.repository }} 2>&1 && echo "::notice::Issue created from $f" || echo "::error::gh issue create from $f failed with $?"
-            fi
-          done
+          echo "::notice::=== Cargo build error (first 20 lines) ==="
+          lineno=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            lineno=$((lineno + 1))
+            echo "::error file=cargo.log,line=$lineno::$line"
+            if [ $lineno -ge 20 ]; then break; fi
+          done < /tmp/cargo.log
+          echo "::notice::=== Creating GitHub issue ==="
+          if [ -s /tmp/cargo.log ]; then
+            { echo "## Windows cargo build failure"; echo; head -200 /tmp/cargo.log; } > /tmp/body.md
+            gh issue create --title "Windows cargo build failure" --body-file /tmp/body.md --repo ${{ github.repository }} 2>&1 && echo "::notice::Issue created" || echo "::error::gh issue create failed exit=$?"
+          fi
 
       - name: Debug bundle contents (Windows)
         if: runner.os == 'Windows'
