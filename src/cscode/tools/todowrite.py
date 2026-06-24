@@ -7,6 +7,7 @@ from typing import Any
 from cscode.tools.base import BaseTool, ToolResult
 
 TC_PATTERN = re.compile(r"TC[_-]?(\d{3})")
+STATUS_MAP = {"pending": " ", "in_progress": "●", "completed": "✓", "cancelled": "✗"}
 
 
 class TodoWriteTool(BaseTool):
@@ -38,6 +39,7 @@ class TodoWriteTool(BaseTool):
         self,
         on_event: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
     ):
+        super().__init__()
         self.on_event = on_event
 
     async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
@@ -46,11 +48,9 @@ class TodoWriteTool(BaseTool):
         on_event = (context or {}).get("on_event") or self.on_event
         lines = []
         for t in todos:
-            status_map = {"pending": " ", "in_progress": "●", "completed": "✓", "cancelled": "✗"}
-            marker = status_map.get(t.get("status", "pending"), " ")
-            lines.append(f"[{marker}] {t.get('priority', 'medium').upper()} {t['content']}")
-
+            marker = STATUS_MAP.get(t.get("status", "pending"), " ")
             content = t.get("content", "")
+            lines.append(f"[{marker}] {t.get('priority', 'medium').upper()} {content}")
             match = TC_PATTERN.search(content)
             task_id = f"TC-{match.group(1)}" if match else content[:50]
             status = t.get("status", "pending")
