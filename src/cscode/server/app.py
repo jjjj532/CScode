@@ -38,6 +38,7 @@ from cscode.tools.ls import LsTool
 from cscode.tools.question import QuestionTool
 from cscode.tools.read import ReadTool
 from cscode.tools.skill import SkillTool
+from cscode.core.tracker import TaskTracker
 from cscode.tools.todowrite import TodoWriteTool
 from cscode.tools.webfetch import WebFetchTool
 from cscode.tools.websearch import WebSearchTool
@@ -132,7 +133,7 @@ WEB_DIST = find_web_dist()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _session_store, _agent, _event_store, _coordinator, _projector, _compactor
+    global _db, _session_store, _agent, _event_store, _coordinator, _projector, _compactor, _tracker
 
     resource_dir = os.environ.get("CSCORE_RESOURCE_DIR", "")
     if resource_dir:
@@ -150,6 +151,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _coordinator = SessionCoordinator()
     _projector = Projector(_db)
     _compactor = Compactor(_db, _event_store, _projector)
+    _tracker = TaskTracker(_db)
 
     os.makedirs("/tmp/cscode-outputs", exist_ok=True)
     template_path = "/tmp/cscode-outputs/xlsx_template.py"
@@ -273,6 +275,7 @@ _event_store: EventStore | None = None
 _coordinator: SessionCoordinator | None = None
 _projector: Projector | None = None
 _compactor: Compactor | None = None
+_tracker: TaskTracker | None = None
 _active_agent_tasks: dict[str, asyncio.Task] = {}
 
 
@@ -494,6 +497,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         await _event_store.append(session_id, [
                             {"type": evt_type, "data": event.get("data", {})}
                         ])
+                # Notify TaskTracker
+                if _tracker is not None:
+                    await _tracker.handle_event(session_id, event)
 
             before = time.time()
             dynamic_timeout = _detect_timeout(message, files, attached_filenames)
@@ -930,6 +936,26 @@ async def import_session(request: dict[str, Any]) -> dict[str, Any]:
         "title": session.title,
         "created_at": session.created_at.isoformat() if session.created_at else "",
     }
+
+
+@api_router.get("/sessions/{session_id}/verification-report")
+async def get_verification_report(session_id: str) -> dict:
+    if _tracker is None:
+        return {"error": "TaskTracker not initialized"}
+    report = await _tracker.get_execution_report(session_id)
+    all_expected = await _db.fetchall(
+        "SELECT task_id FROM expected_tasks WHERE session_id = ?",
+        (session_id,),
+    ) if _db else []
+    expected_ids = {r["task_id"] for r in all_expected}
+    recorded_ids = {d["task_id"] for d in report["details"]}
+    skipped = expected_ids - recorded_ids
+    report["summary"]["skipped"] = len(skipped)
+    report["details"].extend([
+        {"task_id": tid, "status": "SKIPPED", "evidence": {}, "result_summary": "", "timestamp": None}
+        for tid in skipped
+    ])
+    return report
 
 
 @api_router.get("/sessions/{session_id}/messages")
