@@ -232,7 +232,7 @@ class Agent:
                     tool_result = await self.registry.execute_tool_call(tool_call, context=context)
                     # Truncate result for display (~200 chars)
                     result_preview = (tool_result.data or tool_result.error or "")[:200]
-                    await _emit({"type": "tool:complete", "name": func_name, "success": tool_result.success, "content": result_preview})
+                    await _emit({"type": "tool:complete", "name": func_name, "success": tool_result.success, "content": result_preview, "args": fn_args, "metadata": tool_result.metadata})
                     messages.append(
                         Message(
                             role=MessageRole.TOOL,
@@ -416,9 +416,19 @@ class Agent:
                     context = {"session_id": self.session_id, "on_event": _emit}
                     tool_result = await self.registry.execute_tool_call(tool_call, context=context)
                     if tool_result.success:
-                        await _emit({"type": "tool.success", "data": {"name": func_name, "result": (tool_result.data or "")[:200]}})
+                        await _emit({"type": "tool.success", "data": {
+                            "name": func_name,
+                            "result": (tool_result.data or "")[:200],
+                            "args": fn_args,
+                            "metadata": tool_result.metadata,
+                        }})
                     else:
-                        await _emit({"type": "tool.failed", "data": {"name": func_name, "error": (tool_result.error or "")[:200]}})
+                        await _emit({"type": "tool.failed", "data": {
+                            "name": func_name,
+                            "error": (tool_result.error or "")[:200],
+                            "args": fn_args,
+                            "metadata": tool_result.metadata,
+                        }})
                     messages.append(
                         Message(
                             role=MessageRole.TOOL,
