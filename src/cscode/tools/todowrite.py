@@ -45,6 +45,7 @@ class TodoWriteTool(BaseTool):
     async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
         todos = args["todos"]
         session_id = (context or {}).get("session_id", "")
+        db = (context or {}).get("db")
         on_event = (context or {}).get("on_event") or self.on_event
         lines = []
         for t in todos:
@@ -54,6 +55,16 @@ class TodoWriteTool(BaseTool):
             match = TC_PATTERN.search(content)
             task_id = f"TC-{match.group(1)}" if match else content[:50]
             status = t.get("status", "pending")
+            priority = t.get("priority", "medium")
+            # Write to expected_tasks table directly
+            if db and session_id:
+                try:
+                    await db.execute(
+                        "INSERT OR IGNORE INTO expected_tasks (session_id, task_id, description, priority) VALUES (?, ?, ?, ?)",
+                        (session_id, task_id, content, priority),
+                    )
+                except Exception:
+                    pass
             if on_event:
                 await on_event({
                     "type": "task_created",

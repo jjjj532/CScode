@@ -18,6 +18,8 @@ class Database:
     async def init(self) -> None:
         self.conn = await aiosqlite.connect(str(self._db_path))
         self.conn.row_factory = aiosqlite.Row
+        await self.conn.execute("PRAGMA journal_mode=WAL")
+        await self.conn.execute("PRAGMA busy_timeout=5000")
         await self._run_migrations()
 
     async def _run_migrations(self) -> None:
@@ -49,7 +51,14 @@ class Database:
 
     async def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
         await self.conn.execute(query, params)
-        await self.conn.commit()
+        try:
+            await self.conn.commit()
+        except BaseException:
+            try:
+                await self.conn.rollback()
+            except Exception:
+                pass
+            raise
 
 
 async def _migration_001(conn: aiosqlite.Connection) -> None:

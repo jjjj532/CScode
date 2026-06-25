@@ -228,7 +228,12 @@ class Agent:
                             continue
                         elif perm == PermissionResult.ASK:
                             await _emit({"type": "permission:ask", "name": func_name, "args": fn_args})
-                    context = {"session_id": self.session_id, "on_event": _emit}
+                    context = {
+                        "session_id": self.session_id,
+                        "on_event": _emit,
+                        "pending_questions": getattr(self, "_pending_questions", None),
+                        "tool_call_id": tool_call.get("id", ""),
+                    }
                     tool_result = await self.registry.execute_tool_call(tool_call, context=context)
                     # Truncate result for display (~200 chars)
                     result_preview = (tool_result.data or tool_result.error or "")[:200]
@@ -345,8 +350,10 @@ class Agent:
         async def _loop() -> str:
             nonlocal tool_rounds
             max_rounds = self.options.max_tool_rounds
+            logger.info("[DIAG] _loop started session=%s", self.session_id)
 
             while True:
+                logger.info("[DIAG] _loop iteration session=%s round=%s", self.session_id, tool_rounds + 1)
                 await _emit({"type": "step.started", "data": {"round": tool_rounds + 1, "max": max_rounds if max_rounds is not None else 0}})
 
                 # Inject wrap-up hint when approaching limit, but let LLM decide
@@ -360,10 +367,18 @@ class Agent:
                     else:
                         messages.append(Message(role=MessageRole.USER, content=hint))
 
-                result = await self.provider.complete(
-                    messages,
-                    tools=self.registry.to_llm_tools(),
-                )
+                await _emit({"type": "status", "data": {"message": "正在等待 AI 响应..."}})
+                try:
+                    result = await asyncio.wait_for(
+                        self.provider.complete(messages, tools=self.registry.to_llm_tools()),
+                        timeout=min(effective_timeout, 120.0),
+                    )
+                except asyncio.TimeoutError:
+                    result_msg = f"LLM API 请求超时（超过 {min(effective_timeout, 120.0):.0f}s），请重试或检查网络/API 状态。"
+                    messages.append(Message(role=MessageRole.ASSISTANT, content=result_msg))
+                    await _emit({"type": "text.ended", "data": {"content": result_msg}})
+                    await _emit({"type": "step.ended", "data": {"round": tool_rounds, "finish_reason": "timeout"}})
+                    return result_msg
 
                 assistant_msg = Message(
                     role=MessageRole.ASSISTANT,
@@ -375,7 +390,7 @@ class Agent:
                 await _emit({"type": "text.ended", "data": {"content": result.content}})
 
                 # LLM decided to stop — no more tool calls
-                if result.tool_calls is None:
+                if not result.tool_calls:
                     await _emit({"type": "step.ended", "data": {"round": tool_rounds, "finish_reason": "stop"}})
                     return result.content
 
@@ -413,7 +428,12 @@ class Agent:
                             continue
                         elif perm == PermissionResult.ASK:
                             await _emit({"type": "permission:ask", "name": func_name, "args": fn_args})
-                    context = {"session_id": self.session_id, "on_event": _emit}
+                    context = {
+                        "session_id": self.session_id,
+                        "on_event": _emit,
+                        "pending_questions": getattr(self, "_pending_questions", None),
+                        "tool_call_id": tool_call.get("id", ""),
+                    }
                     tool_result = await self.registry.execute_tool_call(tool_call, context=context)
                     if tool_result.success:
                         await _emit({"type": "tool.success", "data": {

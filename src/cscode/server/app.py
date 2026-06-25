@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
@@ -17,7 +18,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from cscode.core.config import load_config
+from cscode.core.config import Config, load_config
 from cscode.core.engine import Agent, AgentOptions
 from cscode.core.messages import Message, MessageRole
 from cscode.providers import create_provider
@@ -27,6 +28,7 @@ from cscode.storage.event_store import EventStore
 from cscode.server.compactor import Compactor
 from cscode.server.coordinator import SessionCoordinator
 from cscode.server.projector import Projector
+from cscode.server.question_registry import QuestionRegistry
 from cscode.tools.base import ToolRegistry
 from cscode.tools.apply_patch import ApplyPatchTool
 from cscode.tools.bash import BashTool
@@ -133,7 +135,15 @@ WEB_DIST = find_web_dist()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _session_store, _agent, _event_store, _coordinator, _projector, _compactor, _tracker
+    global _db, _session_store, _agent, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry
+
+    # Ensure diagnostics go to a file
+    fh = logging.FileHandler("/tmp/cscode-diag.log", mode="w")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    logging.getLogger().addHandler(fh)
+    logging.getLogger().setLevel(logging.DEBUG)
+    logger.info("=== CScode server started (diagnostics logging to /tmp/cscode-diag.log) ===")
 
     resource_dir = os.environ.get("CSCORE_RESOURCE_DIR", "")
     if resource_dir:
@@ -152,6 +162,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _projector = Projector(_db)
     _compactor = Compactor(_db, _event_store, _projector)
     _tracker = TaskTracker(_db)
+    _question_registry = QuestionRegistry()
 
     os.makedirs("/tmp/cscode-outputs", exist_ok=True)
     template_path = "/tmp/cscode-outputs/xlsx_template.py"
@@ -223,7 +234,9 @@ Example workflow for testing a website:
 4. browser action=click selector="button[type=submit]"
 5. browser action=get_text selector=".dashboard"
 
-Available tools: Read, Write, Edit, Bash, Grep, Glob, Ls, Browser.
+Available tools: Read, Write, Edit, Bash, Grep, Glob, Ls, Browser, Question.
+
+question tool - 仅当需要澄清用户模糊需求时使用。问题送达用户后等待回复即可，不要连续多次调用此工具。
 
 IMPORTANT: You have a browser automation tool! Use it to interact with REAL websites!
 - The browser tool can open any URL, click elements, fill forms, take screenshots, etc.
@@ -258,7 +271,7 @@ CRITICAL RULES FOR TESTING — VIOLATION WILL BE DETECTED:
         await _db.close()
 
 
-app = FastAPI(title="CScode API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="CScode API", version="0.3.1", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -277,6 +290,7 @@ _projector: Projector | None = None
 _compactor: Compactor | None = None
 _tracker: TaskTracker | None = None
 _active_agent_tasks: dict[str, asyncio.Task] = {}
+_question_registry: QuestionRegistry | None = None
 
 
 class ChatResponse(BaseModel):
@@ -384,6 +398,8 @@ async def chat_stream(request: Request) -> StreamingResponse:
             yield f"data: {json.dumps({'type': 'error', 'content': 'Server not initialized'})}\n\n"
             return
 
+        session_config = _agent.config if _agent else Config()
+        session_provider = _agent.provider if _agent else None
         try:
             from cscode.core.config import ConfigStore
             if _db is not None:
@@ -394,15 +410,20 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     from cscode.providers import create_provider
                     db_config = Config.from_dict(saved_config)
                     base_config = load_config()
-                    config = base_config.merge(db_config)
-                    provider = create_provider(config)
-                    _agent.provider = provider
-                    _agent.config = config
+                    session_config = base_config.merge(db_config)
+                    session_provider = create_provider(session_config)
         except Exception as e:
             import logging
             logging.warning(f"Failed to load config from DB: {e}")
 
         session_id = session_id or str(uuid.uuid4())
+
+        # Defensive: clean up any stale DB transaction from previous sessions
+        if _db is not None:
+            try:
+                await _db.conn.execute("ROLLBACK")
+            except Exception:
+                pass
 
         try:
             is_new_session = False
@@ -480,32 +501,80 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 await _session_store.save_messages(session_id, messages)
 
             queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            persist_map = {
+                "step.started": True,
+                "text.ended": True,
+                "step.ended": True,
+                "tool.called": True,
+                "tool.success": True,
+                "tool.failed": True,
+            }
+
+            persist_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+            async def _persist_consumer() -> None:
+                """Serialized DB writes to prevent nested transaction errors."""
+                while True:
+                    try:
+                        evt = await asyncio.wait_for(persist_queue.get(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        if agent_task.done():
+                            return
+                        continue
+                    try:
+                        evt_type = evt.get("type", "")
+                        if evt_type in persist_map:
+                            if _event_store is not None:
+                                await _event_store.append(session_id, [
+                                    {"type": evt_type, "data": evt.get("data", {})}
+                                ])
+                        if _tracker is not None:
+                            await _tracker.handle_event(session_id, evt)
+                    except Exception:
+                        pass
+
+            persist_task = asyncio.create_task(_persist_consumer())
+
+            async def _flush_persist() -> None:
+                """Drain remaining persist events before saving messages."""
+                while not persist_queue.empty():
+                    try:
+                        evt = persist_queue.get_nowait()
+                        evt_type = evt.get("type", "")
+                        if evt_type in persist_map:
+                            if _event_store is not None:
+                                await _event_store.append(session_id, [
+                                    {"type": evt_type, "data": evt.get("data", {})}
+                                ])
+                        if _tracker is not None:
+                            await _tracker.handle_event(session_id, evt)
+                    except Exception:
+                        pass
+
             async def on_event(event: dict[str, Any]) -> None:
+                event["session_id"] = session_id
+                logger.debug("[DIAG] on_event session=%s type=%s", session_id, event.get("type"))
                 await queue.put(event)
-                # Also persist relevant events to EventStore
-                if _event_store is not None:
-                    evt_type = event.get("type", "")
-                    persist_map = {
-                        "step.started": True,
-                        "text.ended": True,
-                        "step.ended": True,
-                        "tool.called": True,
-                        "tool.success": True,
-                        "tool.failed": True,
-                    }
-                    if evt_type in persist_map:
-                        await _event_store.append(session_id, [
-                            {"type": evt_type, "data": event.get("data", {})}
-                        ])
-                # Notify TaskTracker
-                if _tracker is not None:
-                    await _tracker.handle_event(session_id, event)
+                persist_queue.put_nowait(event)
 
             before = time.time()
             dynamic_timeout = _detect_timeout(message, files, attached_filenames)
 
+            def _e(data: dict[str, Any]) -> str:
+                data["session_id"] = session_id
+                return f"data: {json.dumps(data)}\n\n"
+
             async def process():
-                await _agent.run_loop_events(
+                from cscode.core.engine import Agent as SessionAgent
+                session_agent = SessionAgent(
+                    config=session_config,
+                    provider=session_provider,
+                    registry=_agent.registry if _agent else registry,
+                    options=_agent.options if _agent else None,
+                )
+                session_agent.session_id = session_id
+                session_agent._pending_questions = _question_registry
+                await session_agent.run_loop_events(
                     messages,
                     on_event=on_event,
                     attached_filenames=attached_filenames if attached_filenames else None,
@@ -533,11 +602,15 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             agent_task = asyncio.create_task(run_with_coordinator())
             _active_agent_tasks[session_id] = agent_task
+            logger.info("[DIAG] agent_task created for session=%s active_sessions=%s", session_id, list(_active_agent_tasks.keys()))
 
             last_event_time = time.time()
             last_status_time = time.time()
             while True:
                 if await request.is_disconnected():
+                    logger.info("Client disconnected for session %s, cancelling task", session_id)
+                    if _question_registry is not None:
+                        await _question_registry.cancel_session(session_id)
                     agent_task.cancel()
                     break
                 if agent_task.done():
@@ -549,14 +622,16 @@ async def chat_stream(request: Request) -> StreamingResponse:
                             break
                     try:
                         response = agent_task.result()
+                        await _flush_persist()
                         if _session_store is not None:
                             await _session_store.save_messages(session_id, messages)
                         # Emit file_created for files modified during this agent run
                         for f in OUTPUTS_DIR.iterdir():
                             if f.is_file() and f.stat().st_mtime >= before:
-                                yield f"data: {json.dumps({'type': 'file_created', 'filename': f.name})}\n\n"
-                        yield f"data: {json.dumps({'type': 'complete', 'content': response})}\n\n"
+                                yield _e({'type': 'file_created', 'filename': f.name})
+                        yield _e({'type': 'complete', 'content': response})
                     except Exception as e:
+                        logger.warning("[DIAG] agent task error session=%s error=%s", session_id, e)
                         # Save any partial progress before yielding error
                         if _session_store is not None:
                             messages.append(Message(
@@ -564,28 +639,28 @@ async def chat_stream(request: Request) -> StreamingResponse:
                                 content=f"[Task interrupted by error: {e}]"
                             ))
                             await _session_store.save_messages(session_id, messages)
-                        yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                        yield _e({'type': 'error', 'content': str(e)})
                     finally:
                         # Generate title for new sessions (even on failure)
-                        if _session_store is not None and _agent is not None:
+                        if _session_store is not None:
                             session = await _session_store.get(session_id)
                             is_new = session is None or (session.title in ("New Session", "New Chat"))
                             if is_new:
                                 generated_title = None
                                 try:
-                                    if _agent.provider is not None:
+                                    if session_provider is not None:
                                         title_msgs = [
                                             Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
                                             Message(role=MessageRole.USER, content=message),
                                         ]
-                                        title_result = await _agent.provider.complete(title_msgs, tools=None)
+                                        title_result = await session_provider.complete(title_msgs, tools=None)
                                         generated_title = title_result.content.strip().strip('"\'.,!?')
                                 except Exception:
                                     pass
                                 if not generated_title:
                                     generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
                                 await _session_store.update_title(session_id, generated_title)
-                                yield f"data: {json.dumps({'type': 'session:title', 'title': generated_title})}\n\n"
+                                yield _e({'type': 'session:title', 'title': generated_title})
                     # Auto-compact if threshold exceeded (fire-and-forget)
                     asyncio.create_task(_auto_compact(session_id))
                     break
@@ -593,30 +668,34 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=0.5)
                     last_event_time = time.time()
+                    logger.debug("[DIAG] yield event session=%s type=%s", session_id, event.get("type"))
                     yield f"data: {json.dumps(event)}\n\n"
                 except asyncio.TimeoutError:
                     now = time.time()
                     # Send keepalive if no events for 10 seconds
                     if now - last_event_time > 10:
+                        logger.info("[DIAG] keepalive session=%s last_event=%.1fs ago", session_id, now - last_event_time)
                         yield ": keepalive\n\n"
                         last_event_time = now
                     # Send status event every 60 seconds so frontend knows agent is alive
                     if now - last_status_time > 60:
-                        yield f"data: {json.dumps({'type': 'status', 'message': 'Agent is working...'})}\n\n"
+                        yield _e({'type': 'status', 'message': 'Agent is working...'})
                         last_status_time = now
                     continue
 
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            yield _e({'type': 'error', 'content': str(e)})
 
         finally:
+            if not persist_task.done():
+                persist_task.cancel()
             if _active_agent_tasks.get(session_id) is agent_task:
                 del _active_agent_tasks[session_id]
             if not agent_task.done():
                 logger.info("Generator exiting, cancelling agent task for session %s", session_id)
                 agent_task.cancel()
                 try:
-                    await asyncio.wait_for(agent_task, timeout=10.0)
+                    await asyncio.wait_for(agent_task, timeout=5.0)
                 except (asyncio.CancelledError, asyncio.TimeoutError):
                     pass
 
@@ -650,6 +729,8 @@ async def _handle_chat(
     if _agent is None or _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
+    session_config = _agent.config if _agent else Config()
+    session_provider = _agent.provider if _agent else None
     try:
         from cscode.core.config import ConfigStore
         if _db is not None:
@@ -661,11 +742,8 @@ async def _handle_chat(
                 from cscode.providers import create_provider
                 db_config = Config.from_dict(saved_config)
                 base_config = load_config()
-                config = base_config.merge(db_config)
-                logger.debug("Loaded model: {config.model}, provider: {config.provider}")
-                provider = create_provider(config)
-                _agent.provider = provider
-                _agent.config = config
+                session_config = base_config.merge(db_config)
+                session_provider = create_provider(session_config)
     except Exception as e:
         import logging
         logging.warning(f"Failed to load config from DB: {e}")
@@ -753,7 +831,16 @@ async def _handle_chat(
         t3 = time.time()
         dynamic_timeout = _detect_timeout(message, files, attached_filenames)
         try:
-            response = await _agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout)
+            from cscode.core.engine import Agent as SessionAgent
+            session_agent = SessionAgent(
+                config=session_config,
+                provider=session_provider,
+                registry=_agent.registry,
+                options=_agent.options,
+            )
+            session_agent.session_id = session_id
+            session_agent._pending_questions = _question_registry
+            response = await session_agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout)
         except Exception as e:
             if _session_store is not None:
                 messages.append(Message(
@@ -769,29 +856,28 @@ async def _handle_chat(
             await _session_store.save_messages(session_id, messages)
 
         # Auto-generate title for new sessions
-        if _agent is not None:
-            session = await _session_store.get(session_id)
-            is_new = session is None or (session.title in ("New Session", "New Chat"))
-            if is_new:
-                try:
-                    if _agent.provider is not None:
-                        title_msgs = [
-                            Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
-                            Message(role=MessageRole.USER, content=message),
-                        ]
-                        title_result = await _agent.provider.complete(title_msgs, tools=None)
-                        generated_title = title_result.content.strip().strip('"\'.,!?')
-                        if generated_title and _session_store is not None:
-                            await _session_store.update_title(session_id, generated_title)
-                            logger.debug("Auto-generated title: {generated_title}")
-                except Exception:
-                    pass
-                # Update title with fallback even if LLM title generation fails
-                if _session_store is not None:
-                    session = await _session_store.get(session_id)
-                    if session is not None and session.title in ("New Session", "New Chat"):
-                        fallback = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
-                        await _session_store.update_title(session_id, fallback)
+        session = await _session_store.get(session_id)
+        is_new = session is None or (session.title in ("New Session", "New Chat"))
+        if is_new:
+            try:
+                if session_provider is not None:
+                    title_msgs = [
+                        Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
+                        Message(role=MessageRole.USER, content=message),
+                    ]
+                    title_result = await session_provider.complete(title_msgs, tools=None)
+                    generated_title = title_result.content.strip().strip('"\'.,!?')
+                    if generated_title and _session_store is not None:
+                        await _session_store.update_title(session_id, generated_title)
+                        logger.debug("Auto-generated title: {generated_title}")
+            except Exception:
+                pass
+            # Update title with fallback even if LLM title generation fails
+            if _session_store is not None:
+                session = await _session_store.get(session_id)
+                if session is not None and session.title in ("New Session", "New Chat"):
+                    fallback = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                    await _session_store.update_title(session_id, fallback)
 
         # Auto-compact if threshold exceeded (fire-and-forget)
         import asyncio
@@ -873,6 +959,65 @@ async def delete_session(session_id: str) -> dict[str, str]:
 
     await _session_store.delete(session_id)
     return {"status": "deleted", "id": session_id}
+
+
+@api_router.post("/sessions/{session_id}/stop")
+async def stop_session(session_id: str) -> dict[str, str]:
+    global _active_agent_tasks, _question_registry, _db
+    # Defensive: rollback any stale transaction on shared DB connection
+    if _db is not None:
+        try:
+            await _db.conn.execute("ROLLBACK")
+        except Exception:
+            pass
+    # Cancel any pending questions for this session first
+    if _question_registry is not None:
+        await _question_registry.cancel_session(session_id)
+    # Cancel the agent task
+    task = _active_agent_tasks.get(session_id)
+    if task and not task.done():
+        logger.info("Stopping agent task for session %s (user request)", session_id)
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=10.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+        del _active_agent_tasks[session_id]
+    return {"status": "stopped", "session_id": session_id}
+
+
+@api_router.get("/sessions/{session_id}/questions")
+async def list_pending_questions(session_id: str) -> list[dict[str, Any]]:
+    global _question_registry
+    if _question_registry is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    return await _question_registry.list_pending(session_id)
+
+
+class QuestionReplyRequest(BaseModel):
+    answers: list[str]
+
+
+@api_router.post("/sessions/{session_id}/questions/{request_id}/reply")
+async def reply_question(session_id: str, request_id: str, body: QuestionReplyRequest) -> dict[str, str]:
+    global _question_registry
+    if _question_registry is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    found = await _question_registry.resolve(request_id, body.answers)
+    if not found:
+        raise HTTPException(status_code=404, detail="Question request not found or already answered")
+    return {"status": "answered", "request_id": request_id}
+
+
+@api_router.post("/sessions/{session_id}/questions/{request_id}/reject")
+async def reject_question(session_id: str, request_id: str) -> dict[str, str]:
+    global _question_registry
+    if _question_registry is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    found = await _question_registry.reject(request_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Question request not found or already answered")
+    return {"status": "rejected", "request_id": request_id}
 
 
 @api_router.patch("/sessions/{session_id}")
@@ -1159,7 +1304,7 @@ def _detect_timeout(message: str, files: list[Any] | None, attached_filenames: l
 
     has_large_context = files and (attached_filenames or message.count("用例") > 5 or len(message) > 200)
     if has_gen_task or has_file_gen_task or has_large_context:
-        return 600.0
+        return 300.0
     if len(message) < 50 and not files:
         return 180.0  # Increased from 120
     return 300.0

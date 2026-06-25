@@ -14,6 +14,21 @@ _browser = None
 _page = None
 _playwright = None
 
+# System Chrome paths by platform
+_SYSTEM_CHROME_PATHS = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+]
+
+def _find_system_chrome() -> str | None:
+    for p in _SYSTEM_CHROME_PATHS:
+        if os.path.exists(p):
+            return p
+    return None
+
 def _get_playwright() -> Any:
     global _playwright
     if _playwright is None:
@@ -69,7 +84,11 @@ class BrowserTool(BaseTool):
                 if _browser is None:
                     from playwright.async_api import async_playwright
                     pw = await async_playwright().start()
-                    _browser = await pw.chromium.launch(headless=True)
+                    chrome_path = _find_system_chrome()
+                    if chrome_path:
+                        _browser = await pw.chromium.launch(headless=True, executable_path=chrome_path)
+                    else:
+                        _browser = await pw.chromium.launch(headless=True)
                     _page = await _browser.new_page()
 
                 await _page.goto(url, wait_until="domcontentloaded", timeout=30000)

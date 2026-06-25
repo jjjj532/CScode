@@ -27,6 +27,39 @@ export interface ToolCallItem {
   stepLog: string[];
 }
 
+const pollingTimers: Record<string, ReturnType<typeof setInterval>> = {};
+
+function pollQuestionRequestId(sessionId: string, questionText: string) {
+  const key = `${sessionId}:${questionText}`;
+  if (pollingTimers[key]) return;
+  pollingTimers[key] = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/questions`);
+      if (!res.ok) return;
+      // Backend returns: [{ request_id, session_id, tool_call_id, questions: [{question, options}] }]
+      const entries: Array<{ request_id: string; questions: Array<{ question: string; options: string[] }> }> = await res.json();
+      for (const entry of entries) {
+        if (entry.request_id === '__polling__' || !entry.questions) continue;
+        for (const q of entry.questions) {
+          if (q.question === questionText && entry.request_id !== '__polling__') {
+            clearInterval(pollingTimers[key]);
+            delete pollingTimers[key];
+            // Use the proper store action to trigger React re-render
+            useSessionStore.getState().updatePendingQuestionRequestId(sessionId, questionText, entry.request_id);
+            return;
+          }
+        }
+      }
+    } catch {
+      // ignore polling errors
+    }
+  }, 500);
+  setTimeout(() => {
+    clearInterval(pollingTimers[key]);
+    delete pollingTimers[key];
+  }, 30000);
+}
+
 function toolSummary(tc: ToolCallItem): string {
   const icon = tc.status === 'success' ? '✅' : tc.status === 'error' ? '❌' : '🔄';
   let desc = tc.name;
@@ -73,6 +106,12 @@ function toolSummary(tc: ToolCallItem): string {
   return `${icon} ${desc}`;
 }
 
+export interface QuestionItem {
+  request_id: string;
+  question: string;
+  options: string[];
+}
+
 interface SessionState {
   sessions: Session[];
   sessionMessages: Record<string, Message[]>;
@@ -83,6 +122,7 @@ interface SessionState {
   sessionThinking: Record<string, boolean>;
   sessionAttachments: Record<string, File[]>;
   sessionLastSeq: Record<string, number>;
+  pendingQuestions: Record<string, QuestionItem[]>;
   setSessions: (sessions: Session[]) => void;
   setMessages: (messages: Message[], sessionId: string) => void;
   applyEvent: (sessionId: string, event: { type: string; data?: any }) => void;
@@ -103,6 +143,8 @@ interface SessionState {
   removeSessionAttachment: (sessionId: string, index: number) => void;
   clearSessionAttachments: (sessionId: string) => void;
   truncateMessages: (sessionId: string, toIndex: number) => void;
+  dismissQuestion: (sessionId: string) => void;
+  updatePendingQuestionRequestId: (sessionId: string, questionText: string, requestId: string) => void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -115,6 +157,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   sessionThinking: {},
   sessionAttachments: {},
   sessionLastSeq: {},
+  pendingQuestions: {},
   setSessions: (sessions) => set({ sessions }),
   setSessionLastSeq: (sessionId, seq) => set((s) => ({
     sessionLastSeq: { ...s.sessionLastSeq, [sessionId]: seq },
@@ -122,37 +165,83 @@ export const useSessionStore = create<SessionState>((set) => ({
   applyEvent: (sessionId, event) => set((s) => {
     const d = event.data;
     switch (event.type) {
-      case 'step.started':
+      case 'step.started': {
+        const msgs = s.sessionMessages[sessionId] || [];
+        // Only add placeholder if last message isn't already an empty assistant message
+        const last = msgs[msgs.length - 1];
+        if (last?.role === 'assistant' && !last.content?.trim()) {
+          return {
+            sessionThinking: { ...s.sessionThinking, [sessionId]: true },
+            sessionToolCalls: { ...s.sessionToolCalls, [sessionId]: [] },
+          };
+        }
         return {
           sessionThinking: { ...s.sessionThinking, [sessionId]: true },
           sessionToolCalls: { ...s.sessionToolCalls, [sessionId]: [] },
+          sessionMessages: {
+            ...s.sessionMessages,
+            [sessionId]: [
+              ...msgs,
+              { role: 'assistant' as const, content: '', created_at: new Date().toISOString() },
+            ],
+          },
         };
+      }
       case 'text.ended': {
         const content = d?.content;
         if (!content?.trim()) return s;
+        const msgs = s.sessionMessages[sessionId] || [];
+        // Update the last assistant message instead of appending
+        const lastIdx = msgs.length - 1;
+        if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant') {
+          const updated = [...msgs];
+          updated[lastIdx] = { ...updated[lastIdx], content };
+          return {
+            sessionThinking: { ...s.sessionThinking, [sessionId]: false },
+            sessionMessages: { ...s.sessionMessages, [sessionId]: updated },
+          };
+        }
+        // Fallback: append new message
         return {
           sessionThinking: { ...s.sessionThinking, [sessionId]: false },
           sessionMessages: {
             ...s.sessionMessages,
-            [sessionId]: [
-              ...(s.sessionMessages[sessionId] || []),
-              { role: 'assistant' as const, content, created_at: new Date().toISOString() },
-            ],
+            [sessionId]: [...msgs, { role: 'assistant' as const, content, created_at: new Date().toISOString() }],
           },
         };
       }
       case 'tool.called': {
         const argsStr = d?.args ? (typeof d.args === 'object' ? JSON.stringify(d.args) : String(d.args)) : '';
-        return {
+        const name = d?.name || '';
+        const result: Partial<SessionState> = {
           sessionThinking: { ...s.sessionThinking, [sessionId]: false },
           sessionToolCalls: {
             ...s.sessionToolCalls,
             [sessionId]: [
               ...(s.sessionToolCalls[sessionId] || []),
-              { name: d?.name || '', args: argsStr, status: 'running' as const, round: d?.round || 0, max: d?.max || 0, stepLog: [] },
+              { name, args: argsStr, status: 'running' as const, round: d?.round || 0, max: d?.max || 0, stepLog: [] },
             ],
           },
         };
+        // If this is a question tool call, trigger polling for pending question details
+        if (name === 'question' && d?.args?.question) {
+          const questions = s.pendingQuestions[sessionId] || [];
+          const questionItem: QuestionItem = {
+            request_id: '__polling__',
+            question: d.args.question || '',
+            options: d.args.options || [],
+          };
+          // Only add if we don't already have this question pending
+          if (!questions.some((q) => q.question === questionItem.question)) {
+            result.pendingQuestions = {
+              ...s.pendingQuestions,
+              [sessionId]: [...questions, questionItem],
+            };
+          }
+          // Start polling for the real request_id (fire-and-forget)
+          pollQuestionRequestId(sessionId, questionItem.question);
+        }
+        return result as SessionState;
       }
       case 'tool.success':
         return {
@@ -315,4 +404,19 @@ export const useSessionStore = create<SessionState>((set) => ({
       [sessionId]: (s.sessionMessages[sessionId] || []).slice(0, toIndex + 1),
     },
   })),
+  dismissQuestion: (sessionId) => set((s) => {
+    const { [sessionId]: _, ...rest } = s.pendingQuestions;
+    return { pendingQuestions: rest };
+  }),
+  updatePendingQuestionRequestId: (sessionId, questionText, requestId) => set((s) => {
+    const current = s.pendingQuestions[sessionId] || [];
+    return {
+      pendingQuestions: {
+        ...s.pendingQuestions,
+        [sessionId]: current.map((q) =>
+          q.question === questionText ? { ...q, request_id: requestId } : q
+        ),
+      },
+    };
+  }),
 }));

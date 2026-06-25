@@ -37,41 +37,45 @@ class EventStore:
     async def _append_impl(self, aggregate_id: str, events: list[dict[str, Any]]) -> list[Event]:
         now = time.time()
 
-        cursor = await self._db.conn.execute(
-            "UPDATE event_sequences SET seq = seq + ? WHERE aggregate_id = ?",
-            (len(events), aggregate_id),
-        )
-        if cursor.rowcount == 0:
-            await self._db.conn.execute(
-                "INSERT INTO event_sequences (aggregate_id, seq) VALUES (?, ?)",
-                (aggregate_id, len(events)),
+        try:
+            cursor = await self._db.conn.execute(
+                "UPDATE event_sequences SET seq = seq + ? WHERE aggregate_id = ?",
+                (len(events), aggregate_id),
             )
+            if cursor.rowcount == 0:
+                await self._db.conn.execute(
+                    "INSERT INTO event_sequences (aggregate_id, seq) VALUES (?, ?)",
+                    (aggregate_id, len(events)),
+                )
 
-        cursor = await self._db.conn.execute(
-            "SELECT seq FROM event_sequences WHERE aggregate_id = ?", (aggregate_id,)
-        )
-        row = await cursor.fetchone()
-        base_seq = int(row[0]) - len(events)
-
-        result = []
-        for i, evt in enumerate(events):
-            seq = base_seq + i + 1
-            event = Event(
-                aggregate_id=aggregate_id,
-                seq=seq,
-                type=evt["type"],
-                data=evt.get("data", {}),
-                created_at=now,
+            cursor = await self._db.conn.execute(
+                "SELECT seq FROM event_sequences WHERE aggregate_id = ?", (aggregate_id,)
             )
-            await self._db.conn.execute(
-                "INSERT INTO events (aggregate_id, seq, type, data, created_at) VALUES (?, ?, ?, ?, ?)",
-                (aggregate_id, seq, event.type, json.dumps(event.data), now),
-            )
-            result.append(event)
+            row = await cursor.fetchone()
+            base_seq = int(row[0]) - len(events)
 
-        await self._db.conn.commit()
-        await self._notify(aggregate_id)
-        return result
+            result = []
+            for i, evt in enumerate(events):
+                seq = base_seq + i + 1
+                event = Event(
+                    aggregate_id=aggregate_id,
+                    seq=seq,
+                    type=evt["type"],
+                    data=evt.get("data", {}),
+                    created_at=now,
+                )
+                await self._db.conn.execute(
+                    "INSERT INTO events (aggregate_id, seq, type, data, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (aggregate_id, seq, event.type, json.dumps(event.data), now),
+                )
+                result.append(event)
+
+            await self._db.conn.commit()
+            await self._notify(aggregate_id)
+            return result
+        except BaseException:
+            await self._db.conn.rollback()
+            raise
 
     # Note: `limit` truncates results; callers should check has_more or paginate.
     async def read(

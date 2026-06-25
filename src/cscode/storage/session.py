@@ -72,27 +72,31 @@ class SessionStore:
         await self._db.conn.commit()
 
     async def save_messages(self, session_id: str, messages: List[Message]) -> None:
-        # Delete existing messages first to avoid duplication
-        await self._db.conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
-        now = datetime.now(timezone.utc).isoformat()
-        for msg in messages:
-            if msg.role == MessageRole.ASSISTANT and not msg.content:
-                continue
-            await self._db.conn.execute(
-                """INSERT INTO messages
-                   (session_id, role, content, tool_calls, tool_call_id, name, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    session_id,
-                    msg.role.value,
-                    msg.content,
-                    json.dumps(msg.tool_calls) if msg.tool_calls else None,
-                    msg.tool_call_id,
-                    msg.name,
-                    now,
-                ),
-            )
-        await self._db.conn.commit()
+        await self._db.conn.execute("BEGIN IMMEDIATE")
+        try:
+            await self._db.conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+            now = datetime.now(timezone.utc).isoformat()
+            for msg in messages:
+                if msg.role == MessageRole.ASSISTANT and not msg.content:
+                    continue
+                await self._db.conn.execute(
+                    """INSERT INTO messages
+                       (session_id, role, content, tool_calls, tool_call_id, name, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        session_id,
+                        msg.role.value,
+                        msg.content,
+                        json.dumps(msg.tool_calls) if msg.tool_calls else None,
+                        msg.tool_call_id,
+                        msg.name,
+                        now,
+                    ),
+                )
+            await self._db.conn.commit()
+        except BaseException:
+            await self._db.conn.rollback()
+            raise
 
     async def get_messages(self, session_id: str) -> List[Message]:
         cursor = await self._db.conn.execute(

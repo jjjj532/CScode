@@ -5,6 +5,7 @@ import { ProjectList } from '../sidebar/ProjectList';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { api } from '../../lib/api';
+import { abortSession } from '../../hooks/useChat';
 
 
 export function Sidebar() {
@@ -28,11 +29,13 @@ export function Sidebar() {
   const handleSelectSession = useCallback(async (id: string) => {
     console.log('[sidebar] >>> select session id=%s', id);
     const store = useSessionStore.getState();
-    // IMPORTANT: Do NOT abort previous session's stream here.
-    // The old stream continues to completion — its events (tool steps, response)
-    // still belong to that session's store. Aborting would discard TCP buffer data
-    // and lose the LLM's response. Only abort when starting a new message for the
-    // same session (handled in sendMessage → abortSession).
+    const prevId = store.activeSessionId;
+
+    // 1. 切换前 abort 旧 session 的流
+    if (prevId && prevId !== id) {
+      abortSession(prevId);
+    }
+
     const cached = store.sessionMessages[id];
     const cachedVersion = store.sessionMessageVersion[id] || 0;
     console.log('[sidebar] sessionMessages[%s] cached=%s length=%d version=%d activeSessionId=%s', id, cached !== undefined, cached?.length ?? 0, cachedVersion, store.activeSessionId);
@@ -77,8 +80,9 @@ export function Sidebar() {
   }, [setActiveSession, setMessages]);
 
   const handleNewSession = useCallback(async () => {
-    // Immediately clear active session so Composer won't route
-    // a quick send to the old session during the async gap.
+    // Guard: prevent duplicate session creation if user clicks New Session + Send rapidly
+    const current = useSessionStore.getState().activeSessionId;
+    if (current === null) return;  // already creating
     setActiveSession(null);
     try {
       const session = await api.sessions.create();
@@ -87,6 +91,11 @@ export function Sidebar() {
       setMessages([], session.id);
     } catch (e) {
       console.error('Failed to create session', e);
+      // Restore previous session on failure
+      const state = useSessionStore.getState();
+      if (state.activeSessionId === null) {
+        setActiveSession(state.sessions[state.sessions.length - 1]?.id || null);
+      }
     }
   }, [addSession, setActiveSession, setMessages]);
 

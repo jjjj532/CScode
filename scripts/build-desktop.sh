@@ -91,12 +91,14 @@ SPINNER
 # Step 3: Build PyInstaller backend
 echo ""
 echo ">>> Step 3: Building PyInstaller backend..."
-pip3 install pyinstaller 2>&1 | tail -3
-pip3 install . 2>&1 | tail -3
+"$PROJECT_DIR/.venv/bin/pip" install pyinstaller 2>&1 | tail -3
+cd "$PROJECT_DIR"
+"$PROJECT_DIR/.venv/bin/pip" install . --force-reinstall --no-deps 2>&1 | tail -3
 rm -rf "$PROJECT_DIR/dist/cscode-backend" "$PROJECT_DIR/cscode-backend.spec"
-pyinstaller --onedir --name cscode-backend \
+"$PROJECT_DIR/.venv/bin/pyinstaller" --onedir --name cscode-backend \
   --add-data "src/cscode/web/dist:web/dist" \
   desktop/backend-server.py --clean --noconfirm 2>&1 | tail -3
+
 mkdir -p "$PROJECT_DIR/desktop/src-tauri/resources"
 rm -rf "$PROJECT_DIR/desktop/src-tauri/resources/cscode-backend"
 cp -r "$PROJECT_DIR/dist/cscode-backend" "$PROJECT_DIR/desktop/src-tauri/resources/"

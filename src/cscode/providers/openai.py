@@ -112,9 +112,12 @@ class OpenAIProvider(LLMProvider):
 
         choice = data["choices"][0]
         msg = choice["message"]
+        tool_calls = msg.get("tool_calls")
+        if tool_calls is not None and len(tool_calls) == 0:
+            tool_calls = None
         return LLMResult(
             content=msg.get("content") or "",
-            tool_calls=msg.get("tool_calls"),
+            tool_calls=tool_calls,
             usage=data.get("usage"),
             model=data.get("model", self._model),
             finish_reason=choice.get("finish_reason", ""),

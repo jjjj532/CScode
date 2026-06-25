@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 class QuestionTool(BaseTool):
@@ -26,16 +30,45 @@ class QuestionTool(BaseTool):
         "required": ["question"],
     }
 
-    async def execute(self, args: dict[str, Any]) -> ToolResult:
+    async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
         question = args["question"]
         options = args.get("options", [])
 
-        if options:
-            formatted = f"Question: {question}\nOptions:\n" + "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options))
-        else:
-            formatted = f"Question: {question}"
+        pending_questions = (context or {}).get("pending_questions")
+        session_id = (context or {}).get("session_id", "")
+        tool_call_id = (context or {}).get("tool_call_id", "")
 
-        return ToolResult(
-            success=True,
-            data=formatted + "\n[Question tool requires human response — waiting for input in interactive mode]",
-        )
+        if pending_questions is None:
+            logger.warning("PendingQuestions registry not available, falling back to sync mode")
+            formatted = f"Question: {question}\nOptions:\n" + "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options)) if options else f"Question: {question}"
+            return ToolResult(success=True, data=formatted)
+
+        # Format: opencode-style Deferred blocking
+        # Register with the pending questions registry and BLOCK until answered
+        questions_payload = [{
+            "question": question,
+            "options": options or [],
+        }]
+
+        try:
+            answers = await pending_questions.register(
+                session_id=session_id,
+                tool_call_id=tool_call_id,
+                questions=questions_payload,
+            )
+
+            formatted = (
+                f"Question: {question}\n"
+            )
+            if options:
+                formatted += "Options:\n" + "\n".join(f"  {i+1}. {o}" for i, o in enumerate(options)) + "\n"
+            formatted += f"User's answer(s): {', '.join(answers) if answers else 'Unanswered'}"
+
+            return ToolResult(success=True, data=formatted)
+
+        except asyncio.CancelledError:
+            return ToolResult(
+                success=False,
+                data="",
+                error="Question was cancelled by user",
+            )
