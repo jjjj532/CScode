@@ -52,7 +52,7 @@ class EventStore:
                 "SELECT seq FROM event_sequences WHERE aggregate_id = ?", (aggregate_id,)
             )
             row = await cursor.fetchone()
-            base_seq = int(row[0]) - len(events)
+            base_seq = int(row[0]) - len(events) if row else 0
 
             result = []
             for i, evt in enumerate(events):

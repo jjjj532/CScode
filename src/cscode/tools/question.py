@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
 
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +30,7 @@ class QuestionTool(BaseTool):
         "required": ["question"],
     }
 
-    async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
+    async def execute(self, args: dict[str, Any], context: dict[str, Any] | None = None) -> ToolResult:
         question = args["question"]
         options = args.get("options", [])
 

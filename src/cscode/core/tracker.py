@@ -52,16 +52,17 @@ class TaskTracker:
              json.dumps(evidence), result_summary),
         )
 
-    def _verify_evidence(self, tool: str, evidence: dict) -> bool:
+    def _verify_evidence(self, tool: str, evidence: dict[str, Any]) -> bool:
         if not isinstance(evidence, dict):
             return False
         if tool == "browser":
             return bool(evidence.get("screenshot_path")) or evidence.get("html", False)
         if tool == "bash":
-            return evidence.get("content_length", 0) > 0
+            length = evidence.get("content_length", 0)
+            return bool(length) if isinstance(length, int) else False
         return bool(evidence)
 
-    async def get_execution_report(self, session_id: str) -> dict:
+    async def get_execution_report(self, session_id: str) -> dict[str, Any]:
         rows = await self.db.fetchall(
             "SELECT task_id, status, verified, evidence, result_summary, created_at "
             "FROM task_verifications WHERE session_id = ? ORDER BY created_at",

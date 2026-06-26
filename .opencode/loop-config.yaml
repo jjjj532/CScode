@@ -1,0 +1,105 @@
+# CScode Project Loop Engineering Configuration
+# Based on Addy Osmani best practices
+# https://addyosmani. com/blog/loop-engineering/
+
+# Loop templates for this project
+loops:
+  # Feature development loop
+  dev-loop:
+    description: "Feature development loop for CScode"
+    trigger: manual
+    max_iterations: 10
+    agents:
+      - role: explorer
+        model: volcengine/kimi-k2.6
+        task: explore_codebase_and_requirements
+      - role: implementer
+        model: volcengine/deepseek-v4-pro
+        task: implement_feature_with_tdd
+      - role: verifier
+        model: volcengine/minimax-m2.7
+        task: verify_against_spec_and_run_tests
+    state_file: ".opencode/loop-state/dev-{$LOOP_ID}.json"
+    skills:
+      - spec-driven-development
+      - test-driven-development
+      - code-review-and-quality
+
+  # Bug fix loop
+  bug-fix:
+    description: "Automated bug fix loop"
+    trigger: issue_created
+    max_iterations: 5
+    agents:
+      - role: explorer
+        model: volcengine/kimi-k2.6
+        task: reproduce_and_analyze_bug
+      - role: fixer
+        model: volcengine/deepseek-v4-pro
+        task: fix_bug_with_tests
+      - role: reviewer
+        model: volcengine/minimax-m2.7
+        task: verify_fix_and_run_full_test_suite
+    state_file: ".opencode/loop-state/bugfix-{$LOOP_ID}.json"
+    skills:
+      - debugging-and-error-recovery
+      - code-review-and- quality
+    require_approval: []
+
+  # DMG packaging loop
+  build-package:
+    description: "Build and verify DMG package"
+    trigger: manual
+    max_iterations: 3
+    agents:
+      - role: builder
+        model: volcengine/deepseek-v4-pro
+        task: build_dmg_package
+      - role: verifier
+        model: volcengine/minimax-m2.7
+        task: verify_dmg_contents
+    state_file: ".opencode/loop-state/build-{$LOOP_ID}.json"
+    require_approval:
+      - publish_release
+
+  # CI failure repair
+  ci-repair:
+    description: "Fix CI failures automatically"
+    trigger: ci_failed
+    max_iterations: 3
+    agents:
+      - role: analyzer
+        model: volcengine/kimi-k2.6
+        task: analyze_ci_failure_logs
+      - role: fixer
+        model: volcengine/deepseek-v4-pro
+        task: fix_ci_issue
+    state_file: ".opencode/loop-state/ci-{$LOOP_ID}.json"
+
+# Project-specific settings
+settings:
+  worktree_prefix: "cscode-loop-"
+  default_model: "volcengine/deepseek-v4-pro"
+  max_cost_per_loop: 15.0  # USD
+  cleanup_on_complete: true
+  
+  # CScode-specific checks
+  required_checks:
+    - test suite passes
+    - type checking (mypy) passes  
+    - linting (ruff) passes
+    - version consistency verified
+
+# Approval requirements
+require_approval:
+  - deploy_to_production
+  - publish_dmg_release
+  - modify_ci_workflows
+
+# Stop conditions
+stop_conditions:
+  - task_completed_and_verified
+  - max_iterations_reached
+  - cost_limit_exceeded
+  - human_intervention_required
+  - unrecoverable_error

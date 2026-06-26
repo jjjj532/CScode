@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from cscode.core.messages import Message, MessageRole
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
@@ -9,7 +11,7 @@ class Projector:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    async def _get_latest_epoch(self, session_id: str) -> dict | None:
+    async def _get_latest_epoch(self, session_id: str) -> dict[str, Any] | None:
         cursor = await self._db.conn.execute(
             "SELECT epoch, baseline_seq, snapshot FROM context_epochs WHERE session_id = ? ORDER BY epoch DESC LIMIT 1",
             (session_id,),

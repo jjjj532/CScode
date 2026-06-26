@@ -42,7 +42,7 @@ class TodoWriteTool(BaseTool):
         super().__init__()
         self.on_event = on_event
 
-    async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
+    async def execute(self, args: dict[str, Any], context: dict[str, Any] | None = None) -> ToolResult:
         todos = args["todos"]
         session_id = (context or {}).get("session_id", "")
         db = (context or {}).get("db")

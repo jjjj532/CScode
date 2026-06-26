@@ -25,7 +25,7 @@ class Compactor:
         if system_prompt:
             snapshot = f"{system_prompt}\n\n[Compacted {message_count} earlier messages]"
 
-        appended = await self._event_store.append(session_id, [
+        await self._event_store.append(session_id, [
             {
                 "type": "compaction",
                 "data": {
@@ -35,7 +35,6 @@ class Compactor:
                 },
             }
         ])
-        compaction_seq = appended[0].seq
 
         now = time.time()
         cursor = await self._db.conn.execute(

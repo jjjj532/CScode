@@ -88,6 +88,48 @@ def test_config_env_none_when_unset():
     assert cfg is None
 
 
+def test_from_dict_filters_empty_string():
+    """BUG-003: from_dict treats empty string as None (frontend sends '' for unset fields).
+    Regression test: empty strings must NOT overwrite defaults.
+    """
+    cfg = Config.from_dict({
+        "provider": "",
+        "model": "",
+        "api_base": "",
+        "system_prompt": "",
+    })
+    assert cfg.provider == "openai"
+    assert cfg.model == "gpt-4o"
+    assert cfg.api_base is None
+    assert cfg.system_prompt is None
+
+
+def test_merge_filters_empty_string():
+    """BUG-003: merge treats empty string as None.
+    Regression test: merging a config with empty strings must NOT overwrite existing values.
+    """
+    base = Config(provider="anthropic", model="claude-sonnet-4-5", api_base="https://api.anthropic.com")
+    # Construct a Config with empty strings directly (simulates what from_dict would
+    # produce if the empty-string filter were absent)
+    override = Config(provider="", model="", api_base="")
+    merged = base.merge(override)
+    assert merged.provider == "anthropic"
+    assert merged.model == "claude-sonnet-4-5"
+    assert merged.api_base == "https://api.anthropic.com"
+
+
+def test_to_dict_excludes_empty_string():
+    """BUG-003: to_dict excludes empty strings (not just None).
+    Regression test: to_dict must not return fields with empty string values.
+    """
+    cfg = Config(provider="openai", api_base="", system_prompt="")
+    d = cfg.to_dict()
+    assert "api_key" not in d
+    assert "api_base" not in d
+    assert "system_prompt" not in d
+    assert d.get("provider") == "openai"
+
+
 def test_invalid_temperature():
     """无效的 temperature 应该报错"""
     with pytest.raises(ConfigError):

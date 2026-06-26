@@ -47,7 +47,8 @@ class Database:
 
     async def fetchall(self, query: str, params: tuple[Any, ...] = ()) -> list[aiosqlite.Row]:
         cursor = await self.conn.execute(query, params)
-        return await cursor.fetchall()
+        rows = await cursor.fetchall()
+        return list(rows)
 
     async def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
         await self.conn.execute(query, params)

@@ -58,7 +58,7 @@ class ToolRegistry:
     def to_llm_tools(self) -> list[dict[str, Any]]:
         return [tool.to_llm_format() for tool in self._tools.values()]
 
-    async def execute_tool_call(self, tool_call: dict[str, Any], context: dict | None = None) -> ToolResult:
+    async def execute_tool_call(self, tool_call: dict[str, Any], context: dict[str, Any] | None = None) -> ToolResult:
         fn_info = tool_call.get("function", {})
         name = fn_info.get("name", "")
         raw_args = fn_info.get("arguments", "{}")
@@ -89,5 +89,5 @@ class ToolRegistry:
             except ValueError:
                 self._context_support[name] = False
         if self._context_support[name]:
-            return await tool.execute(args, context=context)
+            return await tool.execute(args, context=context)  # type: ignore[call-arg]
         return await tool.execute(args)

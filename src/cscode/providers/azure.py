@@ -19,7 +19,7 @@ class AzureProvider(OpenAIProvider):
         LLMProvider.__init__(self, config)
         self._api_base = config.api_base.rstrip("/")
         self._model = config.model
-        self._api_key = config.api_key
+        self._api_key = config.api_key or ""
         deployment = config.model
         self._url = f"{self._api_base}/openai/deployments/{deployment}/chat/completions?api-version=2024-02-15-preview"
         self._client = httpx.AsyncClient(

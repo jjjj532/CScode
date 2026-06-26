@@ -27,7 +27,7 @@ class BashTool(BaseTool):
         "required": ["command"],
     }
 
-    async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
+    async def execute(self, args: dict[str, Any], context: dict[str, Any] | None = None) -> ToolResult:
         command = args["command"]
         timeout_ms = args.get("timeout", 30000)
         timeout_s = timeout_ms / 1000

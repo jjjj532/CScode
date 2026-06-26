@@ -60,7 +60,7 @@ class BrowserTool(BaseTool):
         "required": ["action"],
     }
 
-    async def execute(self, args: dict[str, Any], context: dict | None = None) -> ToolResult:
+    async def execute(self, args: dict[str, Any], context: dict[str, Any] | None = None) -> ToolResult:
         global _browser, _page
 
         action = args.get("action", "")
@@ -149,7 +149,7 @@ class BrowserTool(BaseTool):
                 evidence["html"] = bool(text)
                 evidence["html_length"] = len(text) if text else 0
                 evidence["content_length"] = len(text) if text else 0
-                verified = bool(evidence["screenshot_path"]) or evidence["html"]
+                verified = bool(evidence["screenshot_path"]) or evidence["html"]  # type: ignore[assignment]
                 return ToolResult(
                     success=True,
                     data=text or "",
@@ -174,7 +174,7 @@ class BrowserTool(BaseTool):
                 evidence["html"] = bool(html)
                 evidence["html_length"] = len(html)
                 evidence["content_length"] = len(html)
-                verified = bool(evidence["screenshot_path"]) or evidence["html"]
+                verified = bool(evidence["screenshot_path"]) or evidence["html"]  # type: ignore[assignment]
                 return ToolResult(
                     success=True,
                     data=truncated,

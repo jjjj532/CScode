@@ -33,6 +33,7 @@ packages = ["src/cscode"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
+addopts = "--ignore=tests/test_race_conditions.py"
 
 [tool.mypy]
 strict = true

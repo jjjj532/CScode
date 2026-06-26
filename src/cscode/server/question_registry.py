@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from typing import Any
 
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +65,7 @@ class QuestionRegistry:
         if entry is None:
             logger.warning("Question not found for resolve: request_id=%s", request_id)
             return False
-        future: asyncio.Future = entry["future"]
+        future: asyncio.Future[Any] = entry["future"]
         if not future.done():
             future.set_result(answers)
             return True
@@ -77,7 +77,7 @@ class QuestionRegistry:
             entry = self._pending.pop(request_id, None)
         if entry is None:
             return False
-        future: asyncio.Future = entry["future"]
+        future: asyncio.Future[Any] = entry["future"]
         if not future.done():
             future.set_exception(asyncio.CancelledError("Question rejected by user"))
             return True
@@ -106,6 +106,6 @@ class QuestionRegistry:
             ]
             for req_id in to_cancel:
                 entry = self._pending.pop(req_id)
-                future: asyncio.Future = entry["future"]
+                future: asyncio.Future[Any] = entry["future"]
                 if not future.done():
                     future.set_exception(asyncio.CancelledError("Session interrupted"))

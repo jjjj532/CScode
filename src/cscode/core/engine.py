@@ -149,7 +149,7 @@ class Agent:
                 if name == "Browser":
                     url = args.get("url", "")
                     if url:
-                        return url[:80]
+                        return str(url)[:80]
                     action = args.get("action", "")
                     sel = args.get("selector", "")
                     val = args.get("value", "")
@@ -164,17 +164,17 @@ class Agent:
                     return f"{action} {sel[:40] or url[:60]}"
                 if name == "Bash":
                     cmd = args.get("command", "")
-                    return cmd[:80].replace("\n", " ")
+                    return str(cmd)[:80].replace("\n", " ")
                 if name == "Read":
-                    return args.get("file_path", "")[:60]
+                    return str(args.get("file_path", ""))[:60]
                 if name == "Write":
-                    return args.get("file_path", "")[:60]
+                    return str(args.get("file_path", ""))[:60]
                 if name == "Edit":
-                    return args.get("file_path", "")[:60]
+                    return str(args.get("file_path", ""))[:60]
                 if name == "Glob":
-                    return args.get("pattern", "")[:60]
+                    return str(args.get("pattern", ""))[:60]
                 if name == "Grep":
-                    return args.get("pattern", "")[:60]
+                    return str(args.get("pattern", ""))[:60]
                 return ""
 
             while True:

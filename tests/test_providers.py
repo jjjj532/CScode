@@ -52,6 +52,16 @@ class TestOpenAIProvider:
         assert provider.model == "gpt-4o-mini"
         assert "test-key" in provider._client.headers["Authorization"]
 
+    def test_no_api_key_omits_authorization_header(self):
+        """BUG-002: OpenAIProvider must NOT send 'Authorization: Bearer None' when api_key is None.
+        Regression test: f\"Bearer {None}\" produces 'Bearer None' -> scnet 401.
+        When api_key is None, the Authorization header must be absent entirely.
+        """
+        provider = OpenAIProvider(Config(api_key=None, model="gpt-4o-mini"))
+        headers = provider._client.headers
+        assert "Authorization" not in headers
+        assert headers["Content-Type"] == "application/json"
+
     def test_build_messages_roundtrip_dict_arguments(self, provider: OpenAIProvider):
         """
         模拟 get_messages 后的数据（arguments 被 normalize 成了 dict）。
