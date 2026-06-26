@@ -170,3 +170,50 @@ img = Image.open('desktop/src-tauri/icons/128x128.png')
 img.save('desktop/src-tauri/icons/icon.ico', format='ICO', sizes=[(32,32),(64,64)])
 "
 ```
+
+---
+# Loop Engineering Rules (Based on Addy Osmani Best Practices)
+## Core Loop Principles
+- Maker/Checker: write code vs verify must be different agents
+- State persistence: track in .opencode/loop-state/
+- Worktree isolation: use git worktrees for parallel agents
+- Cost management: stop at $15 USD
+- Stop: completed | max iterations | cost exceeded | human needed | error
+## CScode Verification (Ratchet Principle)
+Before completion, verify: pytest tests/ && mypy src/ && ruff check src/
+## Anti-Patterns to Avoid
+- Same agent writes and reviews code
+- No state file for resume
+- Unlimited iterations without cost controls
+- Skip tests before claiming completion
+
+---
+# 项目概述
+CScode 是一个 AI 编程助手，支持 Claude Code、Cursor 等主流 AI 编码工具的本地化部署。
+
+## 技术栈
+- Python 后端: FastAPI, Textual TUI, SQLite + Event Sourcing
+- 前端: React 18 + TypeScript + Vite + Tailwind CSS
+- 桌面端: Tauri v2 + Rust
+- 测试: pytest + pytest-asyncio
+- 代码质量: ruff + mypy
+
+## 开发命令
+- 桌面端开发: npm run tauri dev
+- 桌面端打包: bash scripts/build- desktop.sh
+- Python 测试: pytest tests/
+- 类型检查: mypy src/
+- 代码检查: ruff check src/
+- 代码格式化: ruff format src/
+
+## 目录结构
+- src/cscode/ - 核心 Python 代码
+- desktop/ - Tauri 桌面端
+- tests/ - 单元测试
+- scripts/ - 构建脚本
+
+## 编码规范
+- Python: 必须类型标注，禁止 Any
+- TypeScript: 严格模式
+- 先写测试再写代码 (TDD)
+- 提交前: pytest tests/ && mypy src/ && ruff check src/
