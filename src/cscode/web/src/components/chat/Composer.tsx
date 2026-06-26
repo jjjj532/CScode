@@ -137,30 +137,16 @@ export function Composer() {
         return;
       }
     }
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-      const selected = await open({ multiple: true, title: 'Select files' });
-      if (!selected) return;
-      const paths: string[] = Array.isArray(selected) ? selected : [selected];
-      for (const pathStr of paths) {
-        const bytes = await readFile(pathStr);
-        const name = pathStr.split('/').pop() || 'file';
-        const file = new File([bytes], name);
-        useSessionStore.getState().addSessionAttachment(sid, file);
+    // 浏览器文件选择器——不需 Tauri fs 权限，macOS 不会弹授权窗
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true;
+    fileInput.onchange = () => {
+      if (fileInput.files) {
+        Array.from(fileInput.files).forEach((f) => useSessionStore.getState().addSessionAttachment(sid!, f));
       }
-    } catch (err) {
-      if (!sid) return;
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.multiple = true;
-      fileInput.onchange = () => {
-        if (fileInput.files) {
-          Array.from(fileInput.files).forEach((f) => useSessionStore.getState().addSessionAttachment(sid, f));
-        }
-      };
-      fileInput.click();
-    }
+    };
+    fileInput.click();
   };
 
   return (
