@@ -35,7 +35,14 @@ class Config:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
         valid_keys = cls.__dataclass_fields__.keys()
-        filtered = {k: v for k, v in data.items() if k in valid_keys}
+        filtered = {}
+        for k, v in data.items():
+            if k not in valid_keys:
+                continue
+            # Treat empty string as None for string fields
+            if isinstance(v, str) and not v:
+                continue
+            filtered[k] = v
         return cls(**filtered)
 
     @classmethod
@@ -60,7 +67,7 @@ class Config:
     def to_dict(self) -> dict[str, Any]:
         result = asdict(self)
         result.pop("api_key", None)
-        return {k: v for k, v in result.items() if v is not None}
+        return {k: v for k, v in result.items() if v is not None and (not isinstance(v, str) or v)}
 
     def to_yaml(self, path: Path | str) -> None:
         with open(path, "w") as f:
@@ -68,7 +75,12 @@ class Config:
 
     def merge(self, other: Config) -> Config:
         merged = asdict(self)
-        merged.update({k: v for k, v in asdict(other).items() if v is not None})
+        for k, v in asdict(other).items():
+            if v is None:
+                continue
+            if isinstance(v, str) and not v:
+                continue
+            merged[k] = v
         return Config(**merged)
 
 

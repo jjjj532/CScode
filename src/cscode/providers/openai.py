@@ -16,12 +16,14 @@ class OpenAIProvider(LLMProvider):
         super().__init__(config)
         self._api_base = config.api_base or "https://api.openai.com/v1"
         self._model = config.model
-        self._api_key = config.api_key
-        print(f"DEBUG OpenAIProvider: api_base={self._api_base}, api_key={self._api_key[:20] if self._api_key else 'None'}...")
+        self._api_key = config.api_key or ""
+        print(f"DEBUG OpenAIProvider: api_base={self._api_base}, api_key={'set' if self._api_key else 'None'}...")
         self._client = httpx.AsyncClient(
             base_url=self._api_base,
             headers={
                 "Authorization": f"Bearer {config.api_key}",
+                "Content-Type": "application/json",
+            } if config.api_key else {
                 "Content-Type": "application/json",
             },
             timeout=httpx.Timeout(600.0),
