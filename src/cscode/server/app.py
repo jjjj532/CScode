@@ -291,6 +291,7 @@ _compactor: Compactor | None = None
 _tracker: TaskTracker | None = None
 _active_agent_tasks: dict[str, asyncio.Task] = {}
 _question_registry: QuestionRegistry | None = None
+_db_write_lock = asyncio.Lock()
 
 
 class ChatResponse(BaseModel):
@@ -418,13 +419,6 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
         session_id = session_id or str(uuid.uuid4())
 
-        # Defensive: clean up any stale DB transaction from previous sessions
-        if _db is not None:
-            try:
-                await _db.conn.execute("ROLLBACK")
-            except Exception:
-                pass
-
         try:
             is_new_session = False
             if _session_store is not None:
@@ -445,7 +439,8 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         provider_name = config_data.get("provider", "openai")
                         model = config_data.get("model", "gpt-4o")
 
-                    await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
+                    async with _db_write_lock:
+                        await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
                     yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
             existing_messages: list[Message] = []
@@ -491,16 +486,14 @@ async def chat_stream(request: Request) -> StreamingResponse:
             messages.append(Message(role=MessageRole.USER, content=user_text))
 
             # Append prompt.admitted event to EventStore
-            if _event_store is not None:
-                await _event_store.append(session_id, [
-                    {"type": "prompt.admitted", "data": {"content": message, "files": attached_filenames}}
-                ])
+            async with _db_write_lock:
+                if _event_store is not None:
+                    await _event_store.append(session_id, [
+                        {"type": "prompt.admitted", "data": {"content": message, "files": attached_filenames}}
+                    ])
+                if _session_store is not None:
+                    await _session_store.save_messages(session_id, messages)
 
-            # Save user message immediately (before agent) to prevent data loss on failure
-            if _session_store is not None:
-                await _session_store.save_messages(session_id, messages)
-
-            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
             persist_map = {
                 "step.started": True,
                 "text.ended": True,
@@ -510,52 +503,24 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 "tool.failed": True,
             }
 
-            persist_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-
-            async def _persist_consumer() -> None:
-                """Serialized DB writes to prevent nested transaction errors."""
-                while True:
-                    try:
-                        evt = await asyncio.wait_for(persist_queue.get(), timeout=1.0)
-                    except asyncio.TimeoutError:
-                        if agent_task.done():
-                            return
-                        continue
-                    try:
-                        evt_type = evt.get("type", "")
-                        if evt_type in persist_map:
-                            if _event_store is not None:
-                                await _event_store.append(session_id, [
-                                    {"type": evt_type, "data": evt.get("data", {})}
-                                ])
-                        if _tracker is not None:
-                            await _tracker.handle_event(session_id, evt)
-                    except Exception:
-                        pass
-
-            persist_task = asyncio.create_task(_persist_consumer())
-
-            async def _flush_persist() -> None:
-                """Drain remaining persist events before saving messages."""
-                while not persist_queue.empty():
-                    try:
-                        evt = persist_queue.get_nowait()
-                        evt_type = evt.get("type", "")
-                        if evt_type in persist_map:
-                            if _event_store is not None:
-                                await _event_store.append(session_id, [
-                                    {"type": evt_type, "data": evt.get("data", {})}
-                                ])
-                        if _tracker is not None:
-                            await _tracker.handle_event(session_id, evt)
-                    except Exception:
-                        pass
+            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
             async def on_event(event: dict[str, Any]) -> None:
                 event["session_id"] = session_id
                 logger.debug("[DIAG] on_event session=%s type=%s", session_id, event.get("type"))
                 await queue.put(event)
-                persist_queue.put_nowait(event)
+                evt_type = event.get("type", "")
+                if evt_type in persist_map:
+                    async with _db_write_lock:
+                        try:
+                            if _event_store is not None:
+                                await _event_store.append(session_id, [
+                                    {"type": evt_type, "data": event.get("data", {})}
+                                ])
+                            if _tracker is not None:
+                                await _tracker.handle_event(session_id, event)
+                        except Exception:
+                            pass
 
             before = time.time()
             dynamic_timeout = _detect_timeout(message, files, attached_filenames)
@@ -622,9 +587,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
                             break
                     try:
                         response = agent_task.result()
-                        await _flush_persist()
-                        if _session_store is not None:
-                            await _session_store.save_messages(session_id, messages)
+                        async with _db_write_lock:
+                            if _session_store is not None:
+                                await _session_store.save_messages(session_id, messages)
                         # Emit file_created for files modified during this agent run
                         for f in OUTPUTS_DIR.iterdir():
                             if f.is_file() and f.stat().st_mtime >= before:
@@ -633,12 +598,13 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     except Exception as e:
                         logger.warning("[DIAG] agent task error session=%s error=%s", session_id, e)
                         # Save any partial progress before yielding error
-                        if _session_store is not None:
-                            messages.append(Message(
-                                role=MessageRole.ASSISTANT,
-                                content=f"[Task interrupted by error: {e}]"
-                            ))
-                            await _session_store.save_messages(session_id, messages)
+                        async with _db_write_lock:
+                            if _session_store is not None:
+                                messages.append(Message(
+                                    role=MessageRole.ASSISTANT,
+                                    content=f"[Task interrupted by error: {e}]"
+                                ))
+                                await _session_store.save_messages(session_id, messages)
                         yield _e({'type': 'error', 'content': str(e)})
                     finally:
                         # Generate title for new sessions (even on failure)
@@ -659,7 +625,8 @@ async def chat_stream(request: Request) -> StreamingResponse:
                                     pass
                                 if not generated_title:
                                     generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
-                                await _session_store.update_title(session_id, generated_title)
+                                async with _db_write_lock:
+                                    await _session_store.update_title(session_id, generated_title)
                                 yield _e({'type': 'session:title', 'title': generated_title})
                     # Auto-compact if threshold exceeded (fire-and-forget)
                     asyncio.create_task(_auto_compact(session_id))
@@ -687,8 +654,6 @@ async def chat_stream(request: Request) -> StreamingResponse:
             yield _e({'type': 'error', 'content': str(e)})
 
         finally:
-            if not persist_task.done():
-                persist_task.cancel()
             if _active_agent_tasks.get(session_id) is agent_task:
                 del _active_agent_tasks[session_id]
             if not agent_task.done():
@@ -772,7 +737,8 @@ async def _handle_chat(
                     model = config_data.get("model", "gpt-4o")
 
                 logger.debug("Creating new session {session_id} with provider={provider_name}, model={model}")
-                await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
+                async with _db_write_lock:
+                    await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
                 logger.debug("Session created successfully")
 
         # Load existing messages for this session
@@ -823,8 +789,9 @@ async def _handle_chat(
         messages.append(Message(role=MessageRole.USER, content=user_text))
 
         # Save user message immediately (before agent) to prevent data loss on failure
-        if _session_store is not None:
-            await _session_store.save_messages(session_id, messages)
+        async with _db_write_lock:
+            if _session_store is not None:
+                await _session_store.save_messages(session_id, messages)
 
         # Run agent with full message history
         logger.debug("build_messages={time.time()-t2:.2f}s, total_messages={len(messages)}, total_chars={sum(len(m.content) for m in messages)}")
@@ -842,18 +809,20 @@ async def _handle_chat(
             session_agent._pending_questions = _question_registry
             response = await session_agent._run_loop(messages, attached_filenames=attached_filenames if attached_filenames else None, timeout=dynamic_timeout)
         except Exception as e:
-            if _session_store is not None:
-                messages.append(Message(
-                    role=MessageRole.ASSISTANT,
-                    content=f"[Task interrupted by error: {e}]"
-                ))
-                await _session_store.save_messages(session_id, messages)
+            async with _db_write_lock:
+                if _session_store is not None:
+                    messages.append(Message(
+                        role=MessageRole.ASSISTANT,
+                        content=f"[Task interrupted by error: {e}]"
+                    ))
+                    await _session_store.save_messages(session_id, messages)
             raise
         logger.debug("agent_run_loop={time.time()-t3:.2f}s")
 
         # Save updated messages to session (now includes assistant response)
-        if _session_store is not None:
-            await _session_store.save_messages(session_id, messages)
+        async with _db_write_lock:
+            if _session_store is not None:
+                await _session_store.save_messages(session_id, messages)
 
         # Auto-generate title for new sessions
         session = await _session_store.get(session_id)
@@ -868,7 +837,8 @@ async def _handle_chat(
                     title_result = await session_provider.complete(title_msgs, tools=None)
                     generated_title = title_result.content.strip().strip('"\'.,!?')
                     if generated_title and _session_store is not None:
-                        await _session_store.update_title(session_id, generated_title)
+                        async with _db_write_lock:
+                            await _session_store.update_title(session_id, generated_title)
                         logger.debug("Auto-generated title: {generated_title}")
             except Exception:
                 pass
@@ -877,7 +847,8 @@ async def _handle_chat(
                 session = await _session_store.get(session_id)
                 if session is not None and session.title in ("New Session", "New Chat"):
                     fallback = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
-                    await _session_store.update_title(session_id, fallback)
+                    async with _db_write_lock:
+                        await _session_store.update_title(session_id, fallback)
 
         # Auto-compact if threshold exceeded (fire-and-forget)
         import asyncio
@@ -931,8 +902,9 @@ async def save_config(request: ConfigRequest) -> dict[str, Any]:
 
     from cscode.core.config import ConfigStore
     if _db is not None:
-        store = ConfigStore(_db)
-        await store.save(config_data)
+        async with _db_write_lock:
+            store = ConfigStore(_db)
+            await store.save(config_data)
     return {"status": "saved", "config": config_data}
 
 
@@ -941,7 +913,8 @@ async def create_session(request: SessionCreateRequest) -> dict[str, Any]:
     if _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    session = await _session_store.create(title=request.title)
+    async with _db_write_lock:
+        session = await _session_store.create(title=request.title)
     return {
         "id": session.id,
         "title": session.title,
@@ -957,19 +930,14 @@ async def delete_session(session_id: str) -> dict[str, str]:
     if _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    await _session_store.delete(session_id)
+    async with _db_write_lock:
+        await _session_store.delete(session_id)
     return {"status": "deleted", "id": session_id}
 
 
 @api_router.post("/sessions/{session_id}/stop")
 async def stop_session(session_id: str) -> dict[str, str]:
-    global _active_agent_tasks, _question_registry, _db
-    # Defensive: rollback any stale transaction on shared DB connection
-    if _db is not None:
-        try:
-            await _db.conn.execute("ROLLBACK")
-        except Exception:
-            pass
+    global _active_agent_tasks, _question_registry
     # Cancel any pending questions for this session first
     if _question_registry is not None:
         await _question_registry.cancel_session(session_id)
@@ -1027,7 +995,8 @@ async def update_session(session_id: str, request: dict[str, Any]) -> dict[str, 
 
     title = request.get("title")
     if title:
-        await _session_store.update_title(session_id, title)
+        async with _db_write_lock:
+            await _session_store.update_title(session_id, title)
 
     return {"status": "updated", "id": session_id}
 
@@ -1070,11 +1039,12 @@ async def import_session(request: dict[str, Any]) -> dict[str, Any]:
     model = request.get("model", "gpt-4o")
     messages_data = request.get("messages", [])
 
-    session = await _session_store.create(title=title, provider=provider, model=model)
-    messages = [
-        Message(role=MessageRole(m["role"]), content=m["content"]) for m in messages_data
-    ]
-    await _session_store.save_messages(session.id, messages)
+    async with _db_write_lock:
+        session = await _session_store.create(title=title, provider=provider, model=model)
+        messages = [
+            Message(role=MessageRole(m["role"]), content=m["content"]) for m in messages_data
+        ]
+        await _session_store.save_messages(session.id, messages)
 
     return {
         "id": session.id,
@@ -1318,7 +1288,8 @@ async def _auto_compact(session_id: str) -> None:
         events = await _event_store.read(session_id)
         relevant = [e for e in events if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed")]
         if len(relevant) >= COMPACTION_THRESHOLD:
-            await _compactor.compact(session_id)
+            async with _db_write_lock:
+                await _compactor.compact(session_id)
     except Exception:
         import logging
         logging.getLogger(__name__).exception("Auto-compaction failed")

@@ -9,15 +9,6 @@
     "core:window:allow-set-size",
     "core:window:allow-set-title",
     "core:app:default",
-    {
-      "identifier": "fs:allow-read",
-      "allow": [{ "path": "**" }]
-    },
-    {
-      "identifier": "fs:allow-write",
-      "allow": [{ "path": "**" }]
-    },
-    "fs:allow-exists",
     "dialog:default",
     "dialog:allow-save",
     "dialog:allow-open"
