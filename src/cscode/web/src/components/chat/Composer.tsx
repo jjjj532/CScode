@@ -3,6 +3,7 @@ import { Paperclip, Send, Square, X, FileCode, FileImage, FileText } from 'lucid
 import { useChat } from '../../hooks/useChat';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useConfigStore } from '../../stores/useConfigStore';
+import { useToastStore } from '../../stores/useToastStore';
 import { AutocompletePopup } from '../ui/AutocompletePopup';
 import { api } from '../../lib/api';
 
@@ -25,6 +26,7 @@ export function Composer() {
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const attachedFiles = activeSessionId ? (sessionAttachments[activeSessionId] || []) : [];
   const config = useConfigStore((s) => s.config);
+  const addToast = useToastStore((s) => s.addToast);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -99,6 +101,7 @@ export function Composer() {
       const returnedSid = await sendMessage(text, sid || undefined, filesToSend);
       if (filesToSend && returnedSid) clearSessionAttachments(returnedSid as string);
     } catch (err) {
+      addToast('Chat error', 'error');
       console.error('Chat error:', err);
     } finally {
       sendingSessions[guardKey] = false;
@@ -133,6 +136,7 @@ export function Composer() {
         setActiveSession(session.id);
         sid = session.id;
       } catch (e) {
+        addToast('Failed to create session', 'error');
         console.error('Failed to create session for attachment', e);
         return;
       }

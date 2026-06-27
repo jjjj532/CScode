@@ -6,6 +6,7 @@ import { useSessionStore } from '../../stores/useSessionStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { api } from '../../lib/api';
 import { abortSession } from '../../hooks/useChat';
+import { useToastStore } from '../../stores/useToastStore';
 
 
 export function Sidebar() {
@@ -21,9 +22,13 @@ export function Sidebar() {
   const addSession = useSessionStore((s) => s.addSession);
   const removeSession = useSessionStore((s) => s.removeSession);
   const updateSessionTitle = useSessionStore((s) => s.updateSessionTitle);
+  const addToast = useToastStore((s) => s.addToast);
 
   useEffect(() => {
-    api.sessions.list().then(setSessions).catch((e) => console.error('Failed to fetch sessions', e));
+    api.sessions.list().then(setSessions).catch((e) => {
+      addToast('Failed to fetch sessions', 'error');
+      console.error('Failed to fetch sessions', e);
+    });
   }, [setSessions]);
 
   const handleSelectSession = useCallback(async (id: string) => {
@@ -90,6 +95,7 @@ export function Sidebar() {
       setActiveSession(session.id);
       setMessages([], session.id);
     } catch (e) {
+      addToast('Failed to create session', 'error');
       console.error('Failed to create session', e);
       // Restore previous session on failure
       const state = useSessionStore.getState();
@@ -110,6 +116,7 @@ export function Sidebar() {
         setMessages([], id);
       }
     } catch (e) {
+      addToast('Failed to delete session', 'error');
       console.error('Failed to delete session', e);
     }
   }, [removeSession, setActiveSession, setMessages]);

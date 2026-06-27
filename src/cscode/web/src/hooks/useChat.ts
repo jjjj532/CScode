@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useSessionStore } from '../stores/useSessionStore';
+import { useToastStore } from '../stores/useToastStore';
 import { api } from '../lib/api';
 
 const streamControllers: Record<string, AbortController> = {};
@@ -10,6 +11,9 @@ export function abortSession(sessionId: string) {
     console.log('[chat] abortSession: aborting stream for session=%s', sessionId);
     ctrl.abort();
     delete streamControllers[sessionId];
+    // Reset session state immediately so it doesn't show "Thinking..." when user returns
+    useSessionStore.getState().setSessionThinking(sessionId, false);
+    useSessionStore.getState().setLoading(sessionId, false);
   }
 }
 
@@ -64,6 +68,7 @@ export function useChat() {
         setActiveSession(session.id);
         sid = session.id;
       } catch (e) {
+        useToastStore.getState().addToast('Failed to create session', 'error');
         console.error('Failed to create session', e);
         return undefined;
       }
@@ -130,13 +135,16 @@ export function useChat() {
               continue;
             }
 
-            const isCurrentStream = streamControllers[capturedSid] === controller;
+            const isCurrentStream = () => {
+              const activeId = useSessionStore.getState().activeSessionId;
+              return streamControllers[capturedSid] === controller && activeId === capturedSid;
+            };
 
             switch (event.type) {
               case 'session':
                 break;
               case 'session:title':
-                if (isCurrentStream && event.title) {
+                if (isCurrentStream() && event.title) {
                   updateSessionTitle(capturedSid, event.title);
                 }
                 break;
@@ -146,20 +154,20 @@ export function useChat() {
               case 'tool.success':
               case 'tool.failed':
               case 'step.ended':
-                if (isCurrentStream) {
+                if (isCurrentStream()) {
                   applyEvent(capturedSid, event);
                 }
                 break;
               case 'status':
-                if (isCurrentStream) {
+                if (isCurrentStream()) {
                   setSessionThinking(capturedSid, true);
                 }
                 break;
               case 'file_created':
                 break;
               case 'complete':
-                setSessionThinking(capturedSid, false);
-                if (isCurrentStream) {
+                if (isCurrentStream()) {
+                  setSessionThinking(capturedSid, false);
                   setLoading(capturedSid, false);
                   if (event.content) {
                     const store = useSessionStore.getState();
@@ -173,7 +181,7 @@ export function useChat() {
                 }
                 break;
               case 'error':
-                if (isCurrentStream) {
+                if (isCurrentStream()) {
                   setSessionThinking(capturedSid, false);
                   setLoading(capturedSid, false);
                   appendMessage({
@@ -225,9 +233,10 @@ export function useChat() {
     if (sid) {
       // Architecture root fix: stop via backend API, not just aborting the fetch
       // This ensures the backend agent task is actually cancelled
-      fetch(`/api/sessions/${sid}/stop`, { method: 'POST' }).catch((e) =>
-        console.error('[chat] stop: backend stop failed', e)
-      );
+      fetch(`/api/sessions/${sid}/stop`, { method: 'POST' }).catch((e) => {
+        useToastStore.getState().addToast('Failed to stop session', 'error');
+        console.error('[chat] stop: backend stop failed', e);
+      });
       // Also abort the frontend stream controller
       const ctrl = streamControllers[sid];
       if (ctrl) {

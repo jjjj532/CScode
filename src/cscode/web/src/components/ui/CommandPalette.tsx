@@ -3,6 +3,7 @@ import { Search, Settings, Plus, Sun, Moon, X } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useConfigStore } from '../../stores/useConfigStore';
+import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
 
 interface Command {
@@ -23,6 +24,7 @@ export function CommandPalette() {
   const addSession = useSessionStore((s) => s.addSession);
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const setMessages = useSessionStore((s) => s.setMessages);
+  const addToast = useToastStore((s) => s.addToast);
 
   const commands: Command[] = [
     {
@@ -36,6 +38,7 @@ export function CommandPalette() {
           setActiveSession(session.id);
           setMessages([], session.id);
         } catch (e) {
+          addToast('Failed to create session', 'error');
           console.error('Failed to create session', e);
         }
         setOpen(false);
