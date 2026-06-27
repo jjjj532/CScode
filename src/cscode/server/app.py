@@ -5,7 +5,7 @@ import logging
 import os
 import time
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -16,37 +16,103 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from cscode.core.config import Config, ConfigStore, load_config
-from cscode.core.engine import Agent, AgentOptions
-from cscode.core.messages import Message, MessageRole
+from cscode.app.agent import AgentV2
+from cscode.app.factory import create_agent_v2, create_tool_registry
+from cscode.core.config import ConfigStore, load_config
+from cscode.core.coordinator import SessionCoordinator
+from cscode.core.messages import Message as OldMessage
+from cscode.core.messages import MessageRole as OldMessageRole
 from cscode.core.tracker import TaskTracker
-from cscode.providers import create_provider
+from cscode.llm.types import LLMRequest
+from cscode.schema.events import (
+    Finish,
+    LLMEvent,
+    TextDelta,
+    TextEnded,
+    ToolCallEnded,
+    ToolFailure,
+    ToolResult,
+)
+from cscode.schema.messages import (
+    Message as NewMessage,
+)
 from cscode.server.compactor import Compactor
-from cscode.server.coordinator import SessionCoordinator
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
 from cscode.storage.session import SessionStore
-from cscode.tools.apply_patch import ApplyPatchTool
-from cscode.tools.base import ToolRegistry
-from cscode.tools.bash import BashTool
-from cscode.tools.browser import BrowserTool
-from cscode.tools.edit import EditTool
-from cscode.tools.glob import GlobTool
-from cscode.tools.grep import GrepTool
-from cscode.tools.ls import LsTool
-from cscode.tools.question import QuestionTool
-from cscode.tools.read import ReadTool
-from cscode.tools.skill import SkillTool
-from cscode.tools.todowrite import TodoWriteTool
-from cscode.tools.webfetch import WebFetchTool
-from cscode.tools.websearch import WebSearchTool
-from cscode.tools.write import WriteTool
+
+
+class _CallableProcessor:
+    """Adapts a Callable agent runner to core/coordinator's processor interface."""
+    def __init__(self, handler: Callable[[], Any]) -> None:
+        self._handler = handler
+
+    async def process(self, session_id: str) -> None:
+        await self._handler()
+
 
 logger = logging.getLogger(__name__)
 
 api_router = APIRouter(prefix="/api")
+
+# ─── Message type adapters (old ↔ new) ─────────────────────────────────
+
+
+def _old_to_new_messages(old_msgs: list[OldMessage]) -> list[NewMessage]:
+    """Convert old cscode.core.messages.Message list to new schema.messages.Message list."""
+    result: list[NewMessage] = []
+    for msg in old_msgs:
+        role_str = msg.role.value if hasattr(msg.role, "value") else str(msg.role)
+        content = msg.content or ""
+        if role_str == "system":
+            result.append(NewMessage.system(content))
+        elif role_str == "user":
+            result.append(NewMessage.user(content))
+        elif role_str == "assistant":
+            result.append(NewMessage.assistant(content))
+        elif role_str == "tool":
+            result.append(NewMessage.from_text(role_str, content))
+    return result
+
+
+def _new_to_old_messages(new_msgs: list[NewMessage]) -> list[OldMessage]:
+    """Convert new schema.messages.Message list back to old cscode.core.messages.Message list."""
+    result: list[OldMessage] = []
+    for msg in new_msgs:
+        content = msg.content
+        role_map = {
+            "system": OldMessageRole.SYSTEM,
+            "user": OldMessageRole.USER,
+            "assistant": OldMessageRole.ASSISTANT,
+            "tool": OldMessageRole.TOOL,
+        }
+        role = role_map.get(msg.role, OldMessageRole.USER)
+        if role == OldMessageRole.ASSISTANT and not content:
+            continue
+        result.append(OldMessage(role=role, content=content))
+    return result
+
+
+def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
+    """Convert LLMEvent to old-style dict for SSE streaming."""
+    match event:
+        case TextDelta(text=t):
+            return {"type": "step.started", "data": {"text": t}}
+        case TextEnded(full_text=t):
+            return {"type": "text.ended", "data": {"content": t}}
+        case ToolCallEnded(tool_call_id=tcid, name=n, args=a):
+            return {"type": "tool.called", "data": {"name": n, "arguments": a, "id": tcid}}
+        case ToolResult(tool_call_id=tcid, result=r):
+            return {"type": "tool.success", "data": {"tool_call_id": tcid, "result": r}}
+        case ToolFailure(tool_call_id=tcid, error=e):
+            return {"type": "tool.failed", "data": {"tool_call_id": tcid, "error": e}}
+        case Finish():
+            return {"type": "step.ended", "data": {}}
+        case _:
+            return {"type": "step.started", "data": {"text": str(event)}}
+
 
 # Output directory for user-facing generated files
 OUTPUTS_DIR = Path("/tmp/cscode-outputs")
@@ -172,77 +238,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         os.chmod(template_path, 0o755)
 
     config = load_config()
-    provider = create_provider(config)
-    registry = ToolRegistry()
-    registry.register(ReadTool())
-    registry.register(WriteTool())
-    registry.register(EditTool())
-    registry.register(BashTool())
-    registry.register(GrepTool())
-    registry.register(GlobTool())
-    registry.register(LsTool())
-    registry.register(BrowserTool())
-    registry.register(TodoWriteTool())
-    registry.register(SkillTool())
-    registry.register(QuestionTool())
-    registry.register(WebFetchTool())
-    registry.register(WebSearchTool())
-    registry.register(ApplyPatchTool())
-    _agent = Agent(
-        config=config,
-        provider=provider,
-        registry=registry,
-        options=AgentOptions(
-            timeout=600.0,
-            system_prompt="""You are CScode, an AI-powered coding assistant.
-
-IMPORTANT: When a file is attached by the user, its content appears in [FILE: ...] blocks above. Use this content directly. If you need to explore the file content, use the Read tool (NOT Glob, Grep, or Ls). The file content is already provided — you do not need to search for it.
-
-When generating .xlsx files, use a TWO-STEP approach for speed:
-  Step 1 - Generate CSV: Write a .csv file via Write tool. First row must be column headers.
-    Example CSV content for a test case table:
-```
-用例ID,用例名称,优先级,前置条件,测试步骤,预期结果
-TC001,登录成功,P0,用户未登录,1.打开APP 2.输入用户名密码 3.点击登录,登录成功跳转首页
-TC002,登录失败,P0,用户未登录,1.打开APP 2.输入错误密码,提示密码错误
-```
-  Step 2 - Convert to .xlsx: Run this Bash command:
-    python3 /tmp/cscode-outputs/xlsx_template.py /tmp/cscode-outputs/data.csv --output /tmp/cscode-outputs/result.xlsx
-
-  This is faster than writing openpyxl code from scratch. The xlsx_template.py auto-formats with headers, filter, and freeze panes.
-
-Save ALL user-facing generated files to /tmp/cscode-outputs/. When a file is ready, output exactly ONE download link like this:
-**下载链接：** [filename.ext](/outputs/filename.ext)
-Do NOT output a second "路径" line.
-
-BROWSER AUTOMATION - When you need to interact with a real website:
-1. Use browser.open to open a URL: browser action=open url=https://example.com
-2. Click elements: browser action=click selector="#button-id"
-3. Type text: browser action=type selector="#input-id" text="hello"
-4. Press keys: browser action=press selector="body" key=Enter
-5. Take screenshot: browser action=screenshot
-6. Get text content: browser action=get_text selector=".content"
-7. Get HTML: browser action=get_html selector=".container"
-8. Wait for element: browser action=wait selector=".loading" seconds=5
-9. Scroll: browser action=scroll selector=".footer"
-10. Close browser: browser action=close
-
-Example workflow for testing a website:
-1. browser action=open url="https://voice.styoai.com"
-2. browser action=type selector="#username" text="admin"
-3. browser action=type selector="#password" text="xxx"
-4. browser action=click selector="button[type=submit]"
-5. browser action=get_text selector=".dashboard"
-
-Available tools: Read, Write, Edit, Bash, Grep, Glob, Ls, Browser.
-
-IMPORTANT: You have a browser automation tool! Use it to interact with REAL websites!
-- The browser tool can open any URL, click elements, fill forms, take screenshots, etc.
-- Do NOT generate local test scripts - use browser tool to test websites DIRECTLY
-- Example: browser action=open url="https://voice.styoai.com" will open the real website
-- If user asks to test a website, ALWAYS use browser tool, do NOT generate scripts""",
-        ),
+    _agent = create_agent_v2(
+        config,
+        tool_registry=create_tool_registry(),
     )
+    _agent._max_tool_rounds = 20
 
     yield
 
@@ -262,7 +262,7 @@ app.add_middleware(
 
 _db: Database | None = None
 _session_store: SessionStore | None = None
-_agent: Agent | None = None
+_agent: AgentV2 | None = None
 _event_store: EventStore | None = None
 _coordinator: SessionCoordinator | None = None
 _projector: Projector | None = None
@@ -377,20 +377,6 @@ async def chat_stream(request: Request) -> StreamingResponse:
             yield f"data: {json.dumps({'type': 'error', 'content': 'Server not initialized'})}\n\n"
             return
 
-        loaded_config = None
-        loaded_provider = None
-        try:
-            if _db is not None:
-                store = ConfigStore(_db)
-                saved_config = await store.get()
-                if saved_config:
-                    db_config = Config.from_dict(saved_config)
-                    base_config = load_config()
-                    loaded_config = base_config.merge(db_config)
-                    loaded_provider = create_provider(loaded_config)
-        except Exception as e:
-            logger.warning("Failed to load config from DB: %s", e)
-
         session_id = session_id or str(uuid.uuid4())
 
         try:
@@ -413,9 +399,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     await _session_store.create(title="New Chat", provider=provider_name, model=model, session_id=session_id)
                     yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
-            existing_messages: list[Message] = []
+            existing_old_messages: list[OldMessage] = []
             if _session_store is not None:
-                existing_messages = await _session_store.get_messages(session_id)
+                existing_old_messages = await _session_store.get_messages(session_id)
 
             FILE_CONTEXT_MAX = 30000  # Limit to prevent API errors
             file_context = ""
@@ -443,17 +429,27 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 )
                 file_context = "\n\n" + header + "\n\n".join(parts)
 
-            messages = list(existing_messages)
-            from cscode.core.compression import ContextCompressor
-            compressor = ContextCompressor(threshold=100_000, keep_recent=20)
-            if compressor.needs_compression(messages):
-                messages = compressor.compress(messages)
-            if _agent.options.system_prompt and (not messages or messages[0].role != MessageRole.SYSTEM):
-                messages.insert(0, Message(role=MessageRole.SYSTEM, content=_agent.options.system_prompt))
+            # Build new-style messages for AgentV2
+            new_messages = _old_to_new_messages(existing_old_messages)
+
+            # Inject system prompt as first message if not present
+            if new_messages and new_messages[0].role != "system":
+                new_messages.insert(0, NewMessage.system(
+                    "You are CScode, an AI-powered coding assistant. You help users write, review, and debug code. "
+                    "You have access to tools for reading, writing, and editing files, "
+                    "running shell commands, searching codebases, and browsing the web."
+                ))
+            elif not new_messages:
+                new_messages.append(NewMessage.system(
+                    "You are CScode, an AI-powered coding assistant. You help users write, review, and debug code. "
+                    "You have access to tools for reading, writing, and editing files, "
+                    "running shell commands, searching codebases, and browsing the web."
+                ))
+
             if file_context:
-                messages.append(Message(role=MessageRole.SYSTEM, content=file_context))
+                new_messages.append(NewMessage.system(file_context))
             user_text = message.strip() if message else "请分析附件内容"
-            messages.append(Message(role=MessageRole.USER, content=user_text))
+            new_messages.append(NewMessage.user(user_text))
 
             # Append prompt.admitted event to EventStore
             if _event_store is not None:
@@ -461,75 +457,52 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     {"type": "prompt.admitted", "data": {"content": message, "files": attached_filenames}}
                 ])
 
-            # Save user message immediately (before agent) to prevent data loss on failure
+            # Save old-format messages (before agent) to prevent data loss on failure
             if _session_store is not None:
-                await _session_store.save_messages(session_id, messages)
+                await _session_store.save_messages(session_id, _new_to_old_messages(new_messages))
 
-            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+            queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 
-            def _e(data: dict[str, Any]) -> str:
+            def _e(data: dict[str, object]) -> str:
                 data["session_id"] = session_id
                 return f"data: {json.dumps(data)}\n\n"
 
-            async def on_event(event: dict[str, Any]) -> None:
-                event["session_id"] = session_id
-                await queue.put(event)
-                # Also persist relevant events to EventStore
+            _persist_event_types = frozenset({
+                "step.started", "text.ended", "step.ended",
+                "tool.called", "tool.success", "tool.failed",
+            })
+
+            async def on_event(event: LLMEvent) -> None:
+                sse_event = _llm_event_to_dict(event)
+                sse_event["session_id"] = session_id
+                await queue.put(sse_event)
                 if _event_store is not None:
-                    evt_type = event.get("type", "")
-                    persist_map = {
-                        "step.started": True,
-                        "text.ended": True,
-                        "step.ended": True,
-                        "tool.called": True,
-                        "tool.success": True,
-                        "tool.failed": True,
-                    }
-                    if evt_type in persist_map:
+                    evt_type = sse_event.get("type", "")
+                    if isinstance(evt_type, str) and evt_type in _persist_event_types:
+                        evt_data = sse_event.get("data", {})
                         await _event_store.append(session_id, [
-                            {"type": evt_type, "data": event.get("data", {})}
+                            {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
                         ])
 
             before = time.time()
-            dynamic_timeout = _detect_timeout(message, files, attached_filenames)
 
-            # Use loaded config/provider (which includes DB config merged with base)
-            # BUT only if it has an api_key — otherwise use _agent defaults (which have the key from env/file)
-            if loaded_config and loaded_config.api_key:
-                agent_config = loaded_config
-                agent_provider = loaded_provider
-            else:
-                agent_config = getattr(_agent, 'config', None) or Config()
-                agent_provider = getattr(_agent, 'provider', None) or create_provider(load_config())
-            logger.info("[DIAG] agent_config.api_key=%s... agent_provider=%s", agent_config.api_key[:10] if agent_config.api_key else 'None', type(agent_provider).__name__)
-
-            async def agent_runner() -> None:
-                assert agent_provider is not None
+            async def agent_runner() -> str:
                 assert _agent is not None
-                local_agent = Agent(
-                    config=agent_config,
-                    provider=agent_provider,
-                    registry=_agent.registry,
-                    options=_agent.options,
-                )
-                local_agent.session_id = session_id
-                if _question_registry is not None:
-                    object.__setattr__(local_agent, "_pending_questions", _question_registry)
-
-                logger.info("[DIAG] agent_runner: starting _run_loop session=%s", session_id)
+                logger.info("[DIAG] agent_runner: starting run_with_messages session=%s", session_id)
                 t0 = time.time()
-                await local_agent._run_loop(
-                    messages,
-                    attached_filenames=attached_filenames if attached_filenames else None,
-                    timeout=dynamic_timeout,
-                    on_event=on_event,
-                )
-                logger.info("[DIAG] agent_runner: _run_loop completed session=%s in %.1fs", session_id, time.time() - t0)
+                try:
+                    result = await _agent.run_with_messages(
+                        new_messages,
+                        on_event=on_event,
+                    )
+                    return result
+                finally:
+                    logger.info("[DIAG] agent_runner: completed session=%s in %.1fs", session_id, time.time() - t0)
 
             # Use Coordinator for per-session serialization (prevents same-session concurrent)
             async def run_with_coordinator() -> None:
                 if _coordinator is not None:
-                    await _coordinator.run(session_id, agent_runner)
+                    await _coordinator.run(session_id, _CallableProcessor(agent_runner))
                 else:
                     await agent_runner()
 
@@ -565,7 +538,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     try:
                         response = agent_task.result()
                         if _session_store is not None:
-                            await _session_store.save_messages(session_id, messages)
+                            await _session_store.save_messages(session_id, _new_to_old_messages(new_messages))
                         for f in OUTPUTS_DIR.iterdir():
                             if f.is_file() and f.stat().st_mtime >= before:
                                 yield _e({'type': 'file_created', 'filename': f.name})
@@ -577,25 +550,28 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     except Exception as e:
                         logger.warning("[DIAG] agent task error session=%s error=%s", session_id, e)
                         if _session_store is not None:
-                            messages.append(Message(
-                                role=MessageRole.ASSISTANT,
-                                content=f"[Task interrupted by error: {e}]"
-                            ))
-                            await _session_store.save_messages(session_id, messages)
+                            err_old = _new_to_old_messages(new_messages)
+                            err_old.append(OldMessage(role=OldMessageRole.ASSISTANT, content=f"[Task interrupted by error: {e}]"))
+                            await _session_store.save_messages(session_id, err_old)
                         yield _e({'type': 'error', 'content': str(e)})
                     finally:
-                        if _session_store is not None and agent_provider is not None:
+                        if _session_store is not None:
                             session = await _session_store.get(session_id)
                             is_new = session is None or (session.title in ("New Session", "New Chat"))
                             if is_new:
                                 generated_title = None
                                 try:
-                                    title_msgs = [
-                                        Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
-                                        Message(role=MessageRole.USER, content=message),
-                                    ]
-                                    title_result = await agent_provider.complete(title_msgs, tools=None)
-                                    generated_title = title_result.content.strip().strip('"\'.,!?')
+                                    title_sys = NewMessage.system("Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation.")
+                                    title_usr = NewMessage.user(message or "")
+                                    title_r = await _agent.llm_client.generate(
+                                        LLMRequest(
+                                            model=_agent.llm_client.route.model,
+                                            messages=(title_sys, title_usr),
+                                        )
+                                    )
+                                    title_text = title_r.content.strip().strip('"\'.,!?')
+                                    if title_text:
+                                        generated_title = title_text
                                 except Exception:
                                     pass
                                 if not generated_title:
@@ -664,28 +640,6 @@ async def _handle_chat(
     if _agent is None or _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    loaded_config = None
-    loaded_provider = None
-    try:
-        if _db is not None:
-            store = ConfigStore(_db)
-            saved_config = await store.get()
-            logger.debug("Saved config: %s", saved_config)
-            if saved_config:
-                db_config = Config.from_dict(saved_config)
-                base_config = load_config()
-                loaded_config = base_config.merge(db_config)
-                logger.debug("Loaded model: %s, provider: %s", loaded_config.model, loaded_config.provider)
-                loaded_provider = create_provider(loaded_config)
-    except Exception as e:
-        logger.warning("Failed to load config from DB: %s", e)
-    if loaded_config and loaded_config.api_key:
-        agent_config = loaded_config
-        agent_provider = loaded_provider
-    else:
-        agent_config = getattr(_agent, 'config', None) or Config()
-        agent_provider = getattr(_agent, 'provider', None) or create_provider(load_config())
-
     session_id = session_id or str(uuid.uuid4())
 
     try:
@@ -711,12 +665,12 @@ async def _handle_chat(
                 logger.debug("Session created successfully")
 
         # Load existing messages for this session
-        existing_messages: list[Message] = []
+        existing_old_messages: list[OldMessage] = []
         if _session_store is not None:
-            existing_messages = await _session_store.get_messages(session_id)
+            existing_old_messages = await _session_store.get_messages(session_id)
 
         # Build file context if files were uploaded
-        FILE_CONTEXT_MAX = 30000  # Limit to prevent API errors
+        FILE_CONTEXT_MAX = 30000
         file_context = ""
         attached_filenames: list[str] = []
         if files:
@@ -742,66 +696,60 @@ async def _handle_chat(
             )
             file_context = "\n\n" + header + "\n\n".join(parts)
 
-        # Build messages with history
-        messages = list(existing_messages)
-        # Add system prompt on first message if not already present
-        if _agent.options.system_prompt and (not existing_messages or existing_messages[0].role != MessageRole.SYSTEM):
-            messages.insert(0, Message(role=MessageRole.SYSTEM, content=_agent.options.system_prompt))
-        # File context as SYSTEM must come BEFORE user message
+        # Build new-style messages for AgentV2
+        new_messages = _old_to_new_messages(existing_old_messages)
+        if new_messages and new_messages[0].role != "system":
+            new_messages.insert(0, NewMessage.system(
+                "You are CScode, an AI-powered coding assistant. You help users write, review, and debug code. "
+                "You have access to tools for reading, writing, and editing files, "
+                "running shell commands, searching codebases, and browsing the web."
+            ))
+        elif not new_messages:
+            new_messages.append(NewMessage.system(
+                "You are CScode, an AI-powered coding assistant. You help users write, review, and debug code. "
+                "You have access to tools for reading, writing, and editing files, "
+                "running shell commands, searching codebases, and browsing the web."
+            ))
         if file_context:
-            messages.append(Message(role=MessageRole.SYSTEM, content=file_context))
+            new_messages.append(NewMessage.system(file_context))
         user_text = message.strip() if message else "请分析附件内容"
-        messages.append(Message(role=MessageRole.USER, content=user_text))
+        new_messages.append(NewMessage.user(user_text))
 
         # Save user message immediately (before agent) to prevent data loss on failure
         if _session_store is not None:
-            await _session_store.save_messages(session_id, messages)
+            await _session_store.save_messages(session_id, _new_to_old_messages(new_messages))
 
         # Run agent with full message history
-        dynamic_timeout = _detect_timeout(message, files, attached_filenames)
         try:
-            assert agent_provider is not None
             assert _agent is not None
-            local_agent = Agent(
-                config=agent_config,
-                provider=agent_provider,
-                registry=_agent.registry,
-                options=_agent.options,
-            )
-            local_agent.session_id = session_id
-            if _question_registry is not None:
-                object.__setattr__(local_agent, "_pending_questions", _question_registry)
-            response = await local_agent._run_loop(
-                messages,
-                attached_filenames=attached_filenames if attached_filenames else None,
-                timeout=dynamic_timeout,
-            )
+            response = await _agent.run_with_messages(new_messages, on_event=None)
         except Exception as e:
             if _session_store is not None:
-                messages.append(Message(
-                    role=MessageRole.ASSISTANT,
-                    content=f"[Task interrupted by error: {e}]"
-                ))
-                await _session_store.save_messages(session_id, messages)
+                err_old = _new_to_old_messages(new_messages)
+                err_old.append(OldMessage(role=OldMessageRole.ASSISTANT, content=f"[Task interrupted by error: {e}]"))
+                await _session_store.save_messages(session_id, err_old)
+            logger.error("agent_runner error: %s", e)
             raise
-        logger.debug("agent_run_loop={time.time()-t3:.2f}s")
 
         # Save updated messages to session (now includes assistant response)
         if _session_store is not None:
-            await _session_store.save_messages(session_id, messages)
+            await _session_store.save_messages(session_id, _new_to_old_messages(new_messages))
 
         # Auto-generate title for new sessions
-        if _session_store is not None and agent_provider is not None:
+        if _session_store is not None:
             session = await _session_store.get(session_id)
             is_new = session is None or (session.title in ("New Session", "New Chat"))
             if is_new:
                 try:
-                    title_msgs = [
-                        Message(role=MessageRole.SYSTEM, content="Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation."),
-                        Message(role=MessageRole.USER, content=message),
-                    ]
-                    title_result = await agent_provider.complete(title_msgs, tools=None)
-                    generated_title = title_result.content.strip().strip('"\'.,!?')
+                    title_sys = NewMessage.system("Summarize the user's request in 3-6 words. Return ONLY the title, no quotes, no punctuation.")
+                    title_usr = NewMessage.user(message or "")
+                    title_r = await _agent.llm_client.generate(
+                        LLMRequest(
+                            model=_agent.llm_client.route.model,
+                            messages=(title_sys, title_usr),
+                        )
+                    )
+                    generated_title = title_r.content.strip().strip('"\'.,!?')
                     if generated_title:
                         await _session_store.update_title(session_id, generated_title)
                         logger.debug("Auto-generated title: %s", generated_title)
@@ -814,10 +762,11 @@ async def _handle_chat(
                     await _session_store.update_title(session_id, fallback)
 
         # Auto-compact if threshold exceeded (fire-and-forget)
-        import asyncio
         asyncio.create_task(_auto_compact(session_id))
 
-        logger.debug("total_handle_chat={time.time()-t0:.2f}s")
+        logger.debug("total_handle_chat completed")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -844,8 +793,6 @@ async def list_sessions() -> list[dict[str, Any]]:
 
 @api_router.get("/config")
 async def get_config() -> dict[str, Any]:
-    from cscode.core.config import ConfigStore, load_config
-
     # First try to load from database
     if _db is not None:
         store = ConfigStore(_db)
@@ -862,7 +809,6 @@ async def get_config() -> dict[str, Any]:
 async def save_config(request: ConfigRequest) -> dict[str, Any]:
     config_data = request.model_dump(exclude_none=True)
 
-    from cscode.core.config import ConfigStore
     if _db is not None:
         store = ConfigStore(_db)
         # Remove empty string fields (frontend sends empty strings for unfilled inputs)
@@ -1006,7 +952,7 @@ async def import_session(request: dict[str, Any]) -> dict[str, Any]:
     if not session.id:
         raise HTTPException(status_code=500, detail="Failed to create session")
     messages = [
-        Message(role=MessageRole(m["role"]), content=m["content"]) for m in messages_data
+        OldMessage(role=OldMessageRole(m["role"]), content=m["content"]) for m in messages_data
     ]
     await _session_store.save_messages(session.id, messages)
 
@@ -1022,14 +968,14 @@ async def get_session_messages(session_id: str) -> list[dict[str, Any]]:
     if _session_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    msgs: list[Message] = await _session_store.get_messages(session_id)
+    msgs: list[OldMessage] = await _session_store.get_messages(session_id)
     return [
         {
             "role": msg.role.value,
             "content": msg.content,
             "created_at": msg.created_at.isoformat() if msg.created_at else "",
         }
-        for msg in msgs if not (msg.role == MessageRole.ASSISTANT and not msg.content)
+        for msg in msgs if not (msg.role == OldMessageRole.ASSISTANT and not msg.content)
     ]
 
 

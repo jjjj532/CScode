@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -83,6 +84,8 @@ class SessionManager:
         self._sessions[session.id] = session
         self._active_session_id = session.id
 
+        logger = logging.getLogger(__name__)
+
         if self._on_create:
             try:
                 if inspect.iscoroutinefunction(self._on_create):
@@ -90,7 +93,7 @@ class SessionManager:
                 else:
                     self._on_create(session)
             except Exception:
-                pass
+                logger.exception("Session creation callback failed for %s", session.id)
 
         return session
 
