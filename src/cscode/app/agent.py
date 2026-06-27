@@ -1,0 +1,360 @@
+"""AgentV2 — App-level Agent 封装 LLMClient + ToolRegistry。
+
+提供与旧 Agent (engine.py) 兼容的 run() 接口，
+内部实现完整的 Agent Loop：
+
+  1. Build messages from history + user input
+  2. Send LLMRequest with tool definitions
+  3. Collect TextDelta → content, ToolCallEnded → tool calls
+  4. Settle tool calls via ToolRegistry.settle()
+  5. Append results back to message list
+  6. Loop until Finish or max tool rounds
+  7. Return final content
+
+对比旧 Agent:
+  - 旧: Agent (engine.py) → 474 行单文件，耦合 LLM provider + tool dispatch
+  - 新: AgentV2 (app/agent.py) → LLMClient(网络层) + ToolRegistry(工具调度)
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator, Callable
+from typing import Any
+
+from cscode.core.session import SessionV2
+from cscode.core.sub_agent import SubAgentOrchestrator
+from cscode.llm.client import LLMClient
+from cscode.llm.types import LLMRequest
+from cscode.schema.events import (
+    Error as LLMEventError,
+)
+from cscode.schema.events import (
+    Finish,
+    LLMEvent,
+    TextDelta,
+    TextEnded,
+    ToolCallEnded,
+)
+from cscode.schema.ids import ModelID, ToolCallID
+from cscode.schema.messages import (
+    Message,
+    MessageRole,
+    TextPart,
+    ToolCallPart,
+)
+from cscode.schema.options import GenerationOptions
+from cscode.tools2.base import ToolResult as Tool2Result
+from cscode.tools2.registry import ToolRegistry
+
+
+class AgentV2:
+    """App-level Agent built on LLMClient + ToolRegistry.
+
+    Provides a run() interface compatible with the legacy Agent,
+    but uses the new layered architecture internally.
+
+    Usage:
+        agent = AgentV2(llm_client, tool_registry, system_prompt="...")
+        result = await agent.run("Hello!")
+    """
+
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        tool_registry: ToolRegistry,
+        max_tool_rounds: int = 20,
+        system_prompt: str | None = None,
+    ) -> None:
+        self._llm_client = llm_client
+        self._tool_registry = tool_registry
+        self._max_tool_rounds = max_tool_rounds
+        self._system_prompt = system_prompt
+
+        # Materialize tool definitions + settle once
+        self._tool_definitions, self._settle = tool_registry.materialize()
+
+        # SubAgentOrchestrator for @tool mention processing
+        self._sub_agent = SubAgentOrchestrator(tool_registry)
+
+    @property
+    def llm_client(self) -> LLMClient:
+        return self._llm_client
+
+    @property
+    def tool_registry(self) -> ToolRegistry:
+        return self._tool_registry
+
+    async def run(
+        self,
+        user_input: str,
+        session: SessionV2 | None = None,
+        on_event: Callable[[LLMEvent], Any] | None = None,
+        generation_options: GenerationOptions | None = None,
+    ) -> str:
+        """Process a user prompt through the agent loop.
+
+        Args:
+            user_input: The user's prompt text.
+            session: Optional SessionV2 for event-sourced persistence.
+            on_event: Optional callback for streaming LLMEvents.
+            generation_options: Optional generation parameters.
+
+        Returns:
+            The final assistant response text.
+        """
+        messages = self._build_messages(user_input, session)
+        return await self._run_loop(messages, on_event, generation_options, session)
+
+    async def run_with_messages(
+        self,
+        messages: list[Message],
+        on_event: Callable[[LLMEvent], Any] | None = None,
+        generation_options: GenerationOptions | None = None,
+    ) -> str:
+        """Run the agent loop on a pre-built message list.
+
+        Unlike run() which builds messages from user_input + session,
+        this method accepts a pre-built message list directly.
+        The message list is modified in place (assistant + tool messages appended).
+
+        Args:
+            messages: Pre-built message list (modified in place).
+            on_event: Optional callback for streaming LLMEvents.
+            generation_options: Optional generation parameters.
+
+        Returns:
+            The final assistant response text.
+        """
+        return await self._run_loop(messages, on_event, generation_options)
+
+    async def _run_loop(
+        self,
+        messages: list[Message],
+        on_event: Callable[[LLMEvent], Any] | None = None,
+        generation_options: GenerationOptions | None = None,
+        session: SessionV2 | None = None,
+    ) -> str:
+        """Shared inner agent loop used by run() and run_with_messages()."""
+        model = ModelID(self._llm_client.route.model)
+        options = generation_options or GenerationOptions()
+        full_content = ""
+        tool_round = 0
+
+        # Process @tool mentions in user messages (single pass at start)
+        messages = await self._sub_agent.process_messages(messages)
+
+        while tool_round < self._max_tool_rounds:
+            request = LLMRequest(
+                model=model,
+                messages=tuple(messages),
+                tools=tuple(self._tool_definitions),
+                options=options,
+            )
+
+            # ── Stream LLM response ──────────────────────────────
+            assistant_parts: list[TextPart] = []
+            assistant_text = ""
+            tool_calls: list[ToolCallPart] = []
+
+            async for event in self._llm_client.stream(request):
+                if on_event is not None:
+                    await on_event(event) if hasattr(on_event, "__await__") else on_event(event)
+
+                match event:
+                    case TextDelta(text=t):
+                        assistant_text += t
+                    case TextEnded(full_text=t):
+                        assistant_text = t
+                        assistant_parts.append(TextPart(text=t))
+                    case ToolCallEnded(tool_call_id=tcid, name=n, args=a):
+                        tool_calls.append(
+                            ToolCallPart(
+                                tool_call_id=ToolCallID(tcid),
+                                name=n,
+                                args=a,
+                            )
+                        )
+                    case Finish():
+                        break
+                    case LLMEventError(error=e):
+                        return f"LLM error: {e.message}"
+
+            # ── Build assistant message ──────────────────────────
+            all_parts: list[TextPart | ToolCallPart] = list(assistant_parts)
+            all_parts.extend(tool_calls)
+
+            if all_parts:
+                assistant_msg = Message(
+                    role=MessageRole.ASSISTANT,
+                    parts=tuple(all_parts),
+                )
+                messages.append(assistant_msg)
+
+            full_content += assistant_text
+
+            # Persist to session if provided
+            if session is not None and assistant_text:
+                await session.add_text(assistant_text)
+
+            # ── No tool calls → done ─────────────────────────────
+            if not tool_calls:
+                break
+
+            # ── Settle tool calls ────────────────────────────────
+            for tc in tool_calls:
+                tool_result: Tool2Result[Any] = await self._settle(tc.name, dict(tc.args))
+
+                is_error = not tool_result.success
+                error_str = tool_result.error or ""
+                data_str = str(tool_result.data) if tool_result.data is not None else ""
+                result_str: str = error_str if is_error else data_str
+
+                from cscode.schema.messages import ToolResultPart
+
+                tool_msg = Message(
+                    role=MessageRole.TOOL,
+                    parts=(
+                        ToolResultPart(
+                            tool_call_id=tc.tool_call_id,
+                            name=tc.name,
+                            result=result_str,
+                            is_error=is_error,
+                        ),
+                    ),
+                )
+                messages.append(tool_msg)
+
+                # Emit tool result event
+                if on_event is not None:
+                    from cscode.schema.events import ToolFailure, ToolResult
+
+                    if is_error:
+                        evt: LLMEvent = ToolFailure(
+                            tool_call_id=tc.tool_call_id,
+                            error=result_str,
+                        )
+                    else:
+                        evt = ToolResult(
+                            tool_call_id=tc.tool_call_id,
+                            result=result_str,
+                        )
+                    await on_event(evt) if hasattr(on_event, "__await__") else on_event(evt)
+
+                if session is not None:
+                    await session.add_tool_call(tc.name, dict(tc.args))
+
+            tool_round += 1
+
+        return full_content
+
+    async def run_stream(
+        self,
+        user_input: str,
+        session: SessionV2 | None = None,
+        generation_options: GenerationOptions | None = None,
+    ) -> AsyncIterator[LLMEvent]:
+        """Stream LLMEvents for a user prompt through the agent loop.
+
+        Yields ALL events including tool result events.
+        The caller is responsible for consuming them.
+        """
+        messages = self._build_messages(user_input, session)
+        model = ModelID(self._llm_client.route.model)
+        options = generation_options or GenerationOptions()
+        tool_round = 0
+
+        while tool_round < self._max_tool_rounds:
+            request = LLMRequest(
+                model=model,
+                messages=tuple(messages),
+                tools=tuple(self._tool_definitions),
+                options=options,
+            )
+
+            assistant_text = ""
+            tool_calls: list[ToolCallPart] = []
+
+            async for event in self._llm_client.stream(request):
+                yield event
+
+                match event:
+                    case TextDelta(text=t):
+                        assistant_text += t
+                    case ToolCallEnded(tool_call_id=tcid, name=n, args=a):
+                        tool_calls.append(
+                            ToolCallPart(
+                                tool_call_id=ToolCallID(tcid),
+                                name=n,
+                                args=a,
+                            )
+                        )
+                    case Finish():
+                        break
+                    case LLMEventError():
+                        return
+
+            if assistant_text:
+                messages.append(
+                    Message(
+                        role=MessageRole.ASSISTANT,
+                        parts=(TextPart(text=assistant_text),),
+                    )
+                )
+                if session is not None:
+                    await session.add_text(assistant_text)
+
+            if not tool_calls:
+                break
+
+            for tc in tool_calls:
+                tool_result: Tool2Result[Any] = await self._settle(tc.name, dict(tc.args))
+                is_error = not tool_result.success
+                error_str = tool_result.error or ""
+                data_str = str(tool_result.data) if tool_result.data is not None else ""
+                result_str: str = error_str if is_error else data_str
+
+                from cscode.schema.events import ToolFailure, ToolResult
+                from cscode.schema.messages import ToolResultPart
+
+                if is_error:
+                    yield ToolFailure(tool_call_id=tc.tool_call_id, error=result_str)
+                else:
+                    yield ToolResult(tool_call_id=tc.tool_call_id, result=result_str)
+
+                tool_msg = Message(
+                    role=MessageRole.TOOL,
+                    parts=(
+                        ToolResultPart(
+                            tool_call_id=tc.tool_call_id,
+                            name=tc.name,
+                            result=result_str,
+                            is_error=is_error,
+                        ),
+                    ),
+                )
+                messages.append(tool_msg)
+
+                if session is not None:
+                    await session.add_tool_call(tc.name, dict(tc.args))
+
+            tool_round += 1
+
+    def _build_messages(
+        self,
+        user_input: str,
+        session: SessionV2 | None = None,
+    ) -> list[Message]:
+        """Build the message list from session state and/or user input."""
+        messages: list[Message] = []
+
+        # Inject system prompt
+        if self._system_prompt:
+            messages.append(Message.system(self._system_prompt))
+
+        # Load existing messages from session
+        if session is not None:
+            messages.extend(session.state.messages)
+
+        # Append the new user input
+        messages.append(Message.user(user_input))
+        return messages

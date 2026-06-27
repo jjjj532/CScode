@@ -1,77 +1,117 @@
+"""SubAgentOrchestrator — processes @tool mentions in user input.
+
+Parses `@tool:ToolName key=value` patterns from text, executes the
+referenced tool via ToolRegistry, and injects the result back into
+the text.
+
+Usage:
+    orchestrator = SubAgentOrchestrator(tool_registry)
+    result = await orchestrator.process_mentions(
+        "Read @tool:ReadTool path=foo.py and summarize"
+    )
+    # → "Read [Tool ReadTool result: file contents] and summarize"
+"""
+
 from __future__ import annotations
 
 import re
-from typing import Any
 
-from cscode.core.events import EventBus
-from cscode.core.permissions import PermissionService
-from cscode.providers.base import LLMProvider
-from cscode.tools.base import ToolRegistry
-from cscode.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from cscode.schema.messages import Message, MessageRole, TextPart
+from cscode.tools2.registry import ToolRegistry
 
 
 class SubAgentOrchestrator:
-    # Matches @ToolName key=value key=value
-    # Values can be quoted ("value with spaces") or unquoted (simple)
-    MENTION_PATTERN = re.compile(r'@(\w+)((?:\s+\w+=(?:"[^"]*"|[^\s"]+))*)')
+    """Processes @tool mentions by executing tools and injecting results."""
 
-    def __init__(
-        self,
-        event_bus: EventBus,
-        provider: LLMProvider,
-        registry: ToolRegistry,
-        permission_service: PermissionService,
-    ) -> None:
-        self._event_bus = event_bus
-        self._provider = provider
-        self._registry = registry
-        self._permission_service = permission_service
+    def __init__(self, tool_registry: ToolRegistry) -> None:
+        _, self._settle = tool_registry.materialize()
 
-    async def process_mentions(self, user_input: str) -> str:
-        if "@" not in user_input:
-            return user_input
+    async def process_messages(self, messages: list[Message]) -> list[Message]:
+        """Process @tool mentions in all user messages.
 
-        result = user_input
-        for match in self.MENTION_PATTERN.finditer(user_input):
-            tool_name = match.group(1)
-            raw_args = match.group(2).strip()
-
-            tool = self._registry.get(tool_name)
-            if tool is None:
-                logger.info("Unknown @mention: %s (not a registered tool)", tool_name)
+        Returns a new message list with TextPart text in USER-role messages
+        processed for @tool mentions.
+        """
+        result: list[Message] = []
+        for msg in messages:
+            if msg.role != MessageRole.USER:
+                result.append(msg)
                 continue
 
-            args = self._parse_args(raw_args)
-            logger.info("Dispatching sub-agent for @%s with args=%s", tool_name, args)
-
-            try:
-                tool_result = await tool.execute(args)
-                if tool_result.success:
-                    replacement = tool_result.data
+            new_parts: list[TextPart] = []
+            changed = False
+            for part in msg.parts:
+                if isinstance(part, TextPart):
+                    new_text = await self.process_mentions(part.text)
+                    if new_text != part.text:
+                        changed = True
+                        new_parts.append(TextPart(text=new_text))
+                    else:
+                        new_parts.append(part)
                 else:
-                    replacement = f"[Error executing @{tool_name}: {tool_result.error}]"
-            except Exception as e:
-                replacement = f"[Error executing @{tool_name}: {e}]"
+                    new_parts.append(part)  # type: ignore[arg-type]
 
-            result = result.replace(match.group(0), replacement, 1)
+            if changed:
+                result.append(Message(role=MessageRole.USER, parts=tuple(new_parts)))
+            else:
+                result.append(msg)
 
         return result
 
-    @staticmethod
-    def _parse_args(raw: str) -> dict[str, Any]:
-        if not raw:
-            return {}
-        args: dict[str, Any] = {}
-        for pair in re.findall(r'(\w+)=(?:"([^"]*)"|(\S+))', raw):
-            key = pair[0]
-            value = pair[1] if pair[1] else pair[2]
-            # Try to parse as number
-            if value.isdigit():
-                args[key] = int(value)
-            elif value.replace(".", "", 1).isdigit() and value.count(".") == 1:
-                args[key] = float(value)
-            else:
-                args[key] = value
+    async def process_mentions(self, text: str) -> str:
+        """Find and execute all @tool mentions in text.
+
+        Pattern: @tool:ToolName key=value or @tool:ToolName key="value with spaces"
+
+        Returns text with @tool mentions replaced by their execution results.
+        Unknown tools or execution errors produce inline error messages.
+        """
+        if "@tool:" not in text:
+            return text
+
+        # Find all @tool mentions with their positions
+        pattern = re.compile(r'@tool:(\w+)((?:\s+\w+=(?:"[^"]*"|\S+))*)')
+        matches = list(pattern.finditer(text))
+        if not matches:
+            return text
+
+        # Process in reverse order so positions don't shift
+        result = text
+        offset = 0
+        for match in reversed(matches):
+            full_match = match.group(0)
+            tool_name = match.group(1)
+            args_str = match.group(2).strip()
+
+            args = self._parse_args(args_str)
+            replacement = await self._execute_and_format(tool_name, args)
+
+            start = match.start() + offset
+            end = match.end() + offset
+            result = result[:start] + replacement + result[end:]
+            offset += len(replacement) - len(full_match)
+
+        return result
+
+    def _parse_args(self, args_str: str) -> dict[str, str]:
+        """Parse key=value or key="quoted value" pairs into a dict."""
+        args: dict[str, str] = {}
+        arg_pattern = re.compile(r'(\w+)=(?:"([^"]*)"|(\S+))')
+        for m in arg_pattern.finditer(args_str):
+            key = m.group(1)
+            value = m.group(2) if m.group(2) is not None else m.group(3)
+            args[key] = value
         return args
+
+    async def _execute_and_format(self, tool_name: str, args: dict[str, str]) -> str:
+        """Execute a tool and format its result as inline text."""
+        try:
+            result = await self._settle(tool_name, args)
+            if result.success:
+                data = str(result.data) if result.data is not None else ""
+                return f"[Tool {tool_name} result: {data}]"
+            else:
+                error = result.error or "Unknown error"
+                return f"[Tool {tool_name} error: {error}]"
+        except Exception as e:
+            return f"[Tool {tool_name} error: {e}]"

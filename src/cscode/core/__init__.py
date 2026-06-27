@@ -1,3 +1,28 @@
+"""CScode Core Layer — Event Sourcing engine, session management, agent loop.
+
+New architecture (Phase 2+):
+  SessionV2           — Event Sourcing-based session
+  SessionProjector    — Events → SessionState reconstruction
+  SessionCoordinator  — Per-session state machine (run/wake/interrupt)
+  SessionRunner       — Standardized agent loop using LLM layer
+
+Legacy (existing, stable):
+  Agent               — engine.py: traditional agent loop
+  Config              — config.py: flat configuration
+  PermissionService   — permissions.py: tool permission checks
+  SessionManager      — session_manager.py: in-memory session tracking
+  EventBus            — events.py: pub/sub event system
+"""
+
 from __future__ import annotations
 
-__all__ = []
+from cscode.core.coordinator import SessionCoordinator
+from cscode.core.runner import SessionRunner
+from cscode.core.session import SessionProjector, SessionV2
+
+__all__ = [
+    "SessionV2",
+    "SessionProjector",
+    "SessionCoordinator",
+    "SessionRunner",
+]
