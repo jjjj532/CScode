@@ -7,7 +7,7 @@ from textual.widgets import Footer, Header, Input, RichLog
 
 from cscode.core.config import load_config
 from cscode.core.engine import Agent, AgentOptions
-from cscode.core.session_manager import SessionManager
+from cscode.core.tui_sessions import TuiSessionManager
 from cscode.providers import create_provider
 from cscode.tools.base import ToolRegistry
 from cscode.tools.bash import BashTool
@@ -60,7 +60,7 @@ class CScodeTUI(App[None]):
         """
         self.CSS = css  # type: ignore[misc]
         provider = create_provider(config)
-        self._session_manager = SessionManager()
+        self._session_manager = TuiSessionManager()
         self._agent = Agent(
             config=config,
             provider=provider,

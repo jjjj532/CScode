@@ -10,7 +10,7 @@ Legacy (existing, stable):
   Agent               — engine.py: traditional agent loop
   Config              — config.py: flat configuration
   PermissionService   — permissions.py: tool permission checks
-  SessionManager      — session_manager.py: in-memory session tracking
+  TuiSessionManager  — tui_sessions.py: TUI session management
   EventBus            — events.py: pub/sub event system
 """
 

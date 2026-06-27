@@ -35,7 +35,12 @@ class GlobTool(BaseTool):
                 error=f"Path not found: {search_path}",
             )
 
-        matches = sorted(search_path.glob(pattern))
+        # Use rglob for recursive search if pattern doesn't already have **
+        if "**" not in pattern:
+            matches = sorted(search_path.rglob(pattern))
+        else:
+            matches = sorted(search_path.glob(pattern))
+
         if not matches:
             return ToolResult(
                 success=True,
@@ -43,7 +48,7 @@ class GlobTool(BaseTool):
                 metadata={"count": "0"},
             )
 
-        output = "\n".join(str(m) for m in matches)
+        output = "\n".join(str(m.relative_to(search_path)) for m in matches)
         return ToolResult(
             success=True,
             data=output,
