@@ -1,0 +1,42 @@
+{
+  "phase": "Phase 0: ANALYSIS - Complete",
+  "task": "TUI Session Migration",
+  "analysis": {
+    "tui_usage": {
+      "file": "src/cscode/tui/app.py",
+      "imports": "from cscode.core.session_manager import SessionManager",
+      "methods_used": [
+        "SessionManager() - constructor",
+        ".list() - list all sessions",
+        ".get_active() - get active session",
+        ".create() - create new session",
+        ".set_active(id) - switch session",
+        ".remove(id) - delete session"
+      ]
+    },
+    "session_manager": {
+      "file": "src/cscode/core/session_manager.py",
+      "type": "in-memory session tracking",
+      "dataclass": "Session (id, title, provider, model, status, created_at, updated_at)"
+    },
+    "new_architecture": {
+      "session_v2": "Event Sourcing based, requires EventStore + Database",
+      "session_state": "session_id, title, provider, model, messages, status, created_at, updated_at"
+    }
+  },
+  "migration_options": [
+    {
+      "option": "full_event_store",
+      "description": "Initialize Database + EventStore, use SessionV2 for all session ops",
+      "pros": ["Consistent architecture", "Persistent sessions"],
+      "cons": ["Complex setup", "Overkill for single-user TUI"]
+    },
+    {
+      "option": "hybrid",
+      "description": "Keep in-memory sessions but align data model with SessionState",
+      "pros": ["Simple", "No DB init needed"],
+      "cons": ["Not persistent", "Not event-sourced"]
+    }
+  ],
+  "recommendation": "Use hybrid approach - simpler and faster to implement"
+}

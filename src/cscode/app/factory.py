@@ -1,0 +1,138 @@
+"""AgentV2 工厂 — 从配置构建 AgentV2 实例。
+
+用法:
+    config = load_config()
+    agent = create_agent_v2(config)
+    result = await agent.run("Hello!")
+"""
+
+from __future__ import annotations
+
+import os
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from cscode.app.agent import AgentV2
+    from cscode.core.config import Config
+
+from cscode.llm.client import LLMClient
+from cscode.llm.route import resolve_route
+from cscode.schema.ids import ModelID, ProviderID
+from cscode.tools2 import (
+    ApplyPatchTool,
+    BashTool,
+    BrowserTool,
+    EditTool,
+    GlobTool,
+    GrepTool,
+    LsTool,
+    QuestionTool,
+    ReadTool,
+    SkillTool,
+    TodoWriteTool,
+    ToolRegistry,
+    WebFetchTool,
+    WebSearchTool,
+    WriteTool,
+)
+from cscode.tools2.base import Tool as _Tool
+
+# Provider → standard env var name for API key
+_PROVIDER_KEY_ENV: dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
+    "azure": "AZURE_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
+
+
+def _resolve_api_key(config: Config) -> str:
+    """Resolve API key from config or environment fallback.
+
+    Priority:
+      1. config.api_key (set via CSCODE_API_KEY or config file)
+      2. Provider-specific env var (e.g. OPENAI_API_KEY)
+      3. Empty string (provider may work without key, e.g. Ollama)
+    """
+    if config.api_key:
+        return config.api_key
+
+    env_name = _PROVIDER_KEY_ENV.get(config.provider.lower())
+    if env_name:
+        env_val = os.environ.get(env_name)
+        if env_val:
+            return env_val
+
+    return ""
+
+
+def create_tool_registry() -> ToolRegistry:
+    """Create the default tool registry with all standard tools."""
+    registry = ToolRegistry()
+    tools: list[_Tool[Any, Any]] = [
+        ReadTool(),
+        WriteTool(),
+        EditTool(),
+        BashTool(),
+        GrepTool(),
+        GlobTool(),
+        LsTool(),
+        BrowserTool(),
+        WebFetchTool(),
+        WebSearchTool(),
+        TodoWriteTool(),
+        SkillTool(),
+        QuestionTool(),
+        ApplyPatchTool(),
+    ]
+    for tool in tools:
+        registry.register(tool)
+    return registry
+
+
+def create_agent_v2(
+    config: Config,
+    tool_registry: ToolRegistry | None = None,
+) -> AgentV2:
+    """Build an AgentV2 from a Config object.
+
+    Steps:
+      1. Resolve API key (config → env fallback → empty)
+      2. Resolve provider + model → Route
+      3. Create LLMClient from Route
+      4. Create ToolRegistry with all standard tools
+      5. Return AgentV2(llm_client, tool_registry, system_prompt)
+
+    Args:
+        config: Application configuration (provider, model, api_key, etc.).
+        tool_registry: Optional pre-configured tool registry.
+                       Defaults to create_tool_registry().
+
+    Returns:
+        A fully configured AgentV2 instance.
+    """
+    from cscode.app.agent import AgentV2
+
+    # Resolve API key with fallback to standard env vars
+    api_key = _resolve_api_key(config)
+    api_base = config.api_base or ""
+    route = resolve_route(
+        provider=ProviderID(config.provider),
+        model=ModelID(config.model),
+        api_key=api_key,
+        api_base=api_base,
+    )
+
+    # Create LLM client
+    llm_client = LLMClient(route=route)
+
+    # Create or use provided tool registry
+    if tool_registry is None:
+        tool_registry = create_tool_registry()
+
+    return AgentV2(
+        llm_client=llm_client,
+        tool_registry=tool_registry,
+        system_prompt=config.system_prompt,
+    )

@@ -2,7 +2,9 @@
   "loop_id": "bugfix-001",
   "type": "bug-fix",
   "started_at": "2026-06-26T12:00:00Z",
-  "status": "in_progress",
+  "completed_at": "2026-06-26T12:40:00Z",
+  "status": "completed",
+  "iterations": [
   "max_iterations": 5,
   "iteration": 1,
   "cost_tracker": {
@@ -14,6 +16,13 @@
     "mypy": "not run (not installed in venv)",
     "ruff": "67 errors (24 fixable)"
   },
+  "results": {
+    "pytest": "341 passed, 0 errors (ignore excluded test_race_conditions.py, 10 pre-existing fixture issues)",
+    "mypy": "0 errors in 94 source files (was 37)",
+    "ruff": "All checks passed (was 68 errors)",
+    "commits": ["fcaca67", "fe606df"],
+    "files_changed": 34
+  },
   "bugs": [
     {
       "id": "BUG-001",
@@ -21,9 +30,8 @@
       "severity": "critical",
       "status": "fixed",
       "commit": "fcaca67",
-      "description": "ConfigStore import was function-local in _handle_chat, get_config, save_config but not in event_stream. Silent NameError in event_stream -> loaded_config=None -> fallback to _agent.provider with api_key=None -> Authorization: Bearer None -> 401 Authentication Failed.",
-      "files": ["src/cscode/server/app.py"],
-      "test_needed": true
+      "test": "test_no_api_key_omits_authorization_header",
+      "description": "ConfigStore import was function-local. Silent NameError -> loaded_config=None -> api_key=None -> 401."
     },
     {
       "id": "BUG-002",
@@ -31,9 +39,8 @@
       "severity": "critical",
       "status": "fixed",
       "commit": "fcaca67",
-      "description": "When config.api_key is None, f\"Bearer {config.api_key}\" produces 'Bearer None' string. httpx sends this invalid Authorization header -> scnet returns 401.",
-      "files": ["src/cscode/providers/openai.py"],
-      "test_needed": true
+      "test": "test_no_api_key_omits_authorization_header",
+      "description": "f\"Bearer {None}\" -> 'Bearer None' -> httpx sends invalid header -> 401."
     },
     {
       "id": "BUG-003",
@@ -41,43 +48,32 @@
       "severity": "high",
       "status": "fixed",
       "commit": "fcaca67",
-      "description": "Frontend sends empty strings for optional config fields. Config.from_dict and Config.merge treated empty strings as valid values, overwriting existing DB config with empty values.",
-      "files": ["src/cscode/core/config.py"],
-      "test_needed": true
+      "tests": ["test_from_dict_filters_empty_string", "test_merge_filters_empty_string", "test_to_dict_excludes_empty_string"],
+      "description": "Frontend sends '' for unset fields. from_dict/merge now filter empty strings."
     },
     {
       "id": "BUG-004",
       "title": "test_race_conditions.py incompatible with pytest",
       "severity": "medium",
-      "status": "open",
-      "description": "File uses TestResults class with __init__ (pytest ignores classes with __init__), functions take 'results' param (no fixture exists), and requires running server at localhost:8000. Not designed as pytest tests. 10 errors in test suite.",
-      "files": ["tests/test_race_conditions.py"],
-      "test_needed": false
+      "status": "fixed",
+      "description": "Excluded from pytest collection via pyproject.toml (addopts = --ignore=...). It's a standalone integration script."
     },
     {
       "id": "BUG-005",
       "title": "mypy type errors (37+)",
       "severity": "medium",
-      "status": "open",
-      "description": "Multiple type annotation errors across src/: missing type args, returning Any from str-typed functions, incompatible types.",
-      "files": ["src/cscode/"],
-      "test_needed": false
+      "status": "fixed",
+      "commit": "fe606df",
+      "description": "Fixed all 37 type errors across 13 files. Key fixes: dict type args, Any returns, None guards, Future[Any]."
     },
     {
       "id": "BUG-006",
-      "title": "ruff lint errors (67)",
+      "title": "ruff lint errors (68)",
       "severity": "low",
-      "status": "open",
-      "description": "Import sorting/organization issues, unused imports, formatting problems. 24 auto-fixable.",
-      "files": ["src/cscode/"],
-      "test_needed": false
+      "status": "fixed",
+      "commit": "fe606df",
+      "description": "Fixed all 68 lint errors. 25 auto-fixed, 43 manual. E402 import ordering, F841 unused vars, F823 shadowed imports."
     }
   ],
-  "next_steps": [
-    "Write regression tests for BUG-001, BUG-002, BUG-003 (TDD)",
-    "Fix test_race_conditions.py (exclude from pytest collection)",
-    "Fix mypy type errors",
-    "Fix ruff lint errors",
-    "Verify: pytest tests/ -q && mypy src/ && ruff check src/"
-  ]
+  "summary": "Bug Fix Loop iteration 1 complete. All 6 bugs fixed. pytest: 341 passed. mypy: 0 errors. ruff: all clean. 2 commits, 34 files changed."
 }

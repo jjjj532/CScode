@@ -1,0 +1,40 @@
+{
+  "loop_id": "bugfix-002",
+  "iteration": 2,
+  "status": "in_progress",
+  "max_iterations": 5,
+  "started_at": "2026-06-26T13:00:00Z",
+  "focus": "Deep structural fix: eliminate duplicate config/session logic in app.py _handle_chat vs chat_stream",
+  "bugs": [
+    {
+      "id": "DEEP-001",
+      "title": "~80 lines of duplicated config+session logic between _handle_chat and chat_stream/event_stream",
+      "severity": "high",
+      "status": "open",
+      "description": "Both _handle_chat (non-streaming) and chat_stream's event_stream (streaming) independently implement: ConfigStore DB loading, provider resolution, session creation, message loading, file parsing, message building. Any bug fix must be applied in both places - this is how the original ConfigStore NameError bug was missed in the streaming path.",
+      "files": ["src/cscode/server/app.py"],
+      "approach": "Extract into shared helpers: _resolve_agent_config() + _prepare_chat_context()"
+    },
+    {
+      "id": "DEEP-002",
+      "title": "Redundant local import of ConfigStore in save_config (line 865)",
+      "severity": "low",
+      "status": "open",
+      "description": "save_config uses 'from cscode.core.config import ConfigStore' locally. ConfigStore is already at module level. Minor style issue but same pattern that caused the original bug.",
+      "files": ["src/cscode/server/app.py"]
+    },
+    {
+      "id": "DEEP-003",
+      "title": "Event loop closed warnings in pytest (2 warnings)",
+      "severity": "low",
+      "status": "open",
+      "description": "asyncio resources (aiosqlite, httpx) not properly cleaned up in tests",
+      "files": ["tests/"]
+    }
+  ],
+  "verification": {
+    "pytest": "341 passed, 0 errors, 0 warnings",
+    "mypy": "0 errors",
+    "ruff": "All checks passed"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "phase": "Phase 0: ANALYSIS",
+  "iteration": 1,
+  "loop_id": "tui-session-migration",
+  "module": "TUI Session Migration - 用 SessionV2 替换 SessionManager",
+  "status": "in_progress",
+  "started_at": "2026-06-27T10:35:00Z",
+  "description": "将 tui/app.py 中的 SessionManager 替换为 SessionV2 + EventStore",
+  "existing_refs": {
+    "server_app": "已完成 Phase 2 接线，使用 EventStore + SessionCoordinator",
+    "tui_app": "tui/app.py 仍使用 SessionManager (7 处引用)",
+    "session_manager": "src/cscode/core/session_manager.py - 待删除"
+  },
+  "findings": [],
+  "next_action": "分析 tui/app.py 的 session 使用场景",
+  "stop_conditions": {
+    "max_iterations": 3,
+    "max_cost_usd": 5.00,
+    "must_have": ["tui/app.py 使用 SessionV2", "session_manager.py 删除", "pytest 通过"]
+  }
+}

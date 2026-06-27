@@ -1,0 +1,76 @@
+{
+  "module": "Tool 系统 v2 — tools2/",
+  "status": "completed",
+  "loop_id": "tool-system-rebuild",
+  "iterations": 1,
+  "phases": {
+    "phase_0_analysis": {
+      "status": "completed",
+      "detail": "Analyzed old tools/ (17 files) + OpenCode Function system. Old pattern: BaseTool with raw JSON schema dicts, ToolResult(data: str). New pattern: Generic Tool[I,O] with Pydantic input/output models, typed ToolResult[O]."
+    },
+    "phase_1_define": {
+      "status": "completed",
+      "files": [
+        "src/cscode/tools2/base.py — Tool ABC + ToolResult[O]",
+        "src/cscode/tools2/registry.py — ToolRegistry with materialize/settle/parse_tool_call",
+        "src/cscode/tools2/__init__.py — public exports"
+      ]
+    },
+    "phase_2_plan": {
+      "status": "completed",
+      "detail": "14 tools decomposed into TDD batches. Each tool needs: Pydantic input/output model + Tool subclass + execute() logic port + tests."
+    },
+    "phase_3_build": {
+      "status": "completed",
+      "files_created": [
+        "src/cscode/tools2/read.py — ReadTool: ReadInput(path) → ReadOutput(content, size, path)",
+        "src/cscode/tools2/write.py — WriteTool: WriteInput(path, content) → WriteOutput(path, size, message)",
+        "src/cscode/tools2/edit.py — EditTool: EditInput(path, old_string, new_string) → EditOutput(path, replacement_count, message)",
+        "src/cscode/tools2/bash.py — BashTool: BashInput(command, timeout) → BashOutput(output, exit_code)",
+        "src/cscode/tools2/grep.py — GrepTool: GrepInput(pattern, path, include) → GrepOutput(matches, files_scanned, output)",
+        "src/cscode/tools2/glob.py — GlobTool: GlobInput(pattern, path) → GlobOutput(matches[], count)",
+        "src/cscode/tools2/ls.py — LsTool: LsInput(path) → LsOutput(entries[], count)",
+        "src/cscode/tools2/webfetch.py — WebFetchTool: WebFetchInput(url, format, timeout) → WebFetchOutput(content, url, format, size)",
+        "src/cscode/tools2/websearch.py — WebSearchTool: WebSearchInput(query, num_results) → WebSearchOutput(results) [stub]",
+        "src/cscode/tools2/todowrite.py — TodoWriteTool: TodoWriteInput(todos[]) → TodoWriteOutput(formatted, count)",
+        "src/cscode/tools2/question.py — QuestionTool: QuestionInput(question, options[]) → QuestionOutput(formatted)",
+        "src/cscode/tools2/skill.py — SkillTool: SkillInput(name) → SkillOutput(message) [stub]",
+        "src/cscode/tools2/apply_patch.py — ApplyPatchTool: ApplyPatchInput(path, patch_content, strip) → ApplyPatchOutput(stdout)",
+        "src/cscode/tools2/browser.py — BrowserTool: BrowserInput(action, url, selector, text, key, seconds) → BrowserOutput(result)"
+      ],
+      "tests_created": [
+        "tests/test_tools2_contract.py — 15 contract tests (interface + registry + parse_tool_call)",
+        "tests/test_tools2_impl.py — 13 tests for Read/Write/Edit + Registry integration",
+        "tests/test_tools2_all.py — 24 tests for remaining 11 tools + full registry"
+      ]
+    },
+    "phase_4_verify": {
+      "status": "completed",
+      "pytest": "534 passed, 0 failed",
+      "mypy": "Success: no issues found in 17 source files",
+      "ruff": "All checks passed",
+      "fixes_applied": [
+        "conftest.py merged: tools2 contract fixtures into main conftest.py",
+        "base.py: input_schema/output_schema changed from @property to class attributes",
+        "base.py: I/O TypeVars renamed to InputT/OutputT (ruff E741)",
+        "base.py: removed unused `typing.Any` import",
+        "registry.py: removed unused `pydantic.BaseModel` import",
+        "todowrite.py: removed unused `typing.Any` import, fixed __init__ type annotation",
+        "todowrite.py: added type annotation to __init__",
+        "test_tools2_contract.py: _safe_execute uses asyncio.run() instead of deprecated get_event_loop()",
+        "test_tools2_contract.py: _DupTool uses class attributes for input_schema/output_schema"
+      ]
+    },
+    "phase_5_review": {
+      "status": "completed",
+      "ratchet_rules": [],
+      "note": "No new ratchet rules needed. All issues were within the new tools2/ code and existing patterns were followed."
+    }
+  },
+  "stop_conditions_met": {
+    "all_tools_use_schema_types": true,
+    "contract_tests_cover_every_tool": true,
+    "old_tools_untouched": true
+  },
+  "completed_at": "2026-06-27T00:00:00Z"
+}
