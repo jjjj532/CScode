@@ -158,6 +158,6 @@ openspec/            # Specifications
 
 ## Version
 
-Current version: 0.2.18
+Current version: 0.3.3
 
 When bumping version, update all files listed in `AGENTS.md`.
