@@ -1,21 +1,19 @@
 {
-  "phase": "Phase 0: ANALYSIS",
+  "phase": "Phase 1: BUILD - 版本统一",
   "iteration": 1,
-  "loop_id": "tui-session-migration",
-  "module": "TUI Session Migration - 用 SessionV2 替换 SessionManager",
+  "loop_id": "version-unification-v0.3.4",
+  "module": "版本号统一到 v0.3.4",
   "status": "in_progress",
-  "started_at": "2026-06-27T10:35:00Z",
-  "description": "将 tui/app.py 中的 SessionManager 替换为 SessionV2 + EventStore",
-  "existing_refs": {
-    "server_app": "已完成 Phase 2 接线，使用 EventStore + SessionCoordinator",
-    "tui_app": "tui/app.py 仍使用 SessionManager (7 处引用)",
-    "session_manager": "src/cscode/core/session_manager.py - 待删除"
-  },
-  "findings": [],
-  "next_action": "分析 tui/app.py 的 session 使用场景",
+  "started_at": "2026-06-27T16:30:00Z",
+  "description": "统一 7 处版本号到 v0.3.4",
+  "tasks": [
+    {"task": "更新 desktop/src-tauri/tauri.conf.json", "status": "pending"},
+    {"task": "更新 desktop/src-tauri/Cargo.toml", "status": "pending"},
+    {"task": "更新 scripts/build.sh", "status": "pending"}
+  ],
   "stop_conditions": {
-    "max_iterations": 3,
-    "max_cost_usd": 5.00,
-    "must_have": ["tui/app.py 使用 SessionV2", "session_manager.py 删除", "pytest 通过"]
+    "max_iterations": 1,
+    "max_cost_usd": 1.00,
+    "must_have": ["7 处版本全部为 0.3.4", "ruff + pytest 通过"]
   }
 }
