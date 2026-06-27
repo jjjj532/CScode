@@ -1,6 +1,6 @@
 [project]
 name = "cscode"
-version = "0.2.10"
+version = "0.3.3"
 description = "CScode - AI-powered coding assistant (Python implementation)"
 requires-python = ">=3.11"
 dependencies = [
@@ -31,9 +31,10 @@ packages = ["src/cscode"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+#filterwarnings = ["ignore:Event loop is closed:pytest.PytestUnhandledThreadExceptionWarning"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
-addopts = "--ignore=tests/test_race_conditions.py"
+addopts = "--ignore=tests/test_race_conditions.py -W ignore::pytest.PytestUnhandledThreadExceptionWarning"
 
 [tool.mypy]
 strict = true

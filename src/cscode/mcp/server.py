@@ -23,7 +23,7 @@ class MCPServer:
                 "id": req_id,
                 "result": {
                     "protocolVersion": "2025-03-26",
-                    "serverInfo": {"name": "cscode-mcp", "version": "0.3.1"},
+                    "serverInfo": {"name": "cscode-mcp", "version": "0.3.3"},
                     "capabilities": {"tools": {}},
                 },
             }

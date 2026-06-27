@@ -176,11 +176,19 @@ img.save('desktop/src-tauri/icons/icon.ico', format='ICO', sizes=[(32,32),(64,64
 ## Core Loop Principles
 - Maker/Checker: write code vs verify must be different agents
 - State persistence: track in .opencode/loop-state/
-- Worktree isolation: use git worktrees for parallel agents
+- Worktree isolation: use git worktrees for parallel agents (2+ concurrent tasks must)
 - Cost management: stop at $15 USD
 - Stop: completed | max iterations | cost exceeded | human needed | error
+
+## Ratchet Rules (Archived from REVIEW)
+- No silent `except Exception: pass` — must `logger.exception()` at minimum
+- Every `except Exception` needs a comment explaining why it's intentional
+- REVIEW findings must produce new test or AGENTS.md rule, not just one-time fix
+- Session callback failures must never be silently swallowed
+
 ## CScode Verification (Ratchet Principle)
 Before completion, verify: pytest tests/ && mypy src/ && ruff check src/
+
 ## Anti-Patterns to Avoid
 - Same agent writes and reviews code
 - No state file for resume
