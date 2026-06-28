@@ -9,6 +9,9 @@ from cscode.core.config import Config
 from cscode.core.errors import ProviderError
 from cscode.core.messages import Message, MessageRole
 from cscode.providers.base import LLMProvider, LLMResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AnthropicProvider(LLMProvider):
@@ -16,6 +19,7 @@ class AnthropicProvider(LLMProvider):
         super().__init__(config)
         self._api_base = config.api_base or "https://api.anthropic.com/v1"
         self._model = config.model
+        logger.info("AnthropicProvider initialized: api_base=%s model=%s", self._api_base, self._model)
         self._client = httpx.AsyncClient(
             base_url=self._api_base,
             headers={
@@ -63,16 +67,19 @@ class AnthropicProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
+        logger.info("Anthropic.complete: model=%s messages=%d", self._model, len(messages))
         payload = self._build_payload(messages, tools, stream=False)
         try:
             response = await self._client.post("/messages", json=payload)
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as e:
+            logger.error("Anthropic HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(
                 f"Anthropic API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
+            logger.error("Anthropic request failed: %s", e)
             raise ProviderError(f"Request failed: {e}") from e
 
         content_text = ""
@@ -98,10 +105,12 @@ class AnthropicProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
+        logger.info("Anthropic.stream: model=%s messages=%d", self._model, len(messages))
         payload = self._build_payload(messages, tools, stream=True)
         try:
             async with self._client.stream("POST", "/messages", json=payload) as response:
                 response.raise_for_status()
+                chunk_count = 0
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
                         continue
@@ -116,10 +125,14 @@ class AnthropicProvider(LLMProvider):
                         if delta.get("type") == "text_delta":
                             text = delta.get("text", "")
                             if text:
+                                chunk_count += 1
                                 yield text
+                logger.debug("Anthropic stream complete: %d chunks", chunk_count)
         except httpx.HTTPStatusError as e:
+            logger.error("Anthropic stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(
                 f"Anthropic API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
+            logger.error("Anthropic stream request failed: %s", e)
             raise ProviderError(f"Request failed: {e}") from e

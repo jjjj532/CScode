@@ -5,6 +5,9 @@ from typing import Any
 from cscode.core.messages import Message, MessageRole
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class Projector:
@@ -12,6 +15,7 @@ class Projector:
         self._db = db
 
     async def _get_latest_epoch(self, session_id: str) -> dict[str, Any] | None:
+        logger.debug("Projector._get_latest_epoch: session_id=%s", session_id)
         cursor = await self._db.conn.execute(
             "SELECT epoch, baseline_seq, snapshot FROM context_epochs WHERE session_id = ? ORDER BY epoch DESC LIMIT 1",
             (session_id,),
@@ -31,6 +35,7 @@ class Projector:
         event_store: EventStore,
         system_prompt: str | None = None,
     ) -> list[Message]:
+        logger.info("Projector.build_context: session_id=%s has_system_prompt=%s", session_id, system_prompt is not None)
         epoch = await self._get_latest_epoch(session_id)
 
         msgs: list[Message] = []
@@ -43,6 +48,7 @@ class Projector:
             msgs.append(Message(role=MessageRole.SYSTEM, content=system_prompt))
 
         events = await event_store.read(session_id, after_seq=after_seq)
+        logger.debug("Projector.build_context: events_count=%d", len(events))
         for evt in events:
             if evt.type == "compaction":
                 continue

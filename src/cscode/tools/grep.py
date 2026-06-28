@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class GrepTool(BaseTool):
@@ -32,6 +35,7 @@ class GrepTool(BaseTool):
         pattern = args["pattern"]
         search_path = Path(args.get("path", "."))
         include = args.get("include")
+        logger.debug("GrepTool.execute: pattern=%s path=%s include=%s", pattern, search_path, include)
 
         if not search_path.exists():
             return ToolResult(

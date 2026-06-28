@@ -5,7 +5,10 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 
-from cscode.tools2 import Tool, ToolResult, ToolRegistry
+from cscode.tools2 import Tool, ToolRegistry, ToolResult
+from cscode.utils.logging import setup_logging
+
+setup_logging("DEBUG")
 
 
 @pytest.fixture(scope="function")

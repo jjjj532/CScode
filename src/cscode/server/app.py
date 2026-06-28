@@ -64,16 +64,16 @@ def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
     match event:
         case TextDelta(text=text):
             return {"type": "text.delta", "content": text}
-        case TextEnded(text=text):
-            return {"type": "text.ended", "content": text}
+        case TextEnded(full_text=full_text):
+            return {"type": "text.ended", "content": full_text}
         case ToolCallEnded(tool_call_id=id, name=name, args=args):
             return {"type": "tool.called", "tool_call_id": id, "name": name, "args": args}
-        case ToolResult(tool_call_id=id, name=name, result=result, is_error=is_error):
-            return {"type": "tool.result", "tool_call_id": id, "name": name, "result": result, "is_error": is_error}
-        case Finish(content=content):
-            return {"type": "complete", "content": content}
-        case ToolFailure(tool_call_id=id, name=name, error=error):
-            return {"type": "tool.failed", "tool_call_id": id, "name": name, "error": error}
+        case ToolResult(tool_call_id=id, result=result):
+            return {"type": "tool.result", "tool_call_id": id, "result": result}
+        case Finish(finish_reason=finish_reason):
+            return {"type": "complete", "content": finish_reason}
+        case ToolFailure(tool_call_id=id, error=error):
+            return {"type": "tool.failed", "tool_call_id": id, "error": error}
         case _:
             return {"type": "unknown"}
 
@@ -110,7 +110,10 @@ class _CallableProcessor:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry
 
-    # Diagnostics log
+    # Diagnostics log — stderr + file
+    from cscode.utils.logging import setup_logging
+    setup_logging("DEBUG")
+
     fh = logging.FileHandler("/tmp/cscode-diag.log", mode="w")
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
@@ -331,6 +334,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
             yield f"data: {json.dumps({'type': 'error', 'content': 'Server not initialized'})}\n\n"
             return
 
+        session_v2: Any = None
+        agent_task: Any = None
+
         try:
             if session_id is None:
                 session_id = str(uuid.uuid4())
@@ -339,9 +345,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
             if _db is not None:
                 from cscode.core.config import ConfigStore
                 store = ConfigStore(_db)
-                saved_config = await store.get()
-                if saved_config:
-                    config_data = saved_config
+                saved_config_dict = await store.get()
+                if saved_config_dict:
+                    config_data = saved_config_dict
 
             session_v2, is_new = await _get_or_create_session(session_id, _event_store, config_data)
 
@@ -411,13 +417,15 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             # Create agent for this request
             if _db is not None:
-                from cscode.core.config import ConfigStore, load_config
+                from cscode.core.config import Config, ConfigStore, load_config
                 store = ConfigStore(_db)
-                saved_config = await store.get()
-                if not saved_config:
+                saved_config_raw = await store.get()
+                if saved_config_raw is not None:
+                    saved_config = Config.from_dict(saved_config_raw)
+                else:
                     saved_config = load_config()
             else:
-                from cscode.core.config import load_config
+                from cscode.core.config import Config, load_config
                 saved_config = load_config()
 
             agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
@@ -505,13 +513,15 @@ async def chat_stream(request: Request) -> StreamingResponse:
                                 title_sys = NewMessage.system("Summarize the user")
                                 # Create a minimal agent for title generation
                                 if _db is not None:
-                                    from cscode.core.config import ConfigStore, load_config
+                                    from cscode.core.config import Config, ConfigStore, load_config
                                     store = ConfigStore(_db)
-                                    saved_config = await store.get()
-                                    if not saved_config:
+                                    saved_config_raw = await store.get()
+                                    if saved_config_raw is not None:
+                                        saved_config = Config.from_dict(saved_config_raw)
+                                    else:
                                         saved_config = load_config()
                                 else:
-                                    from cscode.core.config import load_config
+                                    from cscode.core.config import Config, load_config
                                     saved_config = load_config()
                                 title_agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
                                 title_r = await title_agent.llm_client.generate(
@@ -531,7 +541,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                             await session_v2.update_metadata(title=generated_title)
                             yield _e({'type': 'session:title', 'title': generated_title})
 
-                        asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store, None))
+                        asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store))
                         break
 
                 try:
@@ -550,18 +560,20 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     continue
 
         except Exception as e:
-            yield _e({'type': 'error', 'content': str(e)})
+                if _e is not None:
+                    yield _e({'type': 'error', 'content': str(e)})
 
         finally:
-            if _active_agent_tasks.get(str(session_v2.session_id)) is agent_task:
-                del _active_agent_tasks[str(session_v2.session_id)]
-            if not agent_task.done():
-                logger.info("[DIAG] Generator exiting, cancelling agent task for session %s", session_v2.session_id)
-                agent_task.cancel()
-                try:
-                    await asyncio.wait_for(agent_task, timeout=5.0)
-                except (asyncio.CancelledError, asyncio.TimeoutError):
-                    pass
+            if session_v2 is not None and agent_task is not None:
+                if _active_agent_tasks.get(str(session_v2.session_id)) is agent_task:
+                    del _active_agent_tasks[str(session_v2.session_id)]
+                if not agent_task.done():
+                    logger.info("[DIAG] Generator exiting, cancelling agent task for session %s", session_v2.session_id)
+                    agent_task.cancel()
+                    try:
+                        await asyncio.wait_for(agent_task, timeout=5.0)
+                    except (asyncio.CancelledError, asyncio.TimeoutError):
+                        pass
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -573,9 +585,10 @@ async def event_stream(session_id: str, after_seq: int = 0) -> StreamingResponse
         raise HTTPException(status_code=503, detail="Server not initialized")
 
     async def stream() -> AsyncIterator[str]:
+        assert _event_store is not None
+        import asyncio
+        import json
         try:
-            import asyncio
-            import json
             async for event in _event_store.subscribe(session_id, after_seq):
                 yield f"event: {event.type}\ndata: {json.dumps(event.data)}\n\n"
         except asyncio.CancelledError:
@@ -601,9 +614,9 @@ async def _handle_chat(
         if _db is not None:
             from cscode.core.config import ConfigStore
             store = ConfigStore(_db)
-            saved_config = await store.get()
-            if saved_config:
-                config_data = saved_config
+            saved_config_dict = await store.get()
+            if saved_config_dict:
+                config_data = saved_config_dict
 
         session_v2, is_new = await _get_or_create_session(session_id, _event_store, config_data)
 
@@ -645,10 +658,12 @@ async def _handle_chat(
 
         # Create agent for this request
         if _db is not None:
-            from cscode.core.config import ConfigStore, load_config
+            from cscode.core.config import Config, ConfigStore, load_config
             store = ConfigStore(_db)
-            saved_config = await store.get()
-            if not saved_config:
+            saved_config_raw = await store.get()
+            if saved_config_raw is not None:
+                saved_config = Config.from_dict(saved_config_raw)
+            else:
                 saved_config = load_config()
         else:
             from cscode.core.config import load_config
@@ -687,7 +702,7 @@ async def _handle_chat(
             await session_v2.update_metadata(title=generated_title)
 
         # Auto-compact if threshold exceeded (fire-and-forget)
-        asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store, None))
+        asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store))
 
         logger.debug("_handle_chat completed")
     except HTTPException:
@@ -705,6 +720,8 @@ async def list_sessions() -> list[dict[str, Any]]:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
     # Get all session IDs from event_sequences
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
     cursor = await _db.conn.execute("SELECT aggregate_id FROM event_sequences")
     rows = await cursor.fetchall()
 
@@ -736,7 +753,7 @@ async def get_config() -> dict[str, Any]:
         store = ConfigStore(_db)
         saved_config = await store.get()
         if saved_config:
-            return saved_config.to_dict()
+            return saved_config
 
     from cscode.core.config import load_config
     return load_config().to_dict()
@@ -775,7 +792,7 @@ async def delete_session(session_id: str) -> dict[str, str]:
     if _event_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    session_v2 = await SessionV2.load(_event_store, session_id)
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
     await session_v2.delete()
 
     return {"status": "ok"}
@@ -800,20 +817,20 @@ async def update_session(session_id: str, title: str = "") -> dict[str, str]:
     if _event_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    session_v2 = await SessionV2.load(_event_store, session_id)
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
     await session_v2.update_metadata(title=title if title else None)
 
     return {"status": "ok"}
 
 
 @api_router.post("/sessions/{session_id}/export")
-async def export_session(session_id: str):
+async def export_session(session_id: str) -> Response:
     global _event_store, _projector
     if _event_store is None or _projector is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
     # Load session for validation (events are used for state projection)
-    await SessionV2.load(_event_store, session_id)  # noqa: F841
+    await SessionV2.load(_event_store, SessionID(session_id))  # noqa: F841
     events = await _event_store.read(session_id)
     state = SessionProjector.project(events)
 
@@ -841,7 +858,7 @@ async def export_session(session_id: str):
 
 
 @api_router.post("/sessions/import")
-async def import_session(request: Request):
+async def import_session(request: Request) -> dict[str, str]:
     global _event_store
     if _event_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")

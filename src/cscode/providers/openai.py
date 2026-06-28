@@ -9,6 +9,9 @@ from cscode.core.config import Config
 from cscode.core.errors import ProviderError
 from cscode.core.messages import Message, MessageRole
 from cscode.providers.base import LLMProvider, LLMResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class OpenAIProvider(LLMProvider):
@@ -17,7 +20,7 @@ class OpenAIProvider(LLMProvider):
         self._api_base = config.api_base or "https://api.openai.com/v1"
         self._model = config.model
         self._api_key = config.api_key or ""
-        print(f"DEBUG OpenAIProvider: api_base={self._api_base}, api_key={'set' if self._api_key else 'None'}...")
+        logger.info("OpenAIProvider initialized: api_base=%s model=%s", self._api_base, self._model)
         self._client = httpx.AsyncClient(
             base_url=self._api_base,
             headers={
@@ -83,6 +86,7 @@ class OpenAIProvider(LLMProvider):
         tools: list[dict[str, Any]] | None = None,
         stream: bool = False,
     ) -> dict[str, Any]:
+        logger.debug("Building payload: model=%s messages=%d tools=%d stream=%s", self._model, len(messages), len(tools) if tools else 0, stream)
         payload: dict[str, Any] = {
             "model": self._model,
             "messages": self.build_messages(messages),
@@ -100,16 +104,19 @@ class OpenAIProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
+        logger.info("OpenAI.complete: model=%s messages=%d", self._model, len(messages))
         payload = self._build_payload(messages, tools, stream=False)
         try:
             response = await self._client.post("/chat/completions", json=payload)
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as e:
+            logger.error("OpenAI HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(
                 f"OpenAI API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
+            logger.error("OpenAI request failed: %s", e)
             raise ProviderError(f"Request failed: {e}") from e
 
         choice = data["choices"][0]
@@ -117,12 +124,15 @@ class OpenAIProvider(LLMProvider):
         tool_calls = msg.get("tool_calls")
         if tool_calls is not None and len(tool_calls) == 0:
             tool_calls = None
+        finish_reason = choice.get("finish_reason", "")
+        usage = data.get("usage")
+        logger.debug("OpenAI response: finish_reason=%s usage=%s", finish_reason, usage)
         return LLMResult(
             content=msg.get("content") or "",
             tool_calls=tool_calls,
-            usage=data.get("usage"),
+            usage=usage,
             model=data.get("model", self._model),
-            finish_reason=choice.get("finish_reason", ""),
+            finish_reason=finish_reason,
         )
 
     async def stream(
@@ -130,14 +140,17 @@ class OpenAIProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
+        logger.info("OpenAI.stream: model=%s messages=%d", self._model, len(messages))
         payload = self._build_payload(messages, tools, stream=True)
         try:
             async with self._client.stream("POST", "/chat/completions", json=payload) as response:
                 response.raise_for_status()
+                chunk_count = 0
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
                         data_str = line[6:]
                         if data_str.strip() == "[DONE]":
+                            logger.debug("OpenAI stream complete: %d chunks", chunk_count)
                             break
                         import json
 
@@ -147,10 +160,13 @@ class OpenAIProvider(LLMProvider):
                             delta = choices[0].get("delta", {})
                             content = delta.get("content", "")
                             if content:
+                                chunk_count += 1
                                 yield content
         except httpx.HTTPStatusError as e:
+            logger.error("OpenAI stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(
                 f"OpenAI API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
+            logger.error("OpenAI stream request failed: %s", e)
             raise ProviderError(f"Request failed: {e}") from e

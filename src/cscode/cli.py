@@ -25,6 +25,8 @@ def _create_agent() -> AgentV2:
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """CScode — AI-powered coding assistant."""
+    from cscode.utils.logging import setup_logging
+    setup_logging("DEBUG")
     if ctx.invoked_subcommand is None:
         click.echo(f"CScode v{__version__}")
         click.echo("Run 'cs chat' to start an interactive session.")

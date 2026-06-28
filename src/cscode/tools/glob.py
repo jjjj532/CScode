@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class GlobTool(BaseTool):
@@ -27,6 +30,7 @@ class GlobTool(BaseTool):
     async def execute(self, args: dict[str, Any]) -> ToolResult:
         pattern = args["pattern"]
         search_path = Path(args.get("path", "."))
+        logger.debug("GlobTool.execute: pattern=%s path=%s", pattern, search_path)
 
         if not search_path.exists():
             return ToolResult(

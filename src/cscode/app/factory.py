@@ -36,6 +36,9 @@ from cscode.tools2 import (
     WriteTool,
 )
 from cscode.tools2.base import Tool as _Tool
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Provider → standard env var name for API key
 _PROVIDER_KEY_ENV: dict[str, str] = {
@@ -56,14 +59,17 @@ def _resolve_api_key(config: Config) -> str:
       3. Empty string (provider may work without key, e.g. Ollama)
     """
     if config.api_key:
+        logger.debug("API key resolved from config for provider=%s", config.provider)
         return config.api_key
 
     env_name = _PROVIDER_KEY_ENV.get(config.provider.lower())
     if env_name:
         env_val = os.environ.get(env_name)
         if env_val:
+            logger.debug("API key resolved from env %s for provider=%s", env_name, config.provider)
             return env_val
 
+    logger.debug("No API key found for provider=%s", config.provider)
     return ""
 
 
@@ -88,6 +94,7 @@ def create_tool_registry() -> ToolRegistry:
     ]
     for tool in tools:
         registry.register(tool)
+    logger.info("Tool registry created with %d tools: %s", len(tools), [t.name for t in tools])
     return registry
 
 
@@ -122,6 +129,11 @@ def create_agent_v2(
         model=ModelID(config.model),
         api_key=api_key,
         api_base=api_base,
+    )
+
+    logger.info(
+        "Creating AgentV2: provider=%s model=%s route=%s",
+        config.provider, config.model, route.id,
     )
 
     # Create LLM client

@@ -5,6 +5,10 @@ from typing import Any
 
 import aiosqlite
 
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class Database:
     def __init__(self, db_path: str | Path | None = None) -> None:
@@ -14,8 +18,10 @@ class Database:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = db_path
         self.conn: aiosqlite.Connection
+        logger.debug("Database path: %s", db_path)
 
     async def init(self) -> None:
+        logger.info("Database initializing: %s", self._db_path)
         self.conn = await aiosqlite.connect(str(self._db_path))
         self.conn.row_factory = aiosqlite.Row
         await self.conn.execute("PRAGMA journal_mode=WAL")
@@ -32,29 +38,39 @@ class Database:
         current_version = row[0] if row is not None and row[0] is not None else 0
 
         migrations = [_migration_001, _migration_002, _migration_003, _migration_004, _migration_005]
+        logger.info("Running migrations from version %d", current_version)
         for i, migration in enumerate(migrations, start=1):
             if i > current_version:
+                logger.debug("Applying migration %d", i)
                 await migration(self.conn)
                 await self.conn.execute("INSERT INTO schema_version (version) VALUES (?)", (i,))
         await self.conn.commit()
 
     async def close(self) -> None:
+        logger.info("Database closing: %s", self._db_path)
         await self.conn.close()
 
     async def fetchone(self, query: str, params: tuple[Any, ...] = ()) -> aiosqlite.Row | None:
+        logger.debug("Query: %s", query[:80])
         cursor = await self.conn.execute(query, params)
-        return await cursor.fetchone()
+        row = await cursor.fetchone()
+        logger.debug("Result: %s", "found" if row else "none")
+        return row
 
     async def fetchall(self, query: str, params: tuple[Any, ...] = ()) -> list[aiosqlite.Row]:
+        logger.debug("Query: %s", query[:80])
         cursor = await self.conn.execute(query, params)
-        rows = await cursor.fetchall()
-        return list(rows)
+        rows = list(await cursor.fetchall())
+        logger.debug("Result: %d rows", len(rows))
+        return rows
 
     async def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
+        logger.debug("Execute: %s", query[:80])
         await self.conn.execute(query, params)
         try:
             await self.conn.commit()
-        except BaseException:
+        except BaseException as e:
+            logger.warning("Rollback after execute error: %s", e)
             try:
                 await self.conn.rollback()
             except Exception:

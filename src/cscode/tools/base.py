@@ -5,6 +5,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class ToolResult:
@@ -45,9 +49,11 @@ class ToolRegistry:
 
     def register(self, tool: BaseTool) -> None:
         if tool.name in self._tools:
+            logger.warning("ToolRegistry.register: duplicate tool=%s", tool.name)
             msg = f"Tool '{tool.name}' is already registered"
             raise ValueError(msg)
         self._tools[tool.name] = tool
+        logger.debug("ToolRegistry.register: tool=%s registered, total=%d", tool.name, len(self._tools))
 
     def get(self, name: str) -> BaseTool | None:
         return self._tools.get(name)
@@ -67,6 +73,7 @@ class ToolRegistry:
             try:
                 args = json.loads(raw_args)
             except json.JSONDecodeError as e:
+                logger.error("execute_tool_call: json parse error tool=%s error=%s", name, e)
                 return ToolResult(
                     success=False,
                     data="",
@@ -77,6 +84,7 @@ class ToolRegistry:
 
         tool = self.get(name)
         if tool is None:
+            logger.error("execute_tool_call: unknown tool=%s", name)
             return ToolResult(
                 success=False,
                 data="",
@@ -88,6 +96,10 @@ class ToolRegistry:
                 self._context_support[name] = "context" in sig.parameters
             except ValueError:
                 self._context_support[name] = False
+        logger.debug("execute_tool_call: name=%s has_context=%s", name, self._context_support.get(name))
         if self._context_support[name]:
-            return await tool.execute(args, context=context)  # type: ignore[call-arg]
-        return await tool.execute(args)
+            result = await tool.execute(args, context=context)  # type: ignore[call-arg]
+        else:
+            result = await tool.execute(args)
+        logger.debug("execute_tool_call: done name=%s success=%s", name, result.success)
+        return result

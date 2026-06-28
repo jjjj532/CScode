@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 
 
 from cscode.core.errors import ConfigError
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -47,9 +50,13 @@ class Config:
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> Config:
+        path_str = str(path)
+        logger.info("Loading config from YAML: %s", path_str)
         with open(path) as f:
             data = yaml.safe_load(f)
-        return cls.from_dict(data or {})
+        result = cls.from_dict(data or {})
+        logger.debug("Config loaded from %s: provider=%s model=%s", path_str, result.provider, result.model)
+        return result
 
     @classmethod
     def from_env(cls) -> Config | None:
@@ -62,7 +69,9 @@ class Config:
                     env_map[config_key] = val
         if not env_map:
             return None
-        return cls.from_dict(env_map)
+        config = cls.from_dict(env_map)
+        logger.debug("Config loaded from env: provider=%s model=%s", config.provider, config.model)
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         result = asdict(self)
@@ -87,7 +96,16 @@ class Config:
 def load_config(
     config_dirs: list[Path] | None = None,
     cli_overrides: dict[str, Any] | None = None,
+    db_config: dict[str, Any] | None = None,
 ) -> Config:
+    logger.debug("load_config: cli_overrides=%s db_config=%s", cli_overrides, "present" if db_config else "none")
+    """Load config from multiple sources, in order of priority (lowest to highest):
+    1. Default values
+    2. YAML config files
+    3. Environment variables
+    4. Database (user saved config) - NEW
+    5. CLI overrides
+    """
     config = Config()
 
     if config_dirs is None:
@@ -105,9 +123,14 @@ def load_config(
     if env_config is not None:
         config = config.merge(env_config)
 
+    # Database config has higher priority than file/env
+    if db_config:
+        config = config.merge(Config.from_dict(db_config))
+
     if cli_overrides:
         config = config.merge(Config.from_dict(cli_overrides))
 
+    logger.info("Config loaded: provider=%s model=%s api_base=%s", config.provider, config.model, config.api_base or "default")
     return config
 
 
@@ -123,11 +146,15 @@ class ConfigStore:
         )
         if row and row["data"]:
             import json
-            return json.loads(row["data"])  # type: ignore[no-any-return]
+            data = json.loads(row["data"])
+            logger.debug("Config loaded from DB: %s keys", list(data.keys()))
+            return data  # type: ignore[no-any-return]
+        logger.debug("No saved config found in DB")
         return None
 
     async def save(self, data: dict[str, Any]) -> None:
         import json
+        logger.info("Config saved to DB: %s keys", list(data.keys()))
         data_json = json.dumps(data, default=str)
         await self.db.execute(
             """

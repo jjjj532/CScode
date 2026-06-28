@@ -40,6 +40,9 @@ from cscode.schema.messages import (
     ToolCallPart,
 )
 from cscode.schema.options import GenerationOptions
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class SessionRunner:
@@ -81,6 +84,11 @@ class SessionRunner:
         # Append the user prompt
         await session.prompt(user_input)
 
+        logger.info(
+            "SessionRunner.run: session=%s max_rounds=%d prompt_len=%d",
+            session.session_id, self._max_tool_rounds, len(user_input),
+        )
+
         # Build context messages from session state
         messages = list(session.state.messages)
 
@@ -98,6 +106,7 @@ class SessionRunner:
         full_content = ""
 
         while tool_round < self._max_tool_rounds:
+            logger.debug("LLM request round=%d messages=%d", tool_round, len(messages))
             request = LLMRequest(
                 model=model,
                 messages=tuple(messages),
@@ -150,9 +159,11 @@ class SessionRunner:
             if not tool_calls:
                 break
 
+            logger.debug("Dispatching %d tool calls round=%d", len(tool_calls), tool_round)
             # Dispatch tool calls
             for tc in tool_calls:
                 tid = ToolCallID(tc.tool_call_id)
+                logger.debug("Dispatching tool=%s id=%s", tc.name, tid)
                 async for tool_event in self._tool_runtime.dispatch(
                     tid, tc.name, tc.args
                 ):
@@ -178,6 +189,10 @@ class SessionRunner:
 
             tool_round += 1
 
+        logger.info(
+            "SessionRunner.run completed: session=%s rounds=%d final_len=%d",
+            session.session_id, tool_round, len(full_content),
+        )
         return full_content
 
     async def run_stream(
@@ -193,6 +208,11 @@ class SessionRunner:
         """
         await session.prompt(user_input)
 
+        logger.info(
+            "SessionRunner.run_stream: session=%s max_rounds=%d",
+            session.session_id, self._max_tool_rounds,
+        )
+
         messages = list(session.state.messages)
         if self._system_prompt and not any(
             m.role == MessageRole.SYSTEM for m in messages
@@ -204,6 +224,7 @@ class SessionRunner:
         tool_round = 0
 
         while tool_round < self._max_tool_rounds:
+            logger.debug("run_stream: LLM request round=%d messages=%d", tool_round, len(messages))
             request = LLMRequest(model=model, messages=tuple(messages), options=options)
 
             content = ""
@@ -234,6 +255,7 @@ class SessionRunner:
             if not tool_calls:
                 break
 
+            logger.debug("run_stream: dispatching %d tools", len(tool_calls))
             for tc in tool_calls:
                 tid = ToolCallID(tc.tool_call_id)
                 async for tool_event in self._tool_runtime.dispatch(tid, tc.name, tc.args):

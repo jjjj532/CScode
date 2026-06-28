@@ -9,6 +9,9 @@ from cscode.core.config import Config
 from cscode.core.errors import ProviderError
 from cscode.core.messages import Message
 from cscode.providers.base import LLMProvider, LLMResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class OllamaProvider(LLMProvider):
@@ -16,6 +19,7 @@ class OllamaProvider(LLMProvider):
         super().__init__(config)
         self._api_base = (config.api_base or "http://localhost:11434").rstrip("/")
         self._model = config.model
+        logger.info("OllamaProvider initialized: api_base=%s model=%s", self._api_base, self._model)
         self._client = httpx.AsyncClient(
             base_url=self._api_base,
             timeout=httpx.Timeout(600.0),
@@ -52,21 +56,26 @@ class OllamaProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
+        logger.info("Ollama.complete: model=%s messages=%d", self._model, len(messages))
         payload = self._build_payload(messages, tools, stream=False)
         try:
             response = await self._client.post("/api/chat", json=payload)
             response.raise_for_status()
             data = response.json()
         except httpx.HTTPStatusError as e:
+            logger.error("Ollama HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(
                 f"Ollama API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
+            logger.error("Ollama request failed: %s", e)
             raise ProviderError(f"Request failed: {e}") from e
 
         msg = data.get("message", {})
+        content = msg.get("content", "")
+        logger.debug("Ollama response: len=%d", len(content))
         return LLMResult(
-            content=msg.get("content", ""),
+            content=content,
             model=data.get("model", self._model),
         )
 
@@ -75,10 +84,12 @@ class OllamaProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
+        logger.info("Ollama.stream: model=%s messages=%d", self._model, len(messages))
         payload = self._build_payload(messages, tools, stream=True)
         try:
             async with self._client.stream("POST", "/api/chat", json=payload) as response:
                 response.raise_for_status()
+                chunk_count = 0
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
@@ -88,10 +99,14 @@ class OllamaProvider(LLMProvider):
                     msg = data.get("message", {})
                     content = msg.get("content", "")
                     if content:
+                        chunk_count += 1
                         yield content
+                logger.debug("Ollama stream complete: %d chunks", chunk_count)
         except httpx.HTTPStatusError as e:
+            logger.error("Ollama stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(
                 f"Ollama API error: {e.response.status_code} {e.response.text}"
             ) from e
         except httpx.RequestError as e:
+            logger.error("Ollama stream request failed: %s", e)
             raise ProviderError(f"Request failed: {e}") from e

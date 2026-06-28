@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
 from cscode.storage.db import Database
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -36,6 +39,8 @@ class EventStore:
 
     async def _append_impl(self, aggregate_id: str, events: list[dict[str, Any]]) -> list[Event]:
         now = time.time()
+        event_types = [e.get("type", "?") for e in events]
+        logger.debug("Appending %d events to %s: %s", len(events), aggregate_id, event_types)
 
         try:
             cursor = await self._db.conn.execute(
@@ -72,8 +77,10 @@ class EventStore:
 
             await self._db.conn.commit()
             await self._notify(aggregate_id)
+            logger.debug("Committed %d events for %s (seq: %d-%d)", len(result), aggregate_id, result[0].seq, result[-1].seq)
             return result
         except BaseException:
+            logger.warning("Rollback after error in _append_impl for %s", aggregate_id)
             await self._db.conn.rollback()
             raise
 
@@ -81,6 +88,7 @@ class EventStore:
     async def read(
         self, aggregate_id: str, after_seq: int = 0, limit: int = 1000
     ) -> list[Event]:
+        logger.debug("Reading events for %s after_seq=%d limit=%d", aggregate_id, after_seq, limit)
         cursor = await self._db.conn.execute(
             "SELECT * FROM events WHERE aggregate_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?",
             (aggregate_id, after_seq, limit),
@@ -100,6 +108,7 @@ class EventStore:
     async def subscribe(
         self, aggregate_id: str, after_seq: int = 0
     ) -> AsyncIterator[Event]:
+        logger.debug("Subscribe started: %s after_seq=%d", aggregate_id, after_seq)
         while True:
             events = await self.read(aggregate_id, after_seq)
             for e in events:
@@ -122,5 +131,8 @@ class EventStore:
 
     async def _notify(self, aggregate_id: str) -> None:
         async with self._listener_lock:
-            for evt in self._listeners.get(aggregate_id, []):
+            listeners = self._listeners.get(aggregate_id, [])
+            if listeners:
+                logger.debug("Notifying %d listeners for %s", len(listeners), aggregate_id)
+            for evt in listeners:
                 evt.set()

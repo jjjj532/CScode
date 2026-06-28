@@ -45,6 +45,9 @@ from cscode.schema.messages import (
 from cscode.schema.options import GenerationOptions
 from cscode.tools2.base import ToolResult as Tool2Result
 from cscode.tools2.registry import ToolRegistry
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AgentV2:
@@ -76,6 +79,13 @@ class AgentV2:
         # SubAgentOrchestrator for @tool mention processing
         self._sub_agent = SubAgentOrchestrator(tool_registry)
 
+        logger.info(
+            "AgentV2 initialized: model=%s tools=%d max_rounds=%d",
+            llm_client.route.model,
+            len(self._tool_definitions),
+            max_tool_rounds,
+        )
+
     @property
     def llm_client(self) -> LLMClient:
         return self._llm_client
@@ -102,6 +112,9 @@ class AgentV2:
         Returns:
             The final assistant response text.
         """
+        logger.info(
+            "AgentV2.run: user_input_len=%d has_session=%s", len(user_input), session is not None
+        )
         messages = self._build_messages(user_input, session)
         return await self._run_loop(messages, on_event, generation_options, session)
 
@@ -125,6 +138,7 @@ class AgentV2:
         Returns:
             The final assistant response text.
         """
+        logger.info("AgentV2.run_with_messages: messages=%d", len(messages))
         return await self._run_loop(messages, on_event, generation_options)
 
     async def _run_loop(
@@ -136,6 +150,7 @@ class AgentV2:
     ) -> str:
         """Shared inner agent loop used by run() and run_with_messages()."""
         model = ModelID(self._llm_client.route.model)
+        logger.debug("_run_loop: start model=%s messages=%d", model, len(messages))
         options = generation_options or GenerationOptions()
         full_content = ""
         tool_round = 0
@@ -144,6 +159,12 @@ class AgentV2:
         messages = await self._sub_agent.process_messages(messages)
 
         while tool_round < self._max_tool_rounds:
+            logger.debug(
+                "_run_loop: tool_round=%d/%d messages=%d",
+                tool_round + 1,
+                self._max_tool_rounds,
+                len(messages),
+            )
             request = LLMRequest(
                 model=model,
                 messages=tuple(messages),
@@ -177,6 +198,9 @@ class AgentV2:
                     case Finish():
                         break
                     case LLMEventError(error=e):
+                        logger.error(
+                            "_run_loop: llm error tool_round=%d error=%s", tool_round + 1, e.message
+                        )
                         return f"LLM error: {e.message}"
 
             # ── Build assistant message ──────────────────────────
@@ -198,12 +222,24 @@ class AgentV2:
 
             # ── No tool calls → done ─────────────────────────────
             if not tool_calls:
+                logger.debug("_run_loop: no tool calls, finishing after round=%d", tool_round + 1)
                 break
 
             # ── Settle tool calls ────────────────────────────────
+            logger.info(
+                "_run_loop: tool_round=%d tool_calls=%s",
+                tool_round + 1,
+                [tc.name for tc in tool_calls],
+            )
             for tc in tool_calls:
                 tool_result: Tool2Result[Any] = await self._settle(tc.name, dict(tc.args))
 
+                logger.debug(
+                    "_run_loop: tool=%s success=%s result_len=%d",
+                    tc.name,
+                    tool_result.success,
+                    len(str(tool_result.data or tool_result.error or "")),
+                )
                 is_error = not tool_result.success
                 error_str = tool_result.error or ""
                 data_str = str(tool_result.data) if tool_result.data is not None else ""
@@ -245,6 +281,9 @@ class AgentV2:
 
             tool_round += 1
 
+        if tool_round >= self._max_tool_rounds:
+            logger.warning("_run_loop: max tool rounds (%d) reached", self._max_tool_rounds)
+        logger.info("_run_loop: done tool_rounds=%d content_len=%d", tool_round, len(full_content))
         return full_content
 
     async def run_stream(
@@ -258,12 +297,23 @@ class AgentV2:
         Yields ALL events including tool result events.
         The caller is responsible for consuming them.
         """
+        logger.info(
+            "AgentV2.run_stream: user_input_len=%d has_session=%s",
+            len(user_input),
+            session is not None,
+        )
         messages = self._build_messages(user_input, session)
         model = ModelID(self._llm_client.route.model)
         options = generation_options or GenerationOptions()
         tool_round = 0
 
         while tool_round < self._max_tool_rounds:
+            logger.debug(
+                "run_stream: tool_round=%d/%d messages=%d",
+                tool_round + 1,
+                self._max_tool_rounds,
+                len(messages),
+            )
             request = LLMRequest(
                 model=model,
                 messages=tuple(messages),
@@ -290,7 +340,12 @@ class AgentV2:
                         )
                     case Finish():
                         break
-                    case LLMEventError():
+                    case LLMEventError(error=e):
+                        logger.error(
+                            "run_stream: llm error tool_round=%d error=%s",
+                            tool_round + 1,
+                            e.message,
+                        )
                         return
 
             if assistant_text:
@@ -304,8 +359,14 @@ class AgentV2:
                     await session.add_text(assistant_text)
 
             if not tool_calls:
+                logger.debug("run_stream: no tool calls, finishing after round=%d", tool_round + 1)
                 break
 
+            logger.info(
+                "run_stream: tool_round=%d tool_calls=%s",
+                tool_round + 1,
+                [tc.name for tc in tool_calls],
+            )
             for tc in tool_calls:
                 tool_result: Tool2Result[Any] = await self._settle(tc.name, dict(tc.args))
                 is_error = not tool_result.success
@@ -346,6 +407,11 @@ class AgentV2:
     ) -> list[Message]:
         """Build the message list from session state and/or user input."""
         messages: list[Message] = []
+        logger.debug(
+            "_build_messages: has_system_prompt=%s has_session=%s",
+            self._system_prompt is not None,
+            session is not None,
+        )
 
         # Inject system prompt
         if self._system_prompt:

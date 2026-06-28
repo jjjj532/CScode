@@ -28,6 +28,10 @@ Thumbs.db
 # Build artifacts
 *.dmg
 *.msi
+
+# Agent workspace
+.omo/
+.opencode/
 *.deb
 *.AppImage
 

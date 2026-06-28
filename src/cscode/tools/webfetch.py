@@ -5,6 +5,9 @@ from typing import Any
 import httpx
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class WebFetchTool(BaseTool):
@@ -36,6 +39,7 @@ class WebFetchTool(BaseTool):
         url = args["url"]
         fmt = args.get("format", "markdown")
         timeout = args.get("timeout", 30)
+        logger.info("WebFetchTool.execute: url=%s format=%s timeout=%d", url, fmt, timeout)
 
         if not url.startswith(("http://", "https://")):
             return ToolResult(success=False, data="", error=f"Invalid URL: {url}")

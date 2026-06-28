@@ -7,6 +7,9 @@ from typing import Any
 
 from cscode.core.config import Config
 from cscode.core.messages import Message
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -21,6 +24,7 @@ class LLMResult:
 class LLMProvider(ABC):
     def __init__(self, config: Config) -> None:
         self.config = config
+        logger.debug("LLMProvider.__init__: config=%s", config)
 
     @property
     @abstractmethod

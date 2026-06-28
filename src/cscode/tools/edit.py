@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class EditTool(BaseTool):
@@ -30,7 +33,9 @@ class EditTool(BaseTool):
 
     async def execute(self, args: dict[str, Any]) -> ToolResult:
         path = Path(args["path"])
+        logger.debug("EditTool.execute: path=%s", path)
         if not path.exists():
+            logger.warning("EditTool.execute: file not found path=%s", path)
             return ToolResult(
                 success=False,
                 data="",
@@ -42,6 +47,7 @@ class EditTool(BaseTool):
         new = args["new_string"]
 
         if old not in content:
+            logger.warning("EditTool.execute: old_string not found in %s", path)
             return ToolResult(
                 success=False,
                 data="",
@@ -50,6 +56,7 @@ class EditTool(BaseTool):
 
         new_content = content.replace(old, new, 1)
         path.write_text(new_content, encoding="utf-8")
+        logger.debug("EditTool.execute: done path=%s", path)
         return ToolResult(
             success=True,
             data=f"Edited {path}",

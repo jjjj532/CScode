@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class WriteTool(BaseTool):
@@ -26,6 +29,7 @@ class WriteTool(BaseTool):
 
     async def execute(self, args: dict[str, Any]) -> ToolResult:
         path = Path(args["path"])
+        logger.info("WriteTool.execute: path=%s content_len=%d", path, len(args["content"]))
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(args["content"], encoding="utf-8")
@@ -35,6 +39,7 @@ class WriteTool(BaseTool):
                 metadata={"path": str(path), "size": str(len(args["content"]))},
             )
         except OSError as e:
+            logger.error("WriteTool.execute: write failed path=%s error=%s", path, e)
             return ToolResult(
                 success=False,
                 data="",

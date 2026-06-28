@@ -1476,3 +1476,313 @@ git branch -d loop/<name>
 > 本文档基于 CScode (Python) 复刻 OpenCode (TypeScript/Effect) 的实战经验总结。
 > 方法论适用于任何目标编程语言和任何被复刻系统。
 > 核心信条: **接口契约决定集成质量，不是实现质量。**
+
+---
+
+## 15. 智能体系统分析及画像文档
+
+> 本章节定义了系统在完成开发后应生成的完整画像文档规范。智能体维护者、开发者用于维护、调试、优化迭代的核心参考文档。
+
+### 15.2 文档版本与更新记录
+
+| 版本 | 更新时间 | 更新人 | 变更内容 |
+|------|----------|--------|----------|
+| 1.0 | 2025-06-28 | AI Agent | 初始版本，完整系统画像 |
+
+### 15.3 项目归属与干系人
+
+| 角色 | 职责 |
+|------|------|
+| 项目负责人 | 整体规划、决策 |
+| 核心开发者 | 核心模块开发 |
+| 维护团队 | 日常维护、Bug修复 |
+
+### 15.4 环境说明
+
+```
+开发环境: http://localhost:5173 (前端) / http://localhost:8000 (后端)
+测试环境: https://test.cscode.xxx.com
+生产环境: https://cscode.xxx.com
+```
+
+### 15.5 术语定义
+
+| 术语 | 定义 |
+|------|------|
+| MCP | Model Context Protocol，模型上下文协议 |
+| Plugin | 可动态加载的扩展模块 |
+| Skill | 预定义的 Agent 行为模式 |
+| Event Sourcing | 以事件为中心的架构模式 |
+| Session | 用户与 AI 的交互上下文 |
+
+---
+
+### 二、项目概述
+
+### 15.6 项目定位
+
+- **核心问题**: 为开发者提供 AI 编程辅助
+- **目标用户**: 个人开发者、软件开发团队
+- **差异**: 开源可自部署、支持多 LLM Provider
+
+### 15.7 核心特性
+
+| 特性 | 优先级 |
+|------|--------|
+| 多 LLM Provider 支持 | P0 |
+| 完整工具系统 | P0 |
+| 多会话管理 | P0 |
+| Plugin 扩展 | P1 |
+| Skill 扩展 | P1 |
+| MCP 支持 | P1 |
+
+### 15.8 技术栈
+
+| 层级 | 技术 | 版本 |
+|------|------|------|
+| 前端 | React | 18.x |
+| 状态管理 | Zustand | 4.x |
+| 构建 | Vite | 5.x |
+| 后端 | FastAPI | 0.11x |
+| 桌面 | Tauri | 2.x |
+| 存储 | SQLite | 3.x |
+
+---
+
+### 三、架构设计
+
+### 15.9 分层架构
+
+```
+UI Layer → App Layer → Core Layer → LLM Layer → Provider Layer → Schema Layer → Storage Layer
+```
+
+### 15.10 依赖规则
+
+- **允许**: Schema → LLM → Core → App → Server → UI
+- **禁止**: 跨层调用、循环依赖
+
+### 15.11 部署架构
+
+**单机部署**: Tauri/App + FastAPI + SQLite
+**集群部署**: Load Balancer + 3x CScode Node + PostgreSQL
+
+### 15.12 容错与高可用
+
+| 场景 | 降级策略 |
+|------|----------|
+| LLM 不可用 | 返回友好错误提示 |
+| 数据库失败 | 内存缓存 |
+| 网络超时 | 重试3次 |
+
+---
+
+### 四、模块详解
+
+### 15.13 Schema 模块
+
+- **职责**: 定义所有数据类型，零运行时依赖
+- **核心逻辑**: User Input → Message → LLMRequest → LLMEvent → SessionState
+
+### 15.14 LLM 模块
+
+- **职责**: LLM 协议适配和调用抽象
+- **核心逻辑**: create_request() → route() → provider.chat() → parse_response()
+
+### 15.15 Providers 模块
+
+| Provider | 文件 |
+|----------|------|
+| OpenAI | openai.py |
+| Anthropic | anthropic.py |
+| Ollama | ollama.py |
+
+### 15.16 Core 模块
+
+| 子模块 | 职责 |
+|--------|------|
+| session.py | Event Sourcing 会话管理 |
+| coordinator.py | 会话串行化 |
+| engine.py | Agent 执行引擎 |
+
+### 15.17 Tools 模块
+
+read, write, edit, bash, grep, glob, ls, webfetch, websearch, browser, question, skill, todowrite
+
+### 15.18 MCP 模块
+
+- 协议版本: 2025-03-26
+- 连接方式: stdio (子进程)
+
+### 15.19 Plugins 模块
+
+加载流程: discover() → load_plugin() → importlib → __tools__
+
+### 15.20 Skills 模块
+
+Skill 结构: name, slug, content, path, description
+
+---
+
+### 五、API 接口
+
+### 15.21 后端端点
+
+| 方法 | 路径 | 功能 |
+|------|------|------|
+| GET | /api/health | 健康检查 |
+| POST | /api/chat | 发送消息 |
+| POST | /api/chat/stream | 流式聊天 |
+| GET | /api/events | 获取事件 |
+| GET | /api/sessions | 会话列表 |
+| POST | /api/sessions | 创建会话 |
+| DELETE | /api/sessions/{id} | 删除会话 |
+| POST | /api/sessions/{id}/stop | 停止会话 |
+| PATCH | /api/sessions/{id} | 更新会话 |
+| POST | /api/sessions/{id}/export | 导出 |
+| POST | /api/sessions/import | 导入 |
+| GET | /api/files/search | 文件搜索 |
+| GET | /api/config | 获取配置 |
+| POST | /api/config | 保存配置 |
+
+### 15.22 前端调用
+
+```typescript
+api.chat.send(message, sessionId);
+api.sessions.list();
+api.config.get();
+```
+
+### 15.23 接口版本管理
+
+当前版本: v1，URL 路径: /api/v1/*
+
+---
+
+### 六、数据模型
+
+### 15.24 核心模型
+
+**SessionState**: session_id, title, provider, model, messages, status, created_at, updated_at, seq
+
+**Message**: role, parts, id, created_at
+
+**LLMEvent**: TextDelta, TextEnded, ToolCallStarted, ToolCallEnded, ToolResult, Finish
+
+### 15.25 数据生命周期
+
+| 数据类型 | 过期策略 |
+|----------|----------|
+| Session | 90天无活动 |
+| Event | 压缩后归档 |
+| Config | 永不过期 |
+
+---
+
+### 七、调用链路
+
+### 15.26 完整流程
+
+1. 用户输入 → 2. 前端调用 API → 3. FastAPI 创建 Session → 4. create_agent_v2() → 5. AgentEngine 执行 → 6. LLM Service 路由 → 7. Provider 调用外部 API → 8. SSE 流式响应 → 9. EventStore 持久化 → 10. 前端更新
+
+### 15.27 异常处理
+
+| 场景 | 策略 |
+|------|------|
+| 网络超时 | 重试3次，指数退避 |
+| 401错误 | 提示检查API Key |
+| 500错误 | 返回友好错误 |
+
+---
+
+### 八、扩展机制
+
+### 15.28 Plugin 开发
+
+```python
+class MyTool(BaseTool):
+    name = "my_tool"
+    async def execute(self, **kwargs):
+        return "result"
+
+__tools__ = [MyTool()]
+```
+
+### 15.29 Skill 开发
+
+放置 .md 文件到 skills/ 目录，SkillLoader 自动发现
+
+---
+
+### 九、存储架构
+
+### 15.30 Event Store
+
+- 存储介质: SQLite
+- 性能优化: 批量写入，定期压缩
+
+### 15.31 Database
+
+- 开发: SQLite
+- 生产: PostgreSQL
+
+---
+
+### 十、目录结构
+
+### 15.32 完整文件树
+
+```
+src/cscode/
+├── schema/      # 数据模型
+├── llm/         # LLM协议层
+├── providers/   # LLM提供商
+├── core/        # 核心逻辑
+├── tools/       # 工具实现
+├── app/         # 应用层
+├── server/      # FastAPI服务
+├── mcp/         # MCP协议
+├── plugins/     # 插件系统
+├── skills/      # 技能系统
+├── storage/     # 存储层
+├── web/         # React前端
+├── tui/         # 终端UI
+└── utils/       # 工具函数
+```
+
+---
+
+### 十一、维护与调试
+
+### 15.33 常见故障排查
+
+**LLM调用失败**: 检查API Key → 检查网络 → 查看日志 → 确认Provider状态
+
+**Plugin加载异常**: 检查目录结构 → 验证__init__.py → 检查__tools__列表
+
+### 15.34 日志说明
+
+| 日志 | 位置 |
+|------|------|
+| Server | /tmp/cscode-server.log |
+| LLM | cscode.llm |
+| Tools | cscode.tools |
+
+---
+
+### 十二、优化迭代
+
+### 15.35 当前瓶颈
+
+- LLM响应速度 (P0)
+- 大文件处理 (P1)
+- 并发能力 (P1)
+
+### 15.36 优化方向
+
+- 流式响应优化 (P0)
+- 缓存层 (P1)
+- 分布式 (P2)
+
+> 本画像文档由智能体在系统开发完成后自动生成，用于后续维护、调试和迭代参考。
+

@@ -18,6 +18,9 @@ from typing import Any
 from cscode.schema.events import LLMEvent, ToolResult
 from cscode.schema.events import ToolFailure as EventToolFailure
 from cscode.schema.ids import ToolCallID
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ToolRuntime:
@@ -40,6 +43,7 @@ class ToolRuntime:
             name: Tool name (must match ToolDefinition.name).
             handler: Async or sync callable that accepts **kwargs and returns str.
         """
+        logger.debug("Tool registered: %s", name)
         self._tools[name] = handler
 
     def has_tool(self, name: str) -> bool:
@@ -59,16 +63,20 @@ class ToolRuntime:
         """
         handler = self._tools.get(name)
         if handler is None:
+            logger.warning("Unknown tool: %s", name)
             yield EventToolFailure(
                 tool_call_id=tool_call_id,
                 error=f"Unknown tool: {name}",
             )
             return
 
+        logger.debug("Dispatching tool: %s args_keys=%s", name, list(args.keys()))
         try:
             result = await self._execute(handler, args)
+            logger.debug("Tool %s completed: %d chars", name, len(str(result)))
             yield ToolResult(tool_call_id=tool_call_id, result=str(result))
         except Exception as e:
+            logger.error("Tool %s failed: %s", name, e)
             yield EventToolFailure(
                 tool_call_id=tool_call_id,
                 error=f"Tool {name} failed: {e}",

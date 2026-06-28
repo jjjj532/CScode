@@ -18,6 +18,9 @@ from pydantic import ValidationError
 
 from cscode.schema.tool import ToolDefinition
 from cscode.tools2.base import Tool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ToolRegistry:
@@ -39,9 +42,11 @@ class ToolRegistry:
     def register(self, tool: Tool[Any, Any]) -> None:
         """Register a tool. Raises ValueError on name collision."""
         if tool.name in self._tools:
+            logger.warning("ToolRegistry.register: duplicate tool=%s", tool.name)
             msg = f"Tool '{tool.name}' is already registered"
             raise ValueError(msg)
         self._tools[tool.name] = tool
+        logger.debug("ToolRegistry.register: tool=%s registered, total=%d", tool.name, len(self._tools))
 
     def get(self, name: str) -> Tool[Any, Any] | None:
         """Get a tool by name."""
@@ -75,20 +80,25 @@ class ToolRegistry:
             tools = dict(self._tools)
 
         definitions = [tool.to_definition() for tool in tools.values()]
+        logger.debug("ToolRegistry.materialize: tools=%d definitions=%d", len(tools), len(definitions))
 
         async def settle(name: str, raw_args: dict[str, object]) -> ToolResult[Any]:
             """Decode → execute → encode for a single tool call."""
             tool = tools.get(name)
             if tool is None:
+                logger.error("settle: unknown tool=%s", name)
                 return ToolResult(
                     success=False,
                     error=f"Unknown tool: {name}",
                 )
 
+            logger.debug("settle: tool=%s args_keys=%s", name, list(raw_args.keys()))
+
             # Decode: validate input via Pydantic
             try:
                 validated = tool.input_schema.model_validate(raw_args)
             except ValidationError as e:
+                logger.warning("settle: validation error tool=%s error=%s", name, e)
                 return ToolResult(
                     success=False,
                     error=f"Invalid arguments for {name}: {e}",
@@ -96,8 +106,11 @@ class ToolRegistry:
 
             # Execute
             try:
-                return await tool.execute(validated)
+                result = await tool.execute(validated)
+                logger.debug("settle: done tool=%s success=%s", name, result.success)
+                return result
             except Exception as e:
+                logger.exception("settle: execution error tool=%s", name)
                 return ToolResult(
                     success=False,
                     error=tool.format_error(e),

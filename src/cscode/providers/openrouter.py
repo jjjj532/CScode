@@ -10,6 +10,9 @@ from cscode.core.errors import ProviderError
 from cscode.core.messages import Message
 from cscode.providers.base import LLMProvider, LLMResult
 from cscode.providers.openai import OpenAIProvider
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class OpenRouterProvider(LLMProvider):
@@ -17,6 +20,7 @@ class OpenRouterProvider(LLMProvider):
         super().__init__(config)
         self._api_key = config.api_key or ""
         self._model = config.model or "openai/gpt-4o"
+        logger.info("OpenRouterProvider initialized: model=%s", self._model)
         self._openai = OpenAIProvider(config)
 
     @property
@@ -31,6 +35,7 @@ class OpenRouterProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
+        logger.info("OpenRouter.complete: model=%s messages=%d", self._model, len(messages))
         body = {"model": self._model, "messages": self.build_messages(messages)}
         if tools:
             body["tools"] = tools
@@ -54,16 +59,20 @@ class OpenRouterProvider(LLMProvider):
                 tool_calls = msg.get("tool_calls")
                 if tool_calls is not None and len(tool_calls) == 0:
                     tool_calls = None
+                finish_reason = choice.get("finish_reason", "")
+                logger.debug("OpenRouter response: finish_reason=%s", finish_reason)
                 return LLMResult(
                     content=msg.get("content", ""),
                     tool_calls=tool_calls,
                     usage=data.get("usage"),
                     model=data.get("model", self._model),
-                    finish_reason=choice.get("finish_reason", ""),
+                    finish_reason=finish_reason,
                 )
             except httpx.HTTPStatusError as e:
+                logger.error("OpenRouter HTTP %d: %s", e.response.status_code, e.response.text[:200])
                 raise ProviderError(f"OpenRouter API error: {e.response.status_code} - {e.response.text}") from e
             except httpx.RequestError as e:
+                logger.error("OpenRouter request failed: %s", e)
                 raise ProviderError(f"OpenRouter request failed: {e}") from e
 
     def stream(

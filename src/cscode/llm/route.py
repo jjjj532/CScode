@@ -22,6 +22,9 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from cscode.schema.ids import ModelID, ProviderID
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ─── Auth ────────────────────────────────────────────────────────────
 
@@ -218,6 +221,7 @@ def resolve_route(
         ValueError: If the provider is not recognized.
     """
     provider_lower = provider.lower()
+    logger.info("Resolving route: provider=%s model=%s api_base=%s", provider_lower, model, api_base or "default")
 
     match provider_lower:
         case "openai":
@@ -292,5 +296,6 @@ def resolve_route(
             )
 
         case _:
+            logger.error("Unknown provider: %s", provider)
             msg = f"Unknown provider: {provider}"
             raise ValueError(msg)

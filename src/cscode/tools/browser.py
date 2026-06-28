@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 EVIDENCE_DIR = "/tmp/cscode-outputs/evidence"
 
@@ -66,6 +69,7 @@ class BrowserTool(BaseTool):
         action = args.get("action", "")
         session_id = (context or {}).get("session_id", "")
         task_id = args.get("task_id", "")
+        logger.info("BrowserTool.execute: action=%s task_id=%s", action, task_id)
 
         evidence = {
             "screenshot_path": "",

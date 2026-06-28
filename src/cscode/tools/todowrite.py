@@ -5,6 +5,9 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 TC_PATTERN = re.compile(r"TC[_-]?(\d{3})")
 STATUS_MAP = {"pending": " ", "in_progress": "●", "completed": "✓", "cancelled": "✗"}

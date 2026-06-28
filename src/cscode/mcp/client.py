@@ -5,6 +5,9 @@ import json
 from typing import Any
 
 from cscode.core.errors import CScodeError
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class MCPError(CScodeError):
@@ -14,6 +17,7 @@ class MCPError(CScodeError):
 class MCPClient:
     def __init__(self, server_command: list[str]) -> None:
         self.server_command = server_command
+        logger.info("MCPClient initialized: command=%s", server_command)
         self._process: asyncio.subprocess.Process | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._reader: asyncio.StreamReader | None = None
@@ -27,7 +31,9 @@ class MCPClient:
 
     async def connect(self) -> None:
         if self.is_connected:
+            logger.debug("connect: already connected")
             return
+        logger.info("MCPClient.connect: starting server command=%s", self.server_command)
         try:
             self._process = await asyncio.create_subprocess_exec(
                 *self.server_command,
@@ -55,6 +61,7 @@ class MCPClient:
         await self._notify("notifications/initialized", {})
 
     async def disconnect(self) -> None:
+        logger.info("MCPClient.disconnect")
         if self._reader_task is not None:
             self._reader_task.cancel()
             try:
@@ -72,16 +79,21 @@ class MCPClient:
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
             except asyncio.TimeoutError:
+                logger.warning("MCPClient.disconnect: timeout, killing process")
                 self._process.kill()
             self._process = None
             self._writer = None
             self._reader = None
 
     async def list_tools(self) -> list[dict[str, Any]]:
+        logger.debug("MCPClient.list_tools")
         result = await self._request("tools/list", {})
-        return result.get("tools", [])  # type: ignore[no-any-return]
+        tools = result.get("tools", [])
+        logger.debug("MCPClient.list_tools: count=%d", len(tools))
+        return tools  # type: ignore[no-any-return]
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        logger.info("MCPClient.call_tool: name=%s args_keys=%s", name, list(arguments.keys()))
         result = await self._request(
             "tools/call",
             {
@@ -107,10 +119,13 @@ class MCPClient:
             "method": method,
             "params": params,
         }
+        logger.debug("MCPClient._request: id=%d method=%s", req_id, method)
         future: asyncio.Future[Any] = asyncio.get_event_loop().create_future()
         self._pending[req_id] = future
         await self._send(msg)
-        return await future
+        result = await future
+        logger.debug("MCPClient._request: id=%d done", req_id)
+        return result
 
     async def _notify(self, method: str, params: dict[str, Any]) -> None:
         if not self.is_connected:
@@ -120,6 +135,7 @@ class MCPClient:
             "method": method,
             "params": params,
         }
+        logger.debug("MCPClient._notify: method=%s", method)
         await self._send(msg)
 
     async def _send(self, msg: dict[str, Any]) -> None:
@@ -139,6 +155,7 @@ class MCPClient:
                 while True:
                     line = await self._reader.readline()
                     if not line:
+                        logger.warning("MCPClient._read_loop: stdin closed")
                         return
                     header += line
                     if line == b"\r\n":
@@ -153,6 +170,7 @@ class MCPClient:
                 while len(body) < content_length:
                     chunk = await self._reader.read(content_length - len(body))
                     if not chunk:
+                        logger.warning("MCPClient._read_loop: incomplete body")
                         return
                     body += chunk
 
@@ -163,10 +181,11 @@ class MCPClient:
                     if future is not None:
                         error = data.get("error")
                         if error:
+                            logger.error("MCPClient._read_loop: request id=%d error=%s", req_id, error)
                             future.set_exception(MCPError(str(error)))
                         else:
                             future.set_result(data.get("result", {}))
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            logger.exception("MCPClient._read_loop: unexpected error")

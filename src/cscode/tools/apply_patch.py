@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ApplyPatchTool(BaseTool):
@@ -36,6 +39,7 @@ class ApplyPatchTool(BaseTool):
         path = Path(args["path"])
         patch_content = args["patch_content"]
         strip = args.get("strip", 1)
+        logger.info("ApplyPatchTool.execute: path=%s strip=%d patch_len=%d", path, strip, len(patch_content))
 
         if not path.exists():
             return ToolResult(success=False, data="", error=f"File not found: {path}")

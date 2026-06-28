@@ -9,6 +9,9 @@ from cscode.core.config import Config
 from cscode.core.errors import ProviderError
 from cscode.core.messages import Message, MessageRole
 from cscode.providers.base import LLMProvider, LLMResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class GeminiProvider(LLMProvider):
@@ -16,6 +19,7 @@ class GeminiProvider(LLMProvider):
         super().__init__(config)
         self._api_key = config.api_key or ""
         self._model = config.model or "gemini-2.0-flash"
+        logger.info("GeminiProvider initialized: model=%s", self._model)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(600.0),
         )
@@ -46,6 +50,7 @@ class GeminiProvider(LLMProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
+        logger.info("Gemini.complete: model=%s messages=%d", self._model, len(messages))
         body = self.build_messages(messages)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._model}:generateContent?key={self._api_key}"
 
@@ -58,16 +63,20 @@ class GeminiProvider(LLMProvider):
             content_parts = candidate.get("content", {}).get("parts", [{}])
             text = content_parts[0].get("text", "") if content_parts else ""
 
+            finish_reason = candidate.get("finishReason", "")
             usage = data.get("usageMetadata", {})
+            logger.debug("Gemini response: finish_reason=%s usage=%s", finish_reason, usage)
             return LLMResult(
                 content=text,
                 model=self._model,
                 usage=usage,
-                finish_reason=candidate.get("finishReason", ""),
+                finish_reason=finish_reason,
             )
         except httpx.HTTPStatusError as e:
+            logger.error("Gemini HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(f"Gemini API error: {e.response.status_code} - {e.response.text}") from e
         except httpx.RequestError as e:
+            logger.error("Gemini request failed: %s", e)
             raise ProviderError(f"Gemini request failed: {e}") from e
 
     def stream(

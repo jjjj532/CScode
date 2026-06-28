@@ -18,6 +18,9 @@ from cscode.llm.types import LLMRequest, LLMResponse, _ProtocolAdapter
 from cscode.schema.errors import LLMError, LLMErrorReason
 from cscode.schema.events import Error as LLMEventError
 from cscode.schema.events import LLMEvent, Pending
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMClient:
@@ -46,8 +49,10 @@ class LLMClient:
 
         Sends a request to the provider and waits for the full response.
         """
+        logger.info("LLM generate: model=%s messages=%d", request.model, len(request.messages))
         adapter = self._get_adapter()
         raw = await adapter.complete(self._route, request, self._http_client)
+        logger.debug("LLM generate complete: finish_reason=%s", raw.get("finish_reason", "?"))
         return self._parse_complete(raw)
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMEvent]:
@@ -55,6 +60,7 @@ class LLMClient:
 
         Yields LLMEvents as they arrive from the provider.
         """
+        logger.info("LLM stream: model=%s messages=%d", request.model, len(request.messages))
         adapter = self._get_adapter()
         yield Pending()
 
@@ -62,8 +68,10 @@ class LLMClient:
             async for event in adapter.stream(self._route, request, self._http_client):
                 yield event
         except LLMError as e:
+            logger.error("LLM stream error: %s", e)
             yield LLMEventError(error=e)
         except httpx.HTTPStatusError as e:
+            logger.error("LLM stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
             yield LLMEventError(
                 error=LLMError(
                     module="LLMClient",
@@ -74,6 +82,7 @@ class LLMClient:
                 )
             )
         except httpx.RequestError as e:
+            logger.error("LLM stream request failed: %s", e)
             yield LLMEventError(
                 error=LLMError(
                     module="LLMClient",
@@ -92,6 +101,7 @@ class LLMClient:
 
     def _get_adapter(self) -> _ProtocolAdapter:
         """Resolve the protocol adapter for the current route."""
+        logger.debug("Protocol adapter resolve: %s for route=%s", self._route.protocol, self._route.id)
         match self._route.protocol:
             case ProtocolID.OPENAI_CHAT | ProtocolID.OPENAI_COMPATIBLE:
                 return OpenAIProtocolAdapter()

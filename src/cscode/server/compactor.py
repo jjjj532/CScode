@@ -5,6 +5,9 @@ import time
 from cscode.server.projector import Projector
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class Compactor:
@@ -14,12 +17,14 @@ class Compactor:
         self._projector = projector
 
     async def compact(self, session_id: str, system_prompt: str | None = None) -> int:
+        logger.info("Compactor.compact: session_id=%s has_system_prompt=%s", session_id, system_prompt is not None)
         events = await self._event_store.read(session_id)
         if not events:
             return 0
 
         baseline_seq = events[-1].seq
         message_count = sum(1 for e in events if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed"))
+        logger.debug("Compactor.compact: baseline_seq=%d message_count=%d", baseline_seq, message_count)
 
         snapshot = f"Previous context with {message_count} messages has been compacted."
         if system_prompt:
@@ -50,4 +55,5 @@ class Compactor:
         )
         await self._db.conn.commit()
 
+        logger.info("Compactor.compact: done session_id=%s next_epoch=%d baseline_seq=%d", session_id, next_epoch, baseline_seq)
         return baseline_seq

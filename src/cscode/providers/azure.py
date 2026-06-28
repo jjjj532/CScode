@@ -10,6 +10,9 @@ from cscode.core.errors import ProviderError
 from cscode.core.messages import Message
 from cscode.providers.base import LLMProvider, LLMResult
 from cscode.providers.openai import OpenAIProvider
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AzureProvider(OpenAIProvider):
@@ -22,6 +25,7 @@ class AzureProvider(OpenAIProvider):
         self._api_key = config.api_key or ""
         deployment = config.model
         self._url = f"{self._api_base}/openai/deployments/{deployment}/chat/completions?api-version=2024-02-15-preview"
+        logger.info("AzureProvider initialized: endpoint=%s model=%s", self._api_base, self._model)
         self._client = httpx.AsyncClient(
             headers={
                 "api-key": f"{config.api_key}",
@@ -39,6 +43,7 @@ class AzureProvider(OpenAIProvider):
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> LLMResult:
+        logger.info("Azure.complete: model=%s messages=%d", self._model, len(messages))
         body: dict[str, Any] = {
             "model": self._model,
             "messages": self.build_messages(messages),
@@ -55,8 +60,10 @@ class AzureProvider(OpenAIProvider):
             data = response.json()
             return self._parse_response(data)
         except httpx.HTTPStatusError as e:
+            logger.error("Azure HTTP %d: %s", e.response.status_code, e.response.text[:200])
             raise ProviderError(f"Azure API error: {e.response.status_code} - {e.response.text}") from e
         except httpx.RequestError as e:
+            logger.error("Azure request failed: %s", e)
             raise ProviderError(f"Azure request failed: {e}") from e
 
     def stream(

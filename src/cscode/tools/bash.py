@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class BashTool(BaseTool):
@@ -32,6 +35,7 @@ class BashTool(BaseTool):
         timeout_ms = args.get("timeout", 30000)
         timeout_s = timeout_ms / 1000
         task_id = args.get("task_id", "")
+        logger.info("BashTool.execute: command=%s timeout=%dms", command, timeout_ms)
 
         try:
             proc = await asyncio.create_subprocess_shell(

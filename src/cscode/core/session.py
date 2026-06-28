@@ -18,6 +18,9 @@ from dataclasses import dataclass
 from cscode.schema.ids import SessionID
 from cscode.schema.messages import Message, MessageRole, TextPart
 from cscode.storage.event_store import Event, EventStore
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -44,6 +47,7 @@ class SessionProjector:
     @staticmethod
     def project(events: list[Event]) -> SessionState:
         """Reconstruct session state from a list of events."""
+        logger.debug("Projecting %d events", len(events))
         state = SessionState(session_id=SessionID(""), created_at=time.time())
         messages: list[Message] = []
 
@@ -102,6 +106,9 @@ class SessionProjector:
 
                 case "session.deleted":
                     state.status = "deleted"
+
+                case _:
+                    logger.warning("Unknown event type in projection: %s", event.type)
 
         state.messages = tuple(messages)
         return state
@@ -173,6 +180,11 @@ class SessionV2:
         ]
         stored = await event_store.append(session_id, events)
 
+        logger.info(
+            "Session created: id=%s model=%s provider=%s agent=%s",
+            session_id, model, provider, agent,
+        )
+
         state = SessionState(
             session_id=session_id,
             title=title,
@@ -190,6 +202,7 @@ class SessionV2:
     async def load(cls, event_store: EventStore, session_id: SessionID) -> SessionV2:
         """Load an existing session by replaying all its events."""
         events = await event_store.read(session_id)
+        logger.info("Session loaded: id=%s events=%d", session_id, len(events))
         state = SessionProjector.project(events)
         return cls(event_store, session_id, state)
 
@@ -197,6 +210,7 @@ class SessionV2:
 
     async def prompt(self, user_input: str) -> list[Event]:
         """Append a user prompt event. Non-blocking."""
+        logger.debug("Prompt admitted: len=%d preview=%s", len(user_input), user_input[:80])
         events = await self._event_store.append(
             self._session_id,
             [{"type": "prompt.admitted", "data": {"prompt": user_input}}],
@@ -208,6 +222,7 @@ class SessionV2:
 
     async def add_text(self, content: str) -> list[Event]:
         """Append a text completion event (assistant response)."""
+        logger.debug("Text added: len=%d", len(content))
         events = await self._event_store.append(
             self._session_id,
             [{"type": "text.ended", "data": {"content": content}}],
@@ -221,6 +236,7 @@ class SessionV2:
         self, name: str, args: dict[str, object]
     ) -> list[Event]:
         """Append a tool.called event."""
+        logger.debug("Tool call: %s round=%d", name, self.state.tool_rounds + 1)
         events = await self._event_store.append(
             self._session_id,
             [
@@ -247,7 +263,9 @@ class SessionV2:
         if agent is not None:
             data["agent"] = agent
         if not data:
+            logger.debug("update_metadata: no changes for session=%s", self._session_id)
             return []
+        logger.debug("Metadata updated: session=%s keys=%s", self._session_id, list(data.keys()))
         events = await self._event_store.append(
             self._session_id,
             [{"type": "session.updated", "data": data}],
@@ -259,6 +277,7 @@ class SessionV2:
 
     async def delete(self) -> list[Event]:
         """Mark the session as deleted."""
+        logger.info("Session deleted: id=%s", self._session_id)
         events = await self._event_store.append(
             self._session_id,
             [{"type": "session.deleted", "data": {}}],

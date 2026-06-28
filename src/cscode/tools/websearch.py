@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from cscode.tools.base import BaseTool, ToolResult
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class WebSearchTool(BaseTool):
@@ -28,6 +31,7 @@ class WebSearchTool(BaseTool):
     async def execute(self, args: dict[str, Any]) -> ToolResult:
         query = args["query"]
         num_results = args.get("num_results", 8)
+        logger.info("WebSearchTool.execute: query=%s num_results=%d", query, num_results)
 
         return ToolResult(
             success=True,

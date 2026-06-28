@@ -1,7 +1,7 @@
 {
   "productName": "CScode",
   "version": "0.3.4",
-  "identifier": "com.cscode.app",
+  "identifier": "com.cscode.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:8080",
