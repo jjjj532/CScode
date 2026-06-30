@@ -185,8 +185,14 @@ class AgentV2:
                     case TextDelta(text=t):
                         assistant_text += t
                     case TextEnded(full_text=t):
-                        assistant_text = t
-                        assistant_parts.append(TextPart(text=t))
+                        logger.debug("_run_loop: TextEnded(full_text=%r) current_assistant=%r parts=%d", t, assistant_text, len(assistant_parts))
+                        # Some providers (e.g. MiniMax) emit finish_reason on a
+                        # chunk where content is already "" — in that case t is
+                        # empty.  Don't overwrite the accumulated text.
+                        if t:
+                            assistant_text = t
+                        if t or not assistant_parts:
+                            assistant_parts.append(TextPart(text=t or assistant_text))
                     case ToolCallEnded(tool_call_id=tcid, name=n, args=a):
                         tool_calls.append(
                             ToolCallPart(
@@ -202,6 +208,24 @@ class AgentV2:
                             "_run_loop: llm error tool_round=%d error=%s", tool_round + 1, e.message
                         )
                         return f"LLM error: {e.message}"
+
+            if not assistant_text and not tool_calls:
+                logger.warning(
+                    "_run_loop: streaming returned empty for round=%d, trying non-streaming fallback",
+                    tool_round + 1,
+                )
+                try:
+                    raw = await self._llm_client.generate(request)
+                    if raw.content:
+                        assistant_text = raw.content
+                        assistant_parts.append(TextPart(text=raw.content))
+                        if on_event is not None:
+                            evt = TextDelta(text=raw.content)
+                            await on_event(evt) if hasattr(on_event, "__await__") else on_event(evt)
+                            evt = TextEnded(full_text=raw.content)
+                            await on_event(evt) if hasattr(on_event, "__await__") else on_event(evt)
+                except Exception as fallback_err:
+                    logger.error("_run_loop: non-streaming fallback also failed: %s", fallback_err)
 
             # ── Build assistant message ──────────────────────────
             all_parts: list[TextPart | ToolCallPart] = list(assistant_parts)

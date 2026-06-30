@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -58,24 +59,35 @@ api_router = APIRouter(prefix="/api")
 
 OUTPUTS_DIR = Path("/tmp/cscode-outputs")
 
+# Event types that are persisted to EventStore for message history.
+PERSIST_EVENT_TYPES = frozenset({
+    "step.started", "text.ended", "step.ended",
+    "tool.called", "tool.success", "tool.failed",
+    "error",
+})
+
 
 def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
-    """Convert LLMEvent to dict for SSE streaming."""
+    """Convert LLMEvent to dict for SSE streaming.
+
+    Returns dict with 'type' and 'data' keys where data holds the payload.
+    This ensures frontend applyEvent receives event.data.xxx consistently.
+    """
     match event:
         case TextDelta(text=text):
-            return {"type": "text.delta", "content": text}
+            return {"type": "text.delta", "data": {"content": text}}
         case TextEnded(full_text=full_text):
-            return {"type": "text.ended", "content": full_text}
+            return {"type": "text.ended", "data": {"content": full_text}}
         case ToolCallEnded(tool_call_id=id, name=name, args=args):
-            return {"type": "tool.called", "tool_call_id": id, "name": name, "args": args}
+            return {"type": "tool.called", "data": {"tool_call_id": id, "name": name, "args": args}}
         case ToolResult(tool_call_id=id, result=result):
-            return {"type": "tool.result", "tool_call_id": id, "result": result}
+            return {"type": "tool.success", "data": {"tool_call_id": id, "result": result}}
         case Finish(finish_reason=finish_reason):
-            return {"type": "complete", "content": finish_reason}
+            return {"type": "complete", "data": {"finish_reason": finish_reason}}
         case ToolFailure(tool_call_id=id, error=error):
-            return {"type": "tool.failed", "tool_call_id": id, "error": error}
+            return {"type": "tool.failed", "data": {"tool_call_id": id, "error": error}}
         case _:
-            return {"type": "unknown"}
+            return {"type": "unknown", "data": {}}
 
 
 async def _auto_compact(session_id: str, event_store: EventStore) -> None:
@@ -102,8 +114,8 @@ class _CallableProcessor:
     def __init__(self, handler: Any) -> None:
         self._handler = handler
 
-    async def process(self, session_id: str) -> None:
-        await self._handler()
+    async def process(self, session_id: str) -> str:
+        return await self._handler()
 
 
 @asynccontextmanager
@@ -178,11 +190,37 @@ _tracker: TaskTracker | None = None
 _question_registry: QuestionRegistry | None = None
 _tool_registry: Any = None
 _active_agent_tasks: dict[str, asyncio.Task[Any]] = {}
+_session_queues: dict[str, asyncio.Queue[dict[str, object]]] = {}
+_permission_store: dict[str, dict[str, object]] = {}
 
 
 class ChatResponse(BaseModel):
     response: str
     session_id: str
+
+
+class McpServerConfig(BaseModel):
+    name: str
+    command: str
+    args: list[str] = []
+    env: dict[str, str] = {}
+    enabled: bool = True
+
+
+class PluginConfig(BaseModel):
+    enabled: list[str] = []
+    settings: dict[str, dict[str, object]] = {}
+
+
+class PermissionRule(BaseModel):
+    pattern: str
+    allow: bool = True
+
+
+class PermissionRuleCreate(BaseModel):
+    pattern: str
+    allow: bool = True
+    label: str = ""
 
 
 class ConfigRequest(BaseModel):
@@ -194,6 +232,11 @@ class ConfigRequest(BaseModel):
     temperature: float = 0.7
     top_p: float = 1.0
     system_prompt: str | None = None
+    theme: str | None = None
+    mcp_servers: list[McpServerConfig] = []
+    plugins: PluginConfig = PluginConfig()
+    permission_rules: list[PermissionRule] = []
+    keybindings: dict[str, str] = {}
 
 
 class SessionCreateRequest(BaseModel):
@@ -216,10 +259,12 @@ async def _get_or_create_session(
         session_id = str(uuid.uuid4())
 
     is_new = False
-    try:
-        session_v2 = await SessionV2.load(event_store, SessionID(session_id))
-    except Exception:
-        # Session doesn't exist, create new
+    sid = SessionID(session_id)
+    events = await event_store.read(sid)
+    if events:
+        state = SessionProjector.project(events)
+        session_v2 = SessionV2(event_store, sid, state)
+    else:
         provider = "openai"
         model = "gpt-4o"
         if config_data:
@@ -240,16 +285,10 @@ async def _build_context_messages(
     # Get messages from session state (reconstructed from events)
     messages = list(SessionProjector.build_context(session_v2.state))
 
-    # Ensure system prompt is first
     if not messages or messages[0].role != MessageRole.SYSTEM:
-        messages.insert(0, NewMessage.system(
-            "You are CScode, an AI-powered coding assistant. You help users write, review, and debug code. "
-            "You have access to tools for reading, writing, and editing files, "
-            "running shell commands, searching codebases, and browsing the web."
-        ))
-
-    if file_context:
-        # Append file context as system message
+        # Merge file_context into system prompt (some providers ignore 2+ system messages)
+        messages.insert(0, _build_system_prompt(file_context))
+    elif file_context:
         messages.append(NewMessage.system(file_context))
 
     # Add user message
@@ -383,7 +422,6 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             # Build messages for LLM
             user_text = message.strip() if message else "请分析附件内容"
-            await _build_context_messages(session_v2, user_text, file_context)
 
             # Append prompt.admitted event
             await _event_store.append(str(session_v2.session_id), [
@@ -396,22 +434,33 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 data["session_id"] = str(session_v2.session_id)
                 return f"data: {json.dumps(data)}\n\n"
 
-            _persist_event_types = frozenset({
-                "step.started", "text.ended", "step.ended",
-                "tool.called", "tool.success", "tool.failed",
-            })
-
             async def on_event(event: LLMEvent) -> None:
                 sse_event = _llm_event_to_dict(event)
                 sse_event["session_id"] = str(session_v2.session_id)
                 await queue.put(sse_event)
                 if _event_store is not None:
                     evt_type = sse_event.get("type", "")
-                    if isinstance(evt_type, str) and evt_type in _persist_event_types:
+                    if isinstance(evt_type, str) and evt_type in PERSIST_EVENT_TYPES:
                         evt_data = sse_event.get("data", {})
                         await _event_store.append(str(session_v2.session_id), [
                             {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
                         ])
+
+            async def _emit_step_started() -> None:
+                step_event: dict[str, object] = {"type": "step.started", "data": {}, "session_id": str(session_v2.session_id)}
+                await queue.put(step_event)
+                if _event_store is not None:
+                    await _event_store.append(str(session_v2.session_id), [
+                        {"type": "step.started", "data": {}}
+                    ])
+
+            async def _emit_step_ended() -> None:
+                step_event: dict[str, object] = {"type": "step.ended", "data": {}, "session_id": str(session_v2.session_id)}
+                await queue.put(step_event)
+                if _event_store is not None:
+                    await _event_store.append(str(session_v2.session_id), [
+                        {"type": "step.ended", "data": {}}
+                    ])
 
             before = time.time()
 
@@ -425,7 +474,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 else:
                     saved_config = load_config()
             else:
-                from cscode.core.config import Config, load_config
+                from cscode.core.config import load_config
                 saved_config = load_config()
 
             agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
@@ -451,11 +500,11 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     logger.info("[DIAG] agent_runner: completed session=%s in %.1fs", session_v2.session_id, time.time() - t0)
 
             # Use Coordinator for per-session serialization
-            async def run_with_coordinator() -> None:
+            async def run_with_coordinator() -> str:
                 if _coordinator is not None:
-                    await _coordinator.run(str(session_v2.session_id), _CallableProcessor(agent_runner))
+                    return await _coordinator.run(str(session_v2.session_id), _CallableProcessor(agent_runner))
                 else:
-                    await agent_runner()
+                    return await agent_runner()
 
             # Cancel any existing agent task for this session
             old_task = _active_agent_tasks.get(str(session_v2.session_id))
@@ -467,8 +516,17 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 except (asyncio.CancelledError, asyncio.TimeoutError):
                     pass
 
-            agent_task = asyncio.create_task(run_with_coordinator())
+            _agent_event_queue: asyncio.Queue[dict[str, object]] = queue
+            async def stepped_agent_runner() -> str:
+                await _emit_step_started()
+                try:
+                    return await run_with_coordinator()
+                finally:
+                    await _emit_step_ended()
+
+            agent_task = asyncio.create_task(stepped_agent_runner())
             _active_agent_tasks[str(session_v2.session_id)] = agent_task
+            _session_queues[str(session_v2.session_id)] = queue
 
             last_event_time = time.time()
             last_status_time = time.time()
@@ -491,58 +549,57 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         except asyncio.QueueEmpty:
                             break
 
+                    # Auto-generate title if still using default (handles both
+                    # direct SSE new sessions AND frontend pre-created sessions)
+                    _current_title = session_v2.state.title
+                    if not _current_title or _current_title in ("New Session", "New Chat"):
+                        generated_title = None
+                        try:
+                            title_sys = NewMessage.system("You give very short session titles. Reply with ONLY 3-6 words.")
+                            if _db is not None:
+                                from cscode.core.config import Config, ConfigStore, load_config
+                                store = ConfigStore(_db)
+                                saved_config_raw = await store.get()
+                                if saved_config_raw is not None:
+                                    saved_config = Config.from_dict(saved_config_raw)
+                                else:
+                                    saved_config = load_config()
+                            else:
+                                from cscode.core.config import load_config
+                                saved_config = load_config()
+                            title_agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
+                            title_r = await title_agent.llm_client.generate(
+                                LLMRequest(
+                                    model=title_agent.llm_client.route.model,
+                                    messages=(title_sys, NewMessage.user(message or "")),
+                                )
+                            )
+                            title_text = title_r.content.strip().strip('"\'.,!?')
+                            if title_text:
+                                generated_title = title_text
+                        except Exception:
+                            pass
+                        if not generated_title:
+                            generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                        await session_v2.update_metadata(title=generated_title)
+                        yield _e({'type': 'session:title', 'data': {'title': generated_title}})
+
                     try:
                         response = agent_task.result()
-                        # Session state is already updated via EventStore by on_event handler
                         for f in OUTPUTS_DIR.iterdir():
                             if f.is_file() and f.stat().st_mtime >= before:
-                                yield _e({'type': 'file_created', 'filename': f.name})
+                                yield _e({'type': 'file_created', 'data': {'filename': f.name}})
                         if not response:
                             logger.warning("[DIAG] Empty response from agent for session=%s", session_v2.session_id)
-                            yield _e({'type': 'error', 'content': 'LLM returned empty response - API returned no content'})
+                            yield _e({'type': 'error', 'data': {'content': 'LLM returned empty response - API returned no content'}})
                         else:
-                            yield _e({'type': 'complete', 'content': response})
+                            yield _e({'type': 'complete', 'data': {'content': response}})
                     except Exception as e:
                         logger.warning("[DIAG] agent task error session=%s error=%s", session_v2.session_id, e)
-                        yield _e({'type': 'error', 'content': str(e)})
-                    finally:
-                        # Auto-generate title for new sessions
-                        if is_new:
-                            generated_title = None
-                            try:
-                                title_sys = NewMessage.system("Summarize the user")
-                                # Create a minimal agent for title generation
-                                if _db is not None:
-                                    from cscode.core.config import Config, ConfigStore, load_config
-                                    store = ConfigStore(_db)
-                                    saved_config_raw = await store.get()
-                                    if saved_config_raw is not None:
-                                        saved_config = Config.from_dict(saved_config_raw)
-                                    else:
-                                        saved_config = load_config()
-                                else:
-                                    from cscode.core.config import Config, load_config
-                                    saved_config = load_config()
-                                title_agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
-                                title_r = await title_agent.llm_client.generate(
-                                    LLMRequest(
-                                        model=title_agent.llm_client.route.model,
-                                        messages=(title_sys, NewMessage.user(message or "")),
-                                    )
-                                )
-                                title_text = title_r.content.strip().strip('"\'.,!?')
-                                if title_text:
-                                    generated_title = title_text
-                            except Exception:
-                                pass
-                            if not generated_title:
-                                generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
-                            # Update title via session_v2
-                            await session_v2.update_metadata(title=generated_title)
-                            yield _e({'type': 'session:title', 'title': generated_title})
+                        yield _e({'type': 'error', 'data': {'content': str(e)}})
 
-                        asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store))
-                        break
+                    asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store))
+                    break
 
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=0.5)
@@ -555,18 +612,18 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         yield ": keepalive\n\n"
                         last_event_time = now
                     if now - last_status_time > 60:
-                        yield _e({'type': 'status', 'message': 'Agent is working...'})
+                        yield _e({'type': 'status', 'data': {'message': 'Agent is working...'}})
                         last_status_time = now
                     continue
 
         except Exception as e:
-                if _e is not None:
-                    yield _e({'type': 'error', 'content': str(e)})
+                yield f"data: {json.dumps({'type': 'error', 'data': {'content': str(e)}, 'session_id': str(session_v2.session_id) if session_v2 else 'unknown'})}\n\n"
 
         finally:
             if session_v2 is not None and agent_task is not None:
                 if _active_agent_tasks.get(str(session_v2.session_id)) is agent_task:
                     del _active_agent_tasks[str(session_v2.session_id)]
+                _session_queues.pop(str(session_v2.session_id), None)
                 if not agent_task.done():
                     logger.info("[DIAG] Generator exiting, cancelling agent task for session %s", session_v2.session_id)
                     agent_task.cancel()
@@ -597,6 +654,15 @@ async def event_stream(session_id: str, after_seq: int = 0) -> StreamingResponse
             yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@api_router.get("/sessions/{session_id}/events")
+async def session_event_stream(session_id: str, after_seq: int = 0) -> StreamingResponse:
+    """P1-3: Per-session SSE event subscription.
+
+    Delegates to the existing /events endpoint logic for compatibility.
+    """
+    return await event_stream(session_id, after_seq)
 
 
 async def _handle_chat(
@@ -678,13 +744,12 @@ async def _handle_chat(
             logger.error("agent_runner error: %s", e)
             raise
 
-        # Auto-generate title for new sessions
-        if is_new:
+        # Auto-generate title if still using default
+        _current_title = session_v2.state.title
+        if not _current_title or _current_title in ("New Session", "New Chat"):
             generated_title = None
             try:
-                title_sys = NewMessage.system("Summarize the user's request in 3-6 words.")
-                title_usr_msg = NewMessage.user(message or "")  # noqa: F841
-                title_usr = NewMessage.user(message or "")  # noqa: F841
+                title_sys = NewMessage.system("You give very short session titles. Reply with ONLY 3-6 words.")
                 title_agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
                 title_r = await title_agent.llm_client.generate(
                     LLMRequest(
@@ -732,7 +797,7 @@ async def list_sessions() -> list[dict[str, Any]]:
             session_v2 = await SessionV2.load(_event_store, aggregate_id)
             state = session_v2.state
             sessions.append({
-                "id": str(state.session_id),
+                "id": str(state.session_id) if state.session_id else aggregate_id,
                 "title": state.title,
                 "provider": state.provider,
                 "model": state.model,
@@ -756,7 +821,11 @@ async def get_config() -> dict[str, Any]:
             return saved_config
 
     from cscode.core.config import load_config
-    return load_config().to_dict()
+    cfg = load_config()
+    # Some PyInstaller builds may return dict instead of Config
+    if isinstance(cfg, dict):
+        return cfg
+    return cfg.to_dict()
 
 
 @api_router.post("/config")
@@ -800,7 +869,18 @@ async def delete_session(session_id: str) -> dict[str, str]:
 
 @api_router.post("/sessions/{session_id}/stop")
 async def stop_session(session_id: str) -> dict[str, str]:
-    global _active_agent_tasks
+    global _active_agent_tasks, _question_registry, _session_queues
+
+    # 1. Cancel pending questions for this session
+    if _question_registry is not None:
+        await _question_registry.cancel_session(session_id)
+
+    # 2. Send stop signal to SSE event stream
+    queue = _session_queues.get(session_id)
+    if queue is not None:
+        await queue.put({"type": "step.ended", "data": {}, "session_id": session_id})
+
+    # 3. Cancel the agent task
     task = _active_agent_tasks.get(session_id)
     if task and not task.done():
         task.cancel()
@@ -882,6 +962,149 @@ async def import_session(request: Request) -> dict[str, str]:
     return {"id": str(session_v2.session_id), "title": session_v2.state.title}
 
 
+@api_router.get("/sessions/{session_id}/messages")
+async def get_session_messages(session_id: str) -> list[dict[str, object]]:
+    """P0-1: Return messages for a session (used by sidebar session switching)."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    messages = SessionProjector.build_context(session_v2.state)
+    return [
+        {"role": msg.role, "content": msg.content, "id": str(msg.id) if msg.id else None}
+        for msg in messages
+    ]
+
+
+@api_router.get("/sessions/{session_id}/context")
+async def get_session_context(session_id: str) -> list[dict[str, object]]:
+    """P1-2: Return LLM context messages for a session (with system prompts)."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    messages = SessionProjector.build_context(session_v2.state)
+    return [
+        {"role": msg.role, "content": msg.content}
+        for msg in messages
+    ]
+
+
+@api_router.post("/sessions/{session_id}/model")
+async def switch_model(session_id: str, body: dict[str, object]) -> dict[str, str]:
+    """P1-5: Switch the model/provider for a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    model = body.get("model", session_v2.state.model)
+    provider = body.get("provider", session_v2.state.provider)
+    await session_v2.update_metadata(model=str(model))
+    logger.info("Session %s model switched to %s (provider=%s)", session_id, model, provider)
+    return {"status": "ok"}
+
+
+@api_router.post("/sessions/{session_id}/agent")
+async def switch_agent(session_id: str, body: dict[str, object]) -> dict[str, str]:
+    """P1-5: Switch the agent for a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    agent = body.get("agent", "auto")
+    await session_v2.update_metadata(agent=str(agent))
+    logger.info("Session %s agent switched to %s", session_id, agent)
+    return {"status": "ok"}
+
+
+@api_router.get("/sessions/{session_id}/questions")
+async def list_questions(session_id: str) -> list[dict[str, object]]:
+    """P0-2: List pending questions for a session (used by frontend polling)."""
+    global _question_registry
+    if _question_registry is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    return await _question_registry.list_pending(session_id)
+
+
+@api_router.post("/sessions/{session_id}/questions/{request_id}/reply")
+async def reply_question(session_id: str, request_id: str, body: dict[str, object]) -> dict[str, str]:
+    """P0-2: Reply to a pending question."""
+    global _question_registry
+    if _question_registry is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    answers = body.get("answers", [])
+    if isinstance(answers, list):
+        str_answers = [str(a) for a in answers]
+    else:
+        str_answers = [str(answers)]
+    ok = await _question_registry.resolve(request_id, str_answers)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Question not found or already answered")
+
+    # P2-3: If always_allow is true, auto-save a permission rule
+    if body.get("always_allow"):
+        logger.info("always_allow triggered for session=%s request=%s", session_id, request_id)
+        rule_id = str(uuid.uuid4())
+        _permission_store[rule_id] = {
+            "id": rule_id,
+            "pattern": f"tool:{session_id}:*",
+            "allow": True,
+            "label": f"Auto-saved from question {request_id}",
+        }
+
+    return {"status": "ok"}
+
+
+@api_router.post("/sessions/{session_id}/questions/{request_id}/reject")
+async def reject_question(session_id: str, request_id: str) -> dict[str, str]:
+    """P0-2: Reject a pending question."""
+    global _question_registry
+    if _question_registry is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    ok = await _question_registry.reject(request_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Question not found or already answered")
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# P2-3: Permission rules API
+# ---------------------------------------------------------------------------
+
+
+@api_router.get("/permission-rules")
+async def list_permission_rules() -> list[dict[str, object]]:
+    """List all saved permission rules."""
+    return list(_permission_store.values())
+
+
+@api_router.post("/permission-rules")
+async def create_permission_rule(rule: PermissionRuleCreate) -> dict[str, object]:
+    """Create a new permission rule."""
+    rule_id = str(uuid.uuid4())
+    entry: dict[str, object] = {
+        "id": rule_id,
+        "pattern": rule.pattern,
+        "allow": rule.allow,
+        "label": rule.label,
+    }
+    _permission_store[rule_id] = entry
+    return entry
+
+
+@api_router.delete("/permission-rules/{rule_id}")
+async def delete_permission_rule(rule_id: str) -> dict[str, str]:
+    """Delete a permission rule."""
+    if rule_id not in _permission_store:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    del _permission_store[rule_id]
+    return {"status": "ok"}
+
+
 @api_router.get("/files/search")
 async def search_files(q: str = "") -> list[str]:
     try:
@@ -896,6 +1119,80 @@ async def search_files(q: str = "") -> list[str]:
     except Exception:
         pass
     return []
+
+
+# ---------------------------------------------------------------------------
+# P2-4: Session compact API
+# ---------------------------------------------------------------------------
+
+
+@api_router.post("/sessions/{session_id}/compact")
+async def compact_session(session_id: str) -> dict[str, object]:
+    """Compress a session by replacing old events with a summary."""
+    global _compactor
+    if _compactor is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    try:
+        baseline_seq = await _compactor.compact(session_id)
+        return {"status": "ok", "baseline_seq": baseline_seq}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# P2-5: File system API extensions
+# ---------------------------------------------------------------------------
+
+
+class FileReadRequest(BaseModel):
+    path: str
+
+
+@api_router.post("/files/read")
+async def read_file(req: FileReadRequest) -> dict[str, object]:
+    """Read a file's contents from the workspace."""
+    import os
+    try:
+        path = os.path.abspath(os.path.expanduser(req.path))
+        if not os.path.isfile(path):
+            raise HTTPException(status_code=404, detail="File not found")
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        return {"path": path, "content": content, "size": len(content)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/files/list")
+async def list_directory(path: str = ".") -> dict[str, object]:
+    """List contents of a directory."""
+    import os
+    import stat as stat_module
+    try:
+        dir_path = os.path.abspath(os.path.expanduser(path))
+        if not os.path.isdir(dir_path):
+            raise HTTPException(status_code=404, detail="Directory not found")
+        entries: list[dict[str, object]] = []
+        for name in sorted(os.listdir(dir_path)):
+            full = os.path.join(dir_path, name)
+            try:
+                st = os.stat(full)
+                mode = st.st_mode
+                entries.append({
+                    "name": name,
+                    "type": "dir" if stat_module.S_ISDIR(mode) else "file" if stat_module.S_ISREG(mode) else "other",
+                    "size": st.st_size,
+                    "mtime": st.st_mtime,
+                })
+            except OSError:
+                entries.append({"name": name, "type": "unknown", "size": 0, "mtime": 0})
+        return {"path": dir_path, "entries": entries, "count": len(entries)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 _XLSX_TEMPLATE = """import openpyxl
@@ -924,9 +1221,65 @@ wb.save(output_path)
 print(f"Saved to {output_path}")
 """
 
+# ---------------------------------------------------------------------------
+# P2-1: Register /api/session/... (singular) aliases for all /api/sessions/...
+# ---------------------------------------------------------------------------
+
+def _register_session_aliases() -> None:
+    """Add singular-path aliases for every /sessions/ route.
+
+    Note: route.path includes the router prefix (/api/...), so we construct
+    alias_path relative to the router prefix (strip /api/ before re-adding
+    via api_router.add_api_route).
+    """
+    for route in list(api_router.routes):
+        path: str | None = getattr(route, "path", None)
+        methods: set[str] | None = getattr(route, "methods", None)
+        endpoint = getattr(route, "endpoint", None)
+        if not path or not methods or not endpoint:
+            continue
+        if "/sessions" not in path:
+            continue
+        # path = /api/sessions/... or /api/sessions → alias = /session/... or /session
+        if path.endswith("/api/sessions"):
+            alias_path = path.replace("/api/sessions", "/session", 1)
+        else:
+            alias_path = path.replace("/api/sessions/", "/session/", 1)
+        if alias_path == path:
+            continue
+        for method in methods:
+            api_router.add_api_route(
+                alias_path,
+                endpoint,
+                methods=[method],
+                include_in_schema=False,
+            )
+
+
+_register_session_aliases()
 app.include_router(api_router)
 
-# Static files for web UI
-web_dist = Path(__file__).parent.parent / "web" / "dist"
-if web_dist.exists():
-    app.mount("/", StaticFiles(directory=web_dist, html=True), name="static")
+# Static files for web UI — support both development and PyInstaller bundle paths
+
+_web_dist_candidates = [
+    Path(__file__).parent.parent / "web" / "dist",          # dev: src/cscode/web/dist/
+    Path(__file__).parent.parent.parent / "web" / "dist",   # dev alt: src/web/dist/
+]
+# PyInstaller: sys._MEIPASS points to the temp extraction root
+if hasattr(sys, "_MEIPASS"):
+    _mei = Path(sys._MEIPASS)
+    _web_dist_candidates.insert(0, _mei / "web" / "dist")
+    _web_dist_candidates.append(_mei.parent / "web" / "dist")
+
+web_dist: Path | None = None
+for p in _web_dist_candidates:
+    resolved = p.resolve()
+    if resolved.is_dir() and (resolved / "index.html").exists():
+        web_dist = resolved
+        logger.info("Serving static files from: %s", resolved)
+        break
+
+if web_dist is not None:
+    app.mount("/", StaticFiles(directory=str(web_dist), html=True), name="static")
+else:
+    logger.warning("No static frontend dist found; tried: %s", [str(p) for p in _web_dist_candidates])

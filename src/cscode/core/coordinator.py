@@ -57,11 +57,12 @@ class SessionCoordinator:
         """Get the current state for a session."""
         return self._states.get(session_id, SessionState.IDLE)
 
-    async def run(self, session_id: str, processor: Any) -> None:
+    async def run(self, session_id: str, processor: Any) -> str:
         """Run the session processing loop.
 
         If the session is already draining, the caller is queued.
         Only one queue slot is available.
+        Returns the result of the processor.
         """
         lock = await self._get_lock(session_id)
 
@@ -70,17 +71,16 @@ class SessionCoordinator:
         if prev == SessionState.DRAINING:
             self._states[session_id] = SessionState.QUEUED
             logger.info("Session %s queued (was DRAINING)", session_id)
-            # Wait for current drain to finish
             async with lock:
                 pass
-            return
+            return ""
 
         self._states[session_id] = SessionState.DRAINING
         logger.info("Session %s state: %s -> DRAINING", session_id, prev.name if hasattr(prev, 'name') else prev)
 
         try:
             async with lock:
-                await self._process_loop(session_id, processor)
+                return await self._process_loop(session_id, processor)
         finally:
             if self._states.get(session_id) == SessionState.QUEUED:
                 self._states[session_id] = SessionState.DRAINING
@@ -111,9 +111,10 @@ class SessionCoordinator:
         else:
             logger.debug("Interrupt requested for session %s: no active cancel event", session_id)
 
-    async def _process_loop(self, session_id: str, processor: Any) -> None:
+    async def _process_loop(self, session_id: str, processor: Any) -> str:
         """Inner processing loop. Calls processor.process() which should
         handle LLM calls, tool dispatch, and event emission.
+        Returns the processor's result string.
         """
         cancel_evt = asyncio.Event()
         self._cancel_events[session_id] = cancel_evt
@@ -131,11 +132,17 @@ class SessionCoordinator:
             for task in pending:
                 task.cancel()
 
+            result: str = ""
             for task in done:
                 exc = task.exception()
                 if exc is not None:
                     logger.error("Process loop error for session %s: %s", session_id, exc)
                     raise exc
+                try:
+                    result = task.result() or ""
+                except Exception:
+                    pass
+            return result
         finally:
             self._cancel_events.pop(session_id, None)
             logger.debug("Process loop ended for session %s", session_id)

@@ -38,6 +38,9 @@ from cscode.schema.messages import (
     ToolCallPart,
     ToolResultPart,
 )
+from cscode.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class OpenAIProtocolAdapter(_ProtocolAdapter):
@@ -73,9 +76,43 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
 
         async with client.stream("POST", url, json=payload, headers=headers) as response:
             response.raise_for_status()
+            content_type = (response.headers.get("content-type") or "").lower()
+
+            if "text/event-stream" not in content_type:
+                body = b""
+                async for chunk in response.aiter_bytes():
+                    body += chunk
+                data = json.loads(body)
+
+                yield TextStarted()
+                choice = data.get("choices", [{}])[0]
+                msg = choice.get("message", {})
+                content = msg.get("content", "")
+                if content:
+                    yield TextDelta(text=content)
+                    yield TextEnded(full_text=content)
+                finish_reason = choice.get("finish_reason", "stop")
+                usage = data.get("usage")
+                yield Finish(
+                    finish_reason=finish_reason,
+                    usage={
+                        "prompt_tokens": usage.get("prompt_tokens", 0),
+                        "completion_tokens": usage.get("completion_tokens", 0),
+                    }
+                    if usage
+                    else None,
+                )
+                return
+
             tool_calls_in_progress: dict[str, dict[str, Any]] = {}
 
             yield TextStarted()
+
+            # Track accumulated text across SSE chunks (some providers emit
+            # finish_reason on a chunk where content is already empty, wiping
+            # accumulated assistant_text in _run_loop — this ensures TextEnded
+            # carries the full accumulated text.)
+            accumulated_text = ""
 
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
@@ -98,9 +135,11 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
                 delta = choices[0].get("delta", {})
                 finish_reason = choices[0].get("finish_reason")
 
-                # Text content
+                # Text content (some providers e.g. MiniMax only populate
+                # content after their reasoning phase — skip empty chunks)
                 content = delta.get("content", "")
                 if content:
+                    accumulated_text += content
                     yield TextDelta(text=content)
 
                 # Tool calls
@@ -131,10 +170,10 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
                             )
 
                 if finish_reason:
-                    if content:
-                        yield TextEnded(full_text=content)
-                    else:
-                        yield TextEnded(full_text="")
+                    # Use accumulated text instead of last chunk's content
+                    # (some providers e.g. MiniMax send finish_reason on a
+                    # chunk where content is already "")
+                    yield TextEnded(full_text=accumulated_text)
 
                     # Emit completed tool calls
                     for tc_data in tool_calls_in_progress.values():
