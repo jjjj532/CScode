@@ -102,7 +102,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
         <span>{project.name}</span>
         <label className="ml-auto p-1 rounded hover:bg-v2-bg-deep text-v2-text-muted hover:text-v2-text-secondary cursor-pointer">
           <Upload size={12} />
-          <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+          <input type="file" accept=".json" onChange={handleImport} className="hidden" aria-label="Import session" />
         </label>
       </button>
       {expanded && (

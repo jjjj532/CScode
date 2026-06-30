@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Trash2, Shield, Plus, GripVertical } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
-import { useConfigStore, type Config } from '../../stores/useConfigStore';
+import { useConfigStore, type Config, type McpServerConfig, type PluginConfig } from '../../stores/useConfigStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { themes } from '../../themes';
 import { api } from '../../lib/api';
@@ -21,6 +21,17 @@ const MODELS: Record<string, string[]> = {
   ollama: ['llama3', 'mistral', 'codellama', 'qwen2.5-coder', 'deepseek-coder'],
 };
 
+const KNOWN_PLUGINS = ['code-reviewer', 'test-engineer', 'security-auditor'];
+
+const COMMON_KEYBINDING_ACTIONS = [
+  'send_message',
+  'new_session',
+  'focus_input',
+  'cancel',
+  'toggle_sidebar',
+  'toggle_settings',
+];
+
 export function SettingsPanel() {
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const theme = useUIStore((s) => s.theme);
@@ -39,6 +50,9 @@ export function SettingsPanel() {
     temperature: 0.3,
     top_p: 1,
     system_prompt: null,
+    mcp_servers: [],
+    plugins: { enabled: [], settings: {} },
+    keybindings: {},
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -46,11 +60,13 @@ export function SettingsPanel() {
 
   useEffect(() => {
     if (config) {
-      // Only update if config is different from current form
       const configJson = JSON.stringify(config);
       const formJson = JSON.stringify(form);
       if (configJson !== formJson) {
-        setForm(config);
+        setForm({
+          ...{ provider: 'openai', model: 'gpt-4o', api_base: null, api_key: '', max_tokens: 4096, temperature: 0.3, top_p: 1, system_prompt: null, mcp_servers: [], plugins: { enabled: [], settings: {} }, keybindings: {} },
+          ...config,
+        });
         if (config.provider && !['openai', 'anthropic', 'gemini', 'ollama', 'custom'].includes(config.provider)) {
           setCustomProviderName(config.provider);
           setForm((prev) => ({ ...prev, provider: 'custom' }));
@@ -86,6 +102,8 @@ export function SettingsPanel() {
   };
 
   const models = MODELS[form.provider as keyof typeof MODELS] || MODELS.openai;
+
+  const updateForm = (partial: Partial<Config>) => setForm((prev) => ({ ...prev, ...partial }));
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -223,6 +241,18 @@ export function SettingsPanel() {
             </select>
           </div>
 
+          {/* MCP Servers */}
+          <McpServersSection form={form} updateForm={updateForm} />
+
+          {/* Plugins */}
+          <PluginsSection form={form} updateForm={updateForm} />
+
+          {/* Keybindings */}
+          <KeybindingsSection form={form} updateForm={updateForm} />
+
+          {/* Permission Rules */}
+          <PermissionRulesSection />
+
           {/* Save */}
           <button
             onClick={handleSave}
@@ -233,6 +263,258 @@ export function SettingsPanel() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── MCP Servers ──────────────────────────────────────────────────────────────
+
+function McpServersSection({ form, updateForm }: { form: Config; updateForm: (p: Partial<Config>) => void }) {
+  const servers = form.mcp_servers || [];
+
+  const addServer = () => {
+    const newServer: McpServerConfig = { name: '', command: '', args: [], env: {}, enabled: true };
+    updateForm({ mcp_servers: [...servers, newServer] });
+  };
+
+  const removeServer = (idx: number) => {
+    updateForm({ mcp_servers: servers.filter((_, i) => i !== idx) });
+  };
+
+  const updateServer = (idx: number, field: string, value: unknown) => {
+    const updated = servers.map((s, i) => (i === idx ? { ...s, [field]: value } : s));
+    updateForm({ mcp_servers: updated });
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-v2-text-secondary">MCP Servers</label>
+        <button onClick={addServer} className="text-v2-text-muted hover:text-v2-accent transition-colors" title="Add MCP server">
+          <Plus size={14} />
+        </button>
+      </div>
+      {servers.length === 0 ? (
+        <p className="text-xs text-v2-text-muted">No MCP servers configured.</p>
+      ) : (
+        <ul className="space-y-1">
+          {servers.map((srv, idx) => (
+            <li key={idx} className="bg-v2-bg-deep border border-v2-border rounded-md px-2.5 py-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-v2-text-muted uppercase tracking-wide">Server {idx + 1}</span>
+                <button onClick={() => removeServer(idx)} className="text-v2-text-muted hover:text-red-400 transition-colors" title="Remove server">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={srv.name}
+                onChange={(e) => updateServer(idx, 'name', e.target.value)}
+                placeholder="Server name"
+                className="w-full bg-v2-bg-base border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
+              />
+              <input
+                type="text"
+                value={srv.command}
+                onChange={(e) => updateServer(idx, 'command', e.target.value)}
+                placeholder="Command (e.g. npx)"
+                className="w-full bg-v2-bg-base border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
+              />
+              <input
+                type="text"
+                value={srv.args.join(' ')}
+                onChange={(e) => updateServer(idx, 'args', e.target.value.split(/\s+/).filter(Boolean))}
+                placeholder="Arguments (space-separated)"
+                className="w-full bg-v2-bg-base border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
+              />
+              <label className="flex items-center gap-2 text-xs text-v2-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={srv.enabled}
+                  onChange={(e) => updateServer(idx, 'enabled', e.target.checked)}
+                  className="accent-v2-accent"
+                />
+                Enabled
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── Plugins ──────────────────────────────────────────────────────────────────
+
+function PluginsSection({ form, updateForm }: { form: Config; updateForm: (p: Partial<Config>) => void }) {
+  const pluginCfg: PluginConfig = form.plugins || { enabled: [], settings: {} };
+  const enabledSet = new Set(pluginCfg.enabled);
+
+  const togglePlugin = (name: string) => {
+    const next = enabledSet.has(name)
+      ? pluginCfg.enabled.filter((p) => p !== name)
+      : [...pluginCfg.enabled, name];
+    updateForm({ plugins: { ...pluginCfg, enabled: next } });
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-v2-text-secondary mb-1">Plugins</label>
+      {KNOWN_PLUGINS.length === 0 ? (
+        <p className="text-xs text-v2-text-muted">No plugins available.</p>
+      ) : (
+        <ul className="space-y-1">
+          {KNOWN_PLUGINS.map((name) => (
+            <li key={name} className="flex items-center justify-between bg-v2-bg-deep border border-v2-border rounded-md px-2.5 py-1.5">
+              <span className="text-xs text-v2-text-primary">{name}</span>
+              <label className="flex items-center gap-1.5 text-xs text-v2-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={enabledSet.has(name)}
+                  onChange={() => togglePlugin(name)}
+                  className="accent-v2-accent"
+                />
+                Enable
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── Keybindings ──────────────────────────────────────────────────────────────
+
+function KeybindingsSection({ form, updateForm }: { form: Config; updateForm: (p: Partial<Config>) => void }) {
+  const kb: Record<string, string> = form.keybindings || {};
+  const [newAction, setNewAction] = useState('');
+  const [newKey, setNewKey] = useState('');
+
+  const updateKeybinding = (action: string, value: string) => {
+    updateForm({ keybindings: { ...kb, [action]: value } });
+  };
+
+  const removeKeybinding = (action: string) => {
+    const next = { ...kb };
+    delete next[action];
+    updateForm({ keybindings: next });
+  };
+
+  const addKeybinding = () => {
+    if (!newAction.trim() || !newKey.trim()) return;
+    updateForm({ keybindings: { ...kb, [newAction.trim()]: newKey.trim() } });
+    setNewAction('');
+    setNewKey('');
+  };
+
+  const allActions = [...new Set([...COMMON_KEYBINDING_ACTIONS, ...Object.keys(kb)])];
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-v2-text-secondary mb-1">Keybindings</label>
+      <ul className="space-y-1">
+        {allActions.map((action) => (
+          <li key={action} className="flex items-center gap-2 bg-v2-bg-deep border border-v2-border rounded-md px-2.5 py-1.5">
+            <span className="text-[10px] font-mono text-v2-text-muted w-28 shrink-0 truncate">{action}</span>
+            <input
+              type="text"
+              value={kb[action] || ''}
+              onChange={(e) => updateKeybinding(action, e.target.value)}
+              placeholder="e.g. Enter"
+              className="flex-1 bg-v2-bg-base border border-v2-border rounded px-1.5 py-0.5 text-xs text-v2-text-primary placeholder-v2-text-muted min-w-0"
+            />
+            <button onClick={() => removeKeybinding(action)} className="text-v2-text-muted hover:text-red-400 transition-colors shrink-0" title="Remove keybinding">
+              <Trash2 size={12} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-2 mt-1.5">
+        <input
+          type="text"
+          value={newAction}
+          onChange={(e) => setNewAction(e.target.value)}
+          placeholder="Action name"
+          className="flex-1 bg-v2-bg-deep border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted min-w-0"
+        />
+        <input
+          type="text"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          placeholder="Shortcut"
+          className="w-20 bg-v2-bg-deep border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
+        />
+        <button onClick={addKeybinding} className="text-v2-text-muted hover:text-v2-accent transition-colors shrink-0" title="Add keybinding">
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Permission Rules ─────────────────────────────────────────────────────────
+
+interface PermissionRule {
+  id: string;
+  pattern: string;
+  allow: boolean;
+  label: string;
+}
+
+function PermissionRulesSection() {
+  const [rules, setRules] = useState<PermissionRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const addToast = useToastStore((s) => s.addToast);
+
+  useEffect(() => {
+    api.permissionRules.list()
+      .then(setRules)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.permissionRules.delete(id);
+      setRules((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      addToast('Failed to delete rule', 'error');
+    }
+  };
+
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 text-xs font-medium text-v2-text-secondary mb-1">
+        <Shield size={12} />
+        Permission Rules
+      </label>
+      {loading ? (
+        <p className="text-xs text-v2-text-muted">Loading...</p>
+      ) : rules.length === 0 ? (
+        <p className="text-xs text-v2-text-muted">No saved permission rules.</p>
+      ) : (
+        <ul className="space-y-1">
+          {rules.map((rule) => (
+            <li key={rule.id} className="flex items-center justify-between bg-v2-bg-deep border border-v2-border rounded-md px-2.5 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-mono text-v2-text-primary truncate">{rule.pattern}</p>
+                <p className="text-[10px] text-v2-text-muted">
+                  {rule.allow ? 'Allowed' : 'Denied'}
+                  {rule.label ? ` · ${rule.label}` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => handleDelete(rule.id)}
+                className="ml-2 text-v2-text-muted hover:text-red-400 transition-colors shrink-0"
+                title="Delete rule"
+              >
+                <Trash2 size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

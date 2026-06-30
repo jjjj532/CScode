@@ -32,6 +32,8 @@ export function Sidebar() {
   }, [setSessions]);
 
   const handleSelectSession = useCallback(async (id: string) => {
+    // P0-4: 选择会话时自动关闭移动端侧边栏
+    if (isMobile) setMobileOpen(false);
     console.log('[sidebar] >>> select session id=%s', id);
     const store = useSessionStore.getState();
     const prevId = store.activeSessionId;
@@ -137,6 +139,9 @@ export function Sidebar() {
       )}
       {isMobile && mobileOpen && (
         <div className="fixed inset-0 z-20 bg-black/30" onClick={handleCloseMobile} />
+      )}
+      {isMobile && mobileOpen && (
+        <div className="fixed inset-y-0 left-64 right-0 z-20 pointer-events-none" />
       )}
       <div
         className={`bg-v2-bg-surface border-r border-v2-border flex flex-col h-full transition-all duration-300 ${

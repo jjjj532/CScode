@@ -24,6 +24,15 @@ export const api = {
     }),
   },
 
+  permissionRules: {
+    list: () => request<Array<{ id: string; pattern: string; allow: boolean; label: string }>>('/api/permission-rules'),
+    create: (rule: { pattern: string; allow: boolean; label?: string }) => request<{ id: string }>('/api/permission-rules', {
+      method: 'POST',
+      body: JSON.stringify(rule),
+    }),
+    delete: (id: string) => request<void>(`/api/permission-rules/${id}`, { method: 'DELETE' }),
+  },
+
   sessions: {
     list: () => request<Session[]>('/api/sessions'),
     create: () => request<Session>('/api/sessions', { method: 'POST', body: '{}' }),

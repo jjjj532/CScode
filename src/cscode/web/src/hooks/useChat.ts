@@ -140,12 +140,15 @@ export function useChat() {
               return streamControllers[capturedSid] === controller && activeId === capturedSid;
             };
 
+            // Extract data from both {type, data} format (P0-5 fix) and legacy top-level format
+            const d = (event as any).data || event;
+
             switch (event.type) {
               case 'session':
                 break;
               case 'session:title':
-                if (isCurrentStream() && event.title) {
-                  updateSessionTitle(capturedSid, event.title);
+                if (isCurrentStream() && (d.title || event.title)) {
+                  updateSessionTitle(capturedSid, d.title || event.title);
                 }
                 break;
               case 'step.started':
@@ -169,14 +172,15 @@ export function useChat() {
                 if (isCurrentStream()) {
                   setSessionThinking(capturedSid, false);
                   setLoading(capturedSid, false);
-                  if (event.content) {
+                  const content = d.content || (event as any).content;
+                  if (content) {
                     const store = useSessionStore.getState();
                     const msgs = store.sessionMessages[capturedSid] || [];
                     const lastMsg = msgs[msgs.length - 1];
-                    if (lastMsg?.role === 'assistant' && lastMsg.content === event.content) {
+                    if (lastMsg?.role === 'assistant' && lastMsg.content === content) {
                       break;
                     }
-                    appendMessage({ role: 'assistant', content: event.content }, capturedSid);
+                    appendMessage({ role: 'assistant', content }, capturedSid);
                   }
                 }
                 break;
@@ -186,7 +190,7 @@ export function useChat() {
                   setLoading(capturedSid, false);
                   appendMessage({
                     role: 'assistant',
-                    content: `Error: ${event.content || event.error || 'Unknown error'}`,
+                    content: `Error: ${d.content || (event as any).content || d.error || (event as any).error || 'Unknown error'}`,
                   }, capturedSid);
                 }
                 break;

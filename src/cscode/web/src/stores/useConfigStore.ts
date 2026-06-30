@@ -1,5 +1,23 @@
 import { create } from 'zustand';
 
+export interface McpServerConfig {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  enabled: boolean;
+}
+
+export interface PluginConfig {
+  enabled: string[];
+  settings: Record<string, Record<string, unknown>>;
+}
+
+export interface PermissionRule {
+  pattern: string;
+  allow: boolean;
+}
+
 export interface Config {
   provider: string;
   model: string;
@@ -9,6 +27,11 @@ export interface Config {
   temperature: number;
   top_p: number;
   system_prompt: string | null;
+  theme?: string;
+  mcp_servers?: McpServerConfig[];
+  plugins?: PluginConfig;
+  permission_rules?: PermissionRule[];
+  keybindings?: Record<string, string>;
 }
 
 interface ConfigState {

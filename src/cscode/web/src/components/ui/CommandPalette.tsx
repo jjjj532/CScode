@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Settings, Plus, Sun, Moon, X } from 'lucide-react';
+import { Search, Settings, Plus, Sun, Moon, X, Sidebar, Cpu, MessageSquare } from 'lucide-react';
 import { useUIStore } from '../../stores/useUIStore';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useConfigStore } from '../../stores/useConfigStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { api } from '../../lib/api';
+import type { Session } from '../../stores/useSessionStore';
 
 interface Command {
   id: string;
   label: string;
   icon: typeof Search;
+  keywords?: string;
   action: () => void;
 }
 
@@ -21,16 +23,28 @@ export function CommandPalette() {
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const theme = useUIStore((s) => s.theme);
   const setTheme = useUIStore((s) => s.setTheme);
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const mode = useUIStore((s) => s.mode);
+  const toggleMode = useUIStore((s) => s.toggleMode);
   const addSession = useSessionStore((s) => s.addSession);
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const setMessages = useSessionStore((s) => s.setMessages);
+  const sessions = useSessionStore((s) => s.sessions);
   const addToast = useToastStore((s) => s.addToast);
+
+  const switchSession = useCallback((sess: Session) => {
+    setActiveSession(sess.id);
+    setMessages([], sess.id);
+    setOpen(false);
+  }, [setActiveSession, setMessages]);
 
   const commands: Command[] = [
     {
       id: 'new-session',
       label: 'New Session',
       icon: Plus,
+      keywords: 'create chat conversation',
       action: async () => {
         try {
           const session = await api.sessions.create();
@@ -48,8 +62,29 @@ export function CommandPalette() {
       id: 'settings',
       label: 'Open Settings',
       icon: Settings,
+      keywords: 'config preferences',
       action: () => {
         setSettingsOpen(true);
+        setOpen(false);
+      },
+    },
+    {
+      id: 'toggle-sidebar',
+      label: sidebarOpen ? 'Close Sidebar' : 'Open Sidebar',
+      icon: Sidebar,
+      keywords: 'panel toggle hide show',
+      action: () => {
+        setSidebarOpen(!sidebarOpen);
+        setOpen(false);
+      },
+    },
+    {
+      id: 'toggle-mode',
+      label: `Switch to ${mode === 'plan' ? 'Build' : 'Plan'} Mode`,
+      icon: Cpu,
+      keywords: 'mode plan build switch',
+      action: () => {
+        toggleMode();
         setOpen(false);
       },
     },
@@ -57,6 +92,7 @@ export function CommandPalette() {
       id: 'theme-light',
       label: 'Switch to Light Theme',
       icon: Sun,
+      keywords: 'light theme white bright',
       action: () => {
         setTheme('opencode-light');
         setOpen(false);
@@ -66,6 +102,7 @@ export function CommandPalette() {
       id: 'theme-dark',
       label: 'Switch to Dark Theme',
       icon: Moon,
+      keywords: 'dark theme black night',
       action: () => {
         setTheme('opencode-dark');
         setOpen(false);
@@ -73,9 +110,20 @@ export function CommandPalette() {
     },
   ];
 
-  const filteredCommands = commands.filter((cmd) =>
-    cmd.label.toLowerCase().includes(query.toLowerCase()),
-  );
+  const dynamicCommands: Command[] = sessions.slice(0, 5).map((sess) => ({
+    id: `session-${sess.id}`,
+    label: `Switch to: ${sess.title || 'Untitled'}`,
+    icon: MessageSquare,
+    keywords: `session ${sess.title}`,
+    action: () => switchSession(sess),
+  }));
+
+  const allCommands = [...commands, ...dynamicCommands];
+
+  const filteredCommands = allCommands.filter((cmd) => {
+    const q = query.toLowerCase();
+    return cmd.label.toLowerCase().includes(q) || (cmd.keywords || '').includes(q);
+  });
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

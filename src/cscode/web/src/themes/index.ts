@@ -16,5 +16,9 @@ export const themes: Theme[] = [
 ];
 
 export function applyTheme(themeId: ThemeId): void {
-  document.documentElement.setAttribute('data-theme', themeId);
+  try {
+    document.documentElement.setAttribute('data-theme', themeId);
+  } catch {
+    // Silently ignore — document may not be available (SSR, test env)
+  }
 }

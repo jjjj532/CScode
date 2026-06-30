@@ -80,17 +80,29 @@ export function Composer() {
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    const sid = activeSessionId;
+    let sid = activeSessionId;
     const isSessionLoading = sid ? (sessionLoading[sid] || false) : false;
     if ((!text && attachedFiles.length === 0) || isSessionLoading) return;
 
+    if (!sid) {
+      try {
+        const newSession = await api.sessions.create();
+        addSession(newSession);
+        setActiveSession(newSession.id);
+        sid = newSession.id;
+      } catch (err) {
+        addToast('Failed to create session', 'error');
+        console.error('Failed to create session:', err);
+        return;
+      }
+    }
+
     // Per-session guard: don't allow concurrent sends to the same session
-    const guardKey = sid || '__null__';
-    if (sendingSessions[guardKey]) {
+    if (sendingSessions[sid]) {
       console.log('[Composer] handleSend SKIPPED: session=%s already sending', sid);
       return;
     }
-    sendingSessions[guardKey] = true;
+    sendingSessions[sid] = true;
 
     const filesToSend = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
 
@@ -98,15 +110,15 @@ export function Composer() {
     setMentionQuery(null);
 
     try {
-      const returnedSid = await sendMessage(text, sid || undefined, filesToSend);
+      const returnedSid = await sendMessage(text, sid, filesToSend);
       if (filesToSend && returnedSid) clearSessionAttachments(returnedSid as string);
     } catch (err) {
       addToast('Chat error', 'error');
       console.error('Chat error:', err);
     } finally {
-      sendingSessions[guardKey] = false;
+      sendingSessions[sid] = false;
     }
-  }, [input, sessionLoading, activeSessionId, attachedFiles, sendMessage, clearSessionAttachments]);
+  }, [input, sessionLoading, activeSessionId, attachedFiles, sendMessage, clearSessionAttachments, addSession, setActiveSession]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (mentionQuery) {
