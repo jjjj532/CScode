@@ -32,7 +32,7 @@ test.describe('Chat Interface', () => {
   });
 
   test('send button exists', async ({ page }) => {
-    const sendButton = page.locator('button[type="submit"], button:has-text("Send"), button:has-text("发送")');
+    const sendButton = page.locator('button:has(svg), button:has-text("Send"), button:has-text("发送")').last();
     await expect(sendButton.first()).toBeVisible();
   });
 
@@ -62,9 +62,9 @@ test.describe('Settings Panel', () => {
     const settingsButton = page.locator('button:has-text("Settings"), button:has-text("设置")').first();
     await settingsButton.click();
     
-    // Settings panel should be visible
-    const panel = page.locator('[role="dialog"], [class*="panel"], [class*="modal"]');
-    await expect(panel.first()).toBeVisible();
+    // Settings panel should be visible — look for the heading inside the panel
+    const heading = page.locator('h2:has-text("Settings")');
+    await expect(heading).toBeVisible();
   });
 });
 
@@ -73,22 +73,15 @@ test.describe('Theme Switching', () => {
     await page.goto('/');
   });
 
-  test('theme toggle exists', async ({ page }) => {
-    const themeToggle = page.locator('button[aria-label*="theme" i], button:has-text("Theme"), button:has-text("主题"), [data-testid*="theme"]');
-    await expect(themeToggle.first()).toBeVisible();
-  });
+  test('theme can be changed via settings', async ({ page }) => {
+    // Open settings
+    const settingsBtn = page.locator('button:has-text("Settings")').first();
+    await settingsBtn.click();
+    await page.waitForTimeout(300);
 
-  test('can toggle theme', async ({ page }) => {
-    const themeToggle = page.locator('button[aria-label*="theme" i], button:has-text("Theme"), button:has-text("主题")').first();
-    
-    // Get initial theme
-    const htmlBefore = await page.locator('html').getAttribute('class');
-    
-    await themeToggle.click();
-    
-    // Theme should have changed
-    const htmlAfter = await page.locator('html').getAttribute('class');
-    // Note: This test may need adjustment based on actual theme implementation
+    // Theme dropdown should exist in settings panel
+    const themeSelect = page.locator('select').filter({ has: page.locator('option:has-text("Dark")') });
+    await expect(themeSelect).toBeVisible();
   });
 });
 
@@ -106,16 +99,15 @@ test.describe('Mode Toggle (Plan/Build)', () => {
     const planButton = page.locator('button:has-text("Plan"), button:has-text("计划")').first();
     await planButton.click();
     
-    // Plan should be active (check for active state)
-    await expect(planButton).toHaveAttribute('data-active', 'true');
+    // ModeToggle uses aria-checked for active state
+    await expect(planButton).toHaveAttribute('aria-checked', 'true');
   });
 
   test('can switch to Build mode', async ({ page }) => {
     const buildButton = page.locator('button:has-text("Build"), button:has-text("构建")').first();
     await buildButton.click();
     
-    // Build should be active
-    await expect(buildButton).toHaveAttribute('data-active', 'true');
+    await expect(buildButton).toHaveAttribute('aria-checked', 'true');
   });
 });
 
@@ -125,8 +117,9 @@ test.describe('Session Management', () => {
   });
 
   test('session list exists', async ({ page }) => {
-    const sessionList = page.locator('[class*="sidebar"], aside, [data-testid*="session"]');
-    await expect(sessionList.first()).toBeVisible();
+    // Sidebar uses role="navigation" with aria-label
+    const sidebar = page.locator('[role="navigation"]');
+    await expect(sidebar).toBeVisible();
   });
 
   test('new session button exists', async ({ page }) => {
@@ -135,12 +128,162 @@ test.describe('Session Management', () => {
   });
 
   test('can create new session', async ({ page }) => {
-    const newSessionButton = page.locator('button:has-text("New"), button:has-text("新建")').first();
+    const newSessionButton = page.locator('button[aria-label*="new session" i]').first();
     await newSessionButton.click();
+    await page.waitForTimeout(500);
     
-    // New session should appear in list or be selected
-    const sessionItems = page.locator('[class*="session"], [data-testid*="session"]');
-    await expect(sessionItems.first()).toBeVisible();
+    // Verify by checking API directly that sessions exist
+    const resp = await page.request.get('/api/sessions');
+    const data = await resp.json();
+    expect(Array.isArray(data)).toBeTruthy();
+    expect(data.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+test.describe('Settings Panel - MCP Servers', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    // Open settings
+    const settingsBtn = page.locator('button:has-text("Settings"), button:has-text("设置")').first();
+    await settingsBtn.click();
+    await page.waitForTimeout(500);
+  });
+
+  test('MCP Servers section is visible', async ({ page }) => {
+    await expect(page.getByText('MCP Servers', { exact: true }).first()).toBeVisible();
+  });
+
+  test('can add an MCP server', async ({ page }) => {
+    const addBtn = page.locator('button[title="Add MCP server"]');
+    await addBtn.click();
+
+    await page.locator('input[placeholder="Server name"]').fill('filesystem');
+    await page.locator('input[placeholder="Command (e.g. npx)"]').fill('npx');
+
+    await expect(page.locator('input[placeholder="Server name"]')).toHaveValue('filesystem');
+  });
+
+  test('can remove an MCP server', async ({ page }) => {
+    const addBtn = page.locator('button[title="Add MCP server"]');
+    await addBtn.click();
+    await page.locator('input[placeholder="Server name"]').fill('to-delete');
+
+    const removeBtn = page.locator('button[title="Remove server"]');
+    await removeBtn.click();
+
+    await expect(page.getByText('No MCP servers configured.')).toBeVisible();
+  });
+
+  test('can save MCP server settings', async ({ page }) => {
+    await page.locator('button[title="Add MCP server"]').click();
+    await page.locator('input[placeholder="Server name"]').fill('test-srv');
+    await page.locator('input[placeholder="Command (e.g. npx)"]').fill('echo');
+
+    const saveBtn = page.locator('button:has-text("Save Settings")');
+    await saveBtn.click();
+    await page.waitForTimeout(1000);
+
+    // Save button shows "Saved ✓" on success
+    await expect(page.getByText('Saved').first()).toBeVisible();
+  });
+});
+
+test.describe('Settings Panel - Plugins', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    const settingsBtn = page.locator('button:has-text("Settings"), button:has-text("设置")').first();
+    await settingsBtn.click();
+    await page.waitForTimeout(500);
+  });
+
+  test('Plugins section shows known plugins', async ({ page }) => {
+    await expect(page.locator('text=Plugins')).toBeVisible();
+    await expect(page.locator('text=code-reviewer')).toBeVisible();
+    await expect(page.locator('text=test-engineer')).toBeVisible();
+    await expect(page.locator('text=security-auditor')).toBeVisible();
+  });
+
+  test('can toggle plugin checkbox', async ({ page }) => {
+    const checkbox = page.locator('text=code-reviewer').locator('..').locator('input[type="checkbox"]');
+    await checkbox.check();
+    await expect(checkbox).toBeChecked();
+
+    const saveBtn = page.locator('button:has-text("Save Settings")');
+    await saveBtn.click();
+    await page.waitForTimeout(300);
+  });
+});
+
+test.describe('Settings Panel - Keybindings', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    const settingsBtn = page.locator('button:has-text("Settings"), button:has-text("设置")').first();
+    await settingsBtn.click();
+    await page.waitForTimeout(500);
+  });
+
+  test('Keybindings section is visible', async ({ page }) => {
+    await expect(page.locator('text=Keybindings')).toBeVisible();
+  });
+
+  test('can add a keybinding', async ({ page }) => {
+    const actionInput = page.locator('input[placeholder="Action name"]');
+    const keyInput = page.locator('input[placeholder="Shortcut"]');
+
+    await actionInput.fill('toggle_dark_mode');
+    await keyInput.fill('Ctrl+D');
+
+    const plusBtn = page.locator('button[title="Add keybinding"]');
+    await plusBtn.click();
+    await page.waitForTimeout(200);
+
+    await expect(page.locator('text=toggle_dark_mode')).toBeVisible();
+  });
+
+  test('can edit a keybinding', async ({ page }) => {
+    // Add one first
+    const actionInput = page.locator('input[placeholder="Action name"]');
+    const keyInput = page.locator('input[placeholder="Shortcut"]');
+    await actionInput.fill('send_message');
+    await keyInput.fill('Enter');
+    const plusBtn = page.locator('button[title="Add keybinding"]');
+    await plusBtn.click();
+    await page.waitForTimeout(200);
+
+    // Edit the value
+    const shortcutInput = page.locator('input[value="Enter"]');
+    await shortcutInput.fill('Ctrl+Enter');
+
+    await expect(page.locator('input[value="Ctrl+Enter"]')).toBeVisible();
+  });
+
+  test('can remove a keybinding', async ({ page }) => {
+    const actionInput = page.locator('input[placeholder="Action name"]');
+    const keyInput = page.locator('input[placeholder="Shortcut"]');
+    await actionInput.fill('test_remove');
+    await keyInput.fill('Ctrl+R');
+    const plusBtn = page.locator('button[title="Add keybinding"]');
+    await plusBtn.click();
+    await page.waitForTimeout(200);
+
+    const removeBtns = page.locator('button[title="Remove keybinding"]');
+    const countBefore = await removeBtns.count();
+    await removeBtns.last().click();
+    const countAfter = await removeBtns.count();
+    expect(countAfter).toBeLessThan(countBefore);
+  });
+});
+
+test.describe('Settings Panel - Permission Rules', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    const settingsBtn = page.locator('button:has-text("Settings"), button:has-text("设置")').first();
+    await settingsBtn.click();
+    await page.waitForTimeout(500);
+  });
+
+  test('Permission Rules section is visible', async ({ page }) => {
+    await expect(page.getByText('Permission Rules', { exact: true }).first()).toBeVisible();
   });
 });
 
