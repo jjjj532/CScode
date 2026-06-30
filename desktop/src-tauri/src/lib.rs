@@ -79,11 +79,20 @@ impl BackendState {
             if backend_bin.exists() {
                 let mut cmd = Command::new(&backend_bin);
                 cmd.env("PATH", &safe_path);
-                cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
-                cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
-                cmd.env("CSCODE_MODEL", "MiniMax-M2.5");
-                cmd.env("CSCODE_PROVIDER", "openai");
-                cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
+                // 从环境变量读取用户实际配置，不覆盖用户设置
+                if let Ok(key) = std::env::var("CSCODE_API_KEY") {
+                    if !key.is_empty() { cmd.env("CSCODE_API_KEY", key); }
+                }
+                if let Ok(base) = std::env::var("CSCODE_API_BASE") {
+                    if !base.is_empty() { cmd.env("CSCODE_API_BASE", base); }
+                }
+                if let Ok(model) = std::env::var("CSCODE_MODEL") {
+                    if !model.is_empty() { cmd.env("CSCODE_MODEL", model); }
+                }
+                if let Ok(provider) = std::env::var("CSCODE_PROVIDER") {
+                    if !provider.is_empty() { cmd.env("CSCODE_PROVIDER", provider); }
+                }
+                cmd.env("CSCODE_RESOURCE_DIR", dir.to_string_lossy().to_string());
                 cmd.args(["--port", &port_str, "--host", "127.0.0.1"]);
                 cmd.stdout(Stdio::inherit());
                 cmd.stderr(Stdio::inherit());
@@ -135,7 +144,7 @@ impl BackendState {
 
                 let mut cmd = Command::new(&python_exe);
                 cmd.env("PYTHONPATH", &pythonpath);
-                cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
+                cmd.env("CSCODE_RESOURCE_DIR", dir.to_string_lossy().to_string());
                 cmd.env("PATH", &safe_path);
                 cmd.env("CSCODE_API_KEY", option_env!("CSCODE_API_KEY").unwrap_or(""));
                 cmd.env("CSCODE_API_BASE", "https://api.scnet.cn/api/llm/v1");
@@ -188,7 +197,7 @@ impl BackendState {
         cmd.env("CSCODE_MODEL", "MiniMax-M2.5");
         cmd.env("CSCODE_PROVIDER", "openai");
         if let Some(dir) = resource_dir {
-            cmd.env("CSCORE_RESOURCE_DIR", dir.to_string_lossy().to_string());
+            cmd.env("CSCODE_RESOURCE_DIR", dir.to_string_lossy().to_string());
         }
         cmd.current_dir(&project_root);
         cmd.args(["-m", "cscode", "server", "--port", &port_str, "--host", "127.0.0.1"]);
