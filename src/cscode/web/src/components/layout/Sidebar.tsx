@@ -132,6 +132,7 @@ export function Sidebar() {
       {isMobile && (
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label={mobileOpen ? "Close menu" : "Toggle menu"}
           className="fixed top-14 left-2 z-40 p-2 bg-v2-bg-surface border border-v2-border rounded-md shadow-lg"
         >
           {mobileOpen ? <X size={18} /> : <Menu size={18} />}

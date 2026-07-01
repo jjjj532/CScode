@@ -111,7 +111,7 @@ export function SettingsPanel() {
       <div className="relative w-96 bg-v2-bg-base border-l border-v2-border h-full overflow-y-auto shadow-v2-overlay">
         <div className="flex items-center justify-between p-4 border-b border-v2-border">
           <h2 className="text-sm font-semibold text-v2-text-primary">Settings</h2>
-          <button onClick={() => setSettingsOpen(false)} className="text-v2-text-muted hover:text-v2-text-primary transition-colors">
+          <button onClick={() => setSettingsOpen(false)} aria-label="Close settings" className="text-v2-text-muted hover:text-v2-text-primary transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -290,7 +290,7 @@ function McpServersSection({ form, updateForm }: { form: Config; updateForm: (p:
     <div>
       <div className="flex items-center justify-between mb-1">
         <label className="text-xs font-medium text-v2-text-secondary">MCP Servers</label>
-        <button onClick={addServer} className="text-v2-text-muted hover:text-v2-accent transition-colors" title="Add MCP server">
+        <button onClick={addServer} aria-label="Add MCP server" className="text-v2-text-muted hover:text-v2-accent transition-colors" title="Add MCP server">
           <Plus size={14} />
         </button>
       </div>
@@ -302,7 +302,7 @@ function McpServersSection({ form, updateForm }: { form: Config; updateForm: (p:
             <li key={idx} className="bg-v2-bg-deep border border-v2-border rounded-md px-2.5 py-2 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-v2-text-muted uppercase tracking-wide">Server {idx + 1}</span>
-                <button onClick={() => removeServer(idx)} className="text-v2-text-muted hover:text-red-400 transition-colors" title="Remove server">
+                <button onClick={() => removeServer(idx)} aria-label="Remove server" className="text-v2-text-muted hover:text-red-400 transition-colors" title="Remove server">
                   <Trash2 size={12} />
                 </button>
               </div>
@@ -424,7 +424,7 @@ function KeybindingsSection({ form, updateForm }: { form: Config; updateForm: (p
               placeholder="e.g. Enter"
               className="flex-1 bg-v2-bg-base border border-v2-border rounded px-1.5 py-0.5 text-xs text-v2-text-primary placeholder-v2-text-muted min-w-0"
             />
-            <button onClick={() => removeKeybinding(action)} className="text-v2-text-muted hover:text-red-400 transition-colors shrink-0" title="Remove keybinding">
+            <button onClick={() => removeKeybinding(action)} aria-label="Remove keybinding" className="text-v2-text-muted hover:text-red-400 transition-colors shrink-0" title="Remove keybinding">
               <Trash2 size={12} />
             </button>
           </li>
@@ -445,7 +445,7 @@ function KeybindingsSection({ form, updateForm }: { form: Config; updateForm: (p
           placeholder="Shortcut"
           className="w-20 bg-v2-bg-deep border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
         />
-        <button onClick={addKeybinding} className="text-v2-text-muted hover:text-v2-accent transition-colors shrink-0" title="Add keybinding">
+        <button onClick={addKeybinding} aria-label="Add keybinding" className="text-v2-text-muted hover:text-v2-accent transition-colors shrink-0" title="Add keybinding">
           <Plus size={14} />
         </button>
       </div>
@@ -506,6 +506,7 @@ function PermissionRulesSection() {
               </div>
               <button
                 onClick={() => handleDelete(rule.id)}
+                aria-label="Delete rule"
                 className="ml-2 text-v2-text-muted hover:text-red-400 transition-colors shrink-0"
                 title="Delete rule"
               >

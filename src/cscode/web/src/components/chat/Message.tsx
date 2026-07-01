@@ -79,6 +79,7 @@ export function Message({ message, index }: MessageProps) {
             <>
               <button
                 onClick={handleReset}
+                aria-label="重置到此点"
                 className="text-[11px] text-v2-text-muted/60 hover:text-v2-accent transition-colors flex items-center gap-0.5"
                 title="重置到此点"
               >
@@ -87,6 +88,7 @@ export function Message({ message, index }: MessageProps) {
               </button>
               <button
                 onClick={handleCopy}
+                aria-label="复制消息"
                 className="text-[11px] text-v2-text-muted/60 hover:text-v2-accent transition-colors flex items-center gap-0.5"
                 title="复制消息"
               >

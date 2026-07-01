@@ -179,7 +179,7 @@ export function Composer() {
                 <Icon size={12} className="text-v2-text-muted" />
                 <span className="font-medium max-w-[120px] truncate" title={file.name}>{file.name}</span>
                 <span className="text-v2-text-muted text-[10px]">{formatFileSize(file.size)}</span>
-                <button onClick={() => activeSessionId && removeSessionAttachment(activeSessionId, i)} className="text-v2-text-muted hover:text-red-400">
+                <button onClick={() => activeSessionId && removeSessionAttachment(activeSessionId, i)} aria-label="Remove attachment" className="text-v2-text-muted hover:text-red-400">
                   <X size={12} />
                 </button>
               </span>
@@ -188,7 +188,7 @@ export function Composer() {
         </div>
       )}
       <div className="flex items-end gap-2 bg-v2-bg-deep border border-v2-border rounded-v2 px-3 py-2">
-        <button onClick={handleAttachFile} className="text-v2-text-muted hover:text-v2-text-secondary transition-colors p-1">
+        <button onClick={handleAttachFile} aria-label="Attach file" className="text-v2-text-muted hover:text-v2-text-secondary transition-colors p-1">
           <Paperclip size={18} />
         </button>
         <div className="relative flex-1">
@@ -210,13 +210,14 @@ export function Composer() {
           )}
         </div>
         {activeSessionId && sessionLoading[activeSessionId] ? (
-          <button onClick={stop} className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors">
+          <button onClick={stop} aria-label="Stop generation" className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors">
             <Square size={16} />
           </button>
         ) : (
           <button
             onClick={handleSend}
             disabled={!input.trim() && attachedFiles.length === 0}
+            aria-label="Send message"
             className="bg-v2-accent text-white p-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Send size={16} />

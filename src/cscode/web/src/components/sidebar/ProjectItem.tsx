@@ -144,6 +144,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
               </button>
               <button
                 onClick={(e) => handleExport(session.id, session.title, e)}
+                aria-label="Export session"
                 className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-v2-accent transition-all"
                 title="Export session"
               >
@@ -151,6 +152,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
               </button>
               <button
                 onClick={(e) => onDeleteSession(session.id, e)}
+                aria-label="Delete session"
                 className="p-1 mr-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-red-400 transition-all"
                 title="Delete session"
               >
