@@ -54,7 +54,7 @@ class Projector:
                 continue
             match evt.type:
                 case "prompt.admitted":
-                    content = evt.data.get("content", "")
+                    content = evt.data.get("content") or evt.data.get("prompt", "")
                     if content:
                         msgs.append(
                             Message(role=MessageRole.USER, content=content)

@@ -77,11 +77,12 @@ class SessionProjector:
                         state.agent = str(d["agent"])
 
                 case "prompt.admitted":
+                    content = event.data.get("prompt") or event.data.get("content", "")
                     messages.append(
                         Message(
                             id=None,
                             role=MessageRole.USER,
-                            parts=(TextPart(text=str(event.data.get("prompt", ""))),),
+                            parts=(TextPart(text=str(content)),),
                         )
                     )
 

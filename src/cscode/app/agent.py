@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
@@ -179,7 +181,10 @@ class AgentV2:
 
             async for event in self._llm_client.stream(request):
                 if on_event is not None:
-                    await on_event(event) if hasattr(on_event, "__await__") else on_event(event)
+                    if inspect.iscoroutinefunction(on_event):
+                        await on_event(event)
+                    else:
+                        on_event(event)
 
                 match event:
                     case TextDelta(text=t):
