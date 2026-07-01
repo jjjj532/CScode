@@ -63,7 +63,7 @@ export function useChat() {
         return undefined;
       }
       try {
-        const session = await api.session.create();
+        const session = await api.sessions.create();
         addSession(session);
         setActiveSession(session.id);
         sid = session.id;

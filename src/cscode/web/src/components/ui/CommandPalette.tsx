@@ -47,7 +47,7 @@ export function CommandPalette() {
       keywords: 'create chat conversation',
       action: async () => {
         try {
-          const session = await api.session.create();
+          const session = await api.sessions.create();
           addSession(session);
           setActiveSession(session.id);
           setMessages([], session.id);
