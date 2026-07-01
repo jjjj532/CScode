@@ -173,6 +173,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="CScode API", version="0.3.4", lifespan=lifespan)
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next: Any) -> Response:
+    """Log all API requests with method, path, status and duration."""
+    start = time.time()
+    response = await call_next(request)
+    duration_ms = int((time.time() - start) * 1000)
+    if request.url.path.startswith("/api/"):
+        logger.info(
+            "%s %s → %s (%dms)",
+            request.method, request.url.path, response.status_code, duration_ms,
+        )
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -244,8 +259,9 @@ class SessionCreateRequest(BaseModel):
 
 
 @api_router.get("/health")
-async def health() -> dict[str, str]:
+async def health(request: Request) -> dict[str, str]:
     from cscode import __version__
+    logger.info("health check from %s", request.client.host if request.client else "unknown")
     return {"status": "ok", "version": __version__}
 
 
@@ -1222,31 +1238,59 @@ print(f"Saved to {output_path}")
 """
 
 # ---------------------------------------------------------------------------
-# P2-1: Register /api/session/... (singular) aliases for all /api/sessions/...
+# OpenCode 风格 API 路由别名注册
+#
+# CScode 使用复数风格 (/api/sessions/, /api/events/, /api/files/...)
+# OpenCode 使用单数风格 (/api/session/, /api/event/, /api/fs/...)
+#
+# 以下别名表将每个 CScode 路径映射到 OpenCode 等价路径。
+# 旧路径保持可用（兼容性），新路径是规范路径（前端优先使用）。
 # ---------------------------------------------------------------------------
 
-def _register_session_aliases() -> None:
-    """Add singular-path aliases for every /sessions/ route.
+_API_ALIASES: list[tuple[str, str]] = [
+    ("/api/sessions", "/session"),
+    ("/api/sessions/", "/session/"),
+    ("/api/events", "/event"),
+    ("/api/files/read", "/fs/read"),
+    ("/api/files/list", "/fs/list"),
+    ("/api/files/search", "/fs/find"),
+    ("/api/permission-rules", "/permission/saved"),
+    ("/api/permission-rules/", "/permission/saved/"),
+]
 
-    Note: route.path includes the router prefix (/api/...), so we construct
-    alias_path relative to the router prefix (strip /api/ before re-adding
-    via api_router.add_api_route).
+_ALIASED_PATHS: set[str] = set()
+
+
+def _register_api_aliases() -> None:
+    """注册 OpenCode 风格的 API 路由别名。
+
+    为每个已注册的路由检查别名表，如果匹配则添加别名路由。
+    同时避免重复注册已有路径。
     """
+    # 收集已有路径
+    existing_paths: set[str] = set()
+    for route in list(api_router.routes):
+        p: str | None = getattr(route, "path", None)
+        if p:
+            existing_paths.add(p)
+
     for route in list(api_router.routes):
         path: str | None = getattr(route, "path", None)
         methods: set[str] | None = getattr(route, "methods", None)
         endpoint = getattr(route, "endpoint", None)
         if not path or not methods or not endpoint:
             continue
-        if "/sessions" not in path:
+
+        # 检查别名
+        alias_path = path
+        for old_prefix, new_prefix in _API_ALIASES:
+            if path == old_prefix or path.startswith(old_prefix + "/"):
+                alias_path = path.replace(old_prefix, new_prefix, 1)
+                break
+
+        if alias_path == path or alias_path in existing_paths:
             continue
-        # path = /api/sessions/... or /api/sessions → alias = /session/... or /session
-        if path.endswith("/api/sessions"):
-            alias_path = path.replace("/api/sessions", "/session", 1)
-        else:
-            alias_path = path.replace("/api/sessions/", "/session/", 1)
-        if alias_path == path:
-            continue
+
         for method in methods:
             api_router.add_api_route(
                 alias_path,
@@ -1254,9 +1298,11 @@ def _register_session_aliases() -> None:
                 methods=[method],
                 include_in_schema=False,
             )
+        _ALIASED_PATHS.add(alias_path)
+        logger.debug("API alias: %s → %s", path, alias_path)
 
 
-_register_session_aliases()
+_register_api_aliases()
 app.include_router(api_router)
 
 # Static files for web UI — support both development and PyInstaller bundle paths

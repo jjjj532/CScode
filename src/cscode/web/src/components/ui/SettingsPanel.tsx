@@ -468,7 +468,7 @@ function PermissionRulesSection() {
   const addToast = useToastStore((s) => s.addToast);
 
   useEffect(() => {
-    api.permissionRules.list()
+    api.permission.list()
       .then(setRules)
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -476,7 +476,7 @@ function PermissionRulesSection() {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.permissionRules.delete(id);
+      await api.permission.delete(id);
       setRules((prev) => prev.filter((r) => r.id !== id));
     } catch {
       addToast('Failed to delete rule', 'error');

@@ -10,27 +10,23 @@ import { useUIStore } from './stores/useUIStore';
 import { useConfigStore } from './stores/useConfigStore';
 import { useSessionStore } from './stores/useSessionStore';
 
+import { api } from './lib/api';
+
 function App() {
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setConfig = useConfigStore((s) => s.setConfig);
   const setSessions = useSessionStore((s) => s.setSessions);
 
   useEffect(() => {
-    fetch('/api/config')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && data.provider) setConfig(data);
-      })
-      .catch(() => {});
+    api.config.get().then((data) => {
+      if (data && data.provider) setConfig(data);
+    }).catch(() => {});
   }, [setConfig]);
 
   useEffect(() => {
-    fetch('/api/sessions')
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setSessions(data);
-      })
-      .catch(() => {});
+    api.session.list().then((data) => {
+      if (Array.isArray(data)) setSessions(data);
+    }).catch(() => {});
   }, [setSessions]);
 
   return (

@@ -11,7 +11,7 @@ export function ThreadsHeader() {
 
   const handleAddSession = async () => {
     try {
-      const session = await api.sessions.create();
+      const session = await api.session.create();
       addSession(session);
       setActiveSession(session.id);
       setMessages([], session.id);
@@ -45,7 +45,7 @@ export function ThreadsHeader() {
           title="Refresh sessions"
           aria-label="Refresh sessions"
           onClick={() => {
-            api.sessions.list().then((sessions) => {
+            api.session.list().then((sessions) => {
               useSessionStore.getState().setSessions(sessions);
               addToast('Sessions refreshed', 'success');
             }).catch(() => addToast('Failed to refresh sessions', 'error'));

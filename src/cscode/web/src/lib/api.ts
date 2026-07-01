@@ -24,23 +24,23 @@ export const api = {
     }),
   },
 
-  permissionRules: {
-    list: () => request<Array<{ id: string; pattern: string; allow: boolean; label: string }>>('/api/permission-rules'),
-    create: (rule: { pattern: string; allow: boolean; label?: string }) => request<{ id: string }>('/api/permission-rules', {
+  permission: {
+    list: () => request<Array<{ id: string; pattern: string; allow: boolean; label: string }>>('/api/permission/saved'),
+    create: (rule: { pattern: string; allow: boolean; label?: string }) => request<{ id: string }>('/api/permission/saved', {
       method: 'POST',
       body: JSON.stringify(rule),
     }),
-    delete: (id: string) => request<void>(`/api/permission-rules/${id}`, { method: 'DELETE' }),
+    delete: (id: string) => request<void>(`/api/permission/saved/${id}`, { method: 'DELETE' }),
   },
 
-  sessions: {
-    list: () => request<Session[]>('/api/sessions'),
-    create: () => request<Session>('/api/sessions', { method: 'POST', body: '{}' }),
-    delete: (id: string) => request<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
-    update: (id: string, data: { title: string }) => request<void>(`/api/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    export: (id: string) => request<Record<string, unknown>>(`/api/sessions/${id}/export`),
-    import: (data: Record<string, unknown>) => request<Session>('/api/sessions/import', { method: 'POST', body: JSON.stringify(data) }),
-    messages: (id: string) => request<Message[]>(`/api/sessions/${id}/messages`),
+  session: {
+    list: () => request<Session[]>('/api/session'),
+    create: () => request<Session>('/api/session', { method: 'POST', body: '{}' }),
+    delete: (id: string) => request<void>(`/api/session/${id}`, { method: 'DELETE' }),
+    update: (id: string, data: { title: string }) => request<void>(`/api/session/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    exportSession: (id: string) => request<Record<string, unknown>>(`/api/session/${id}/export`),
+    importSession: (data: Record<string, unknown>) => request<Session>('/api/session/import', { method: 'POST', body: JSON.stringify(data) }),
+    messages: (id: string) => request<Message[]>(`/api/session/${id}/messages`),
   },
 
   chat: {
@@ -58,5 +58,9 @@ export const api = {
 
   health: {
     check: () => request<{ status: string }>('/api/health'),
+  },
+
+  files: {
+    search: (q: string) => request<string[]>(`/api/fs/find?q=${encodeURIComponent(q)}`),
   },
 };

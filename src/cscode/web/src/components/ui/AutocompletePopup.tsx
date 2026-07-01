@@ -43,7 +43,7 @@ export function AutocompletePopup({ query, onSelect, onClose }: AutocompletePopu
 
       let fileResults: Suggestion[] = [];
       if (q.length > 0) {
-        const res = await fetch(`/api/files/search?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/fs/find?q=${encodeURIComponent(q)}`);
         if (res.ok) {
           const files: string[] = await res.json();
           fileResults = files.slice(0, 10).map((f) => ({
