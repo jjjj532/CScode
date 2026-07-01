@@ -130,10 +130,11 @@ test.describe('Session Management', () => {
   test('can create new session', async ({ page }) => {
     const newSessionButton = page.locator('button[aria-label*="new session" i]').first();
     await newSessionButton.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     
     // Verify by checking API directly that sessions exist
     const resp = await page.request.get('/api/sessions');
+    expect(resp.ok(), `API returned ${resp.status()}`).toBeTruthy();
     const data = await resp.json();
     expect(Array.isArray(data)).toBeTruthy();
     expect(data.length).toBeGreaterThanOrEqual(1);

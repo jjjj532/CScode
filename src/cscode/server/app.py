@@ -425,7 +425,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             # Append prompt.admitted event
             await _event_store.append(str(session_v2.session_id), [
-                {"type": "prompt.admitted", "data": {"content": message, "files": attached_filenames}}
+{"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}
             ])
 
             queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
@@ -719,7 +719,7 @@ async def _handle_chat(
 
         # Append prompt.admitted event
         await _event_store.append(str(session_v2.session_id), [
-            {"type": "prompt.admitted", "data": {"content": message, "files": attached_filenames}}
+            {"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}
         ])
 
         # Create agent for this request
