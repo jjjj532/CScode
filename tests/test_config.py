@@ -143,3 +143,111 @@ def test_config_contains_api_keys():
 
     yaml_str = yaml.dump(cfg.to_dict())
     assert "sk-test123" not in yaml_str
+
+
+# ─── Slice 0.3: Variable substitution ─────────────────────────────────────
+
+
+def test_variable_subst_env():
+    """S0.3.4: ${env.HOME} resolves to the HOME env var."""
+    from cscode.core.config_variable import resolve_variables
+    result = resolve_variables("${env.HOME}")
+    import os
+    assert result == os.environ.get("HOME", "")
+
+
+def test_variable_subst_unknown_env():
+    """S0.3.4: ${env.UNKNOWN_VAR_XYZ} resolves to empty string."""
+    from cscode.core.config_variable import resolve_variables
+    result = resolve_variables("${env.UNKNOWN_VAR_XYZ}")
+    assert result == ""
+
+
+def test_variable_subst_in_config_value():
+    """S0.3.4: Variable substitution in a config value."""
+    from cscode.core.config_variable import resolve_config
+    cfg = {"api_base": "http://localhost:${env.PORT:-8080}"}
+    result = resolve_config(cfg)
+    assert result["api_base"] == "http://localhost:8080"
+
+
+def test_variable_subst_default():
+    """S0.3.4: ${env.VAR:-default} falls back to default."""
+    from cscode.core.config_variable import resolve_variables
+    result = resolve_variables("${env.MISSING_VAR_XYZ:-default_val}")
+    assert result == "default_val"
+
+
+def test_variable_no_subst():
+    """S0.3.4: String without variable syntax is returned as-is."""
+    from cscode.core.config_variable import resolve_variables
+    result = resolve_variables("just a plain string")
+    assert result == "just a plain string"
+
+
+# ─── Slice 0.3: Config scanner ──────────────────────────────────────────
+
+
+def test_scan_no_config_files(tmp_path: Path):
+    """S0.3.1: scan_config returns empty list when no config files exist."""
+    from cscode.core.config_scanner import scan_config
+    result = scan_config(search_dirs=[tmp_path])
+    assert result == []
+
+
+def test_scan_discovers_yaml(tmp_path: Path):
+    """S0.3.1: scan_config discovers .yaml config files."""
+    from cscode.core.config_scanner import scan_config
+    d = tmp_path / ".cscode"
+    d.mkdir(parents=True)
+    (d / "config.yaml").write_text("provider: anthropic\n")
+    result = scan_config(search_dirs=[d])
+    assert len(result) == 1
+    assert result[0].path == d / "config.yaml"
+    assert result[0].layer == "project"
+
+
+def test_scan_discovers_json(tmp_path: Path):
+    """S0.3.1: scan_config discovers .json config files via local_dirs."""
+    from cscode.core.config_scanner import scan_config
+    d = tmp_path / ".opencode"
+    d.mkdir(parents=True)
+    (d / "config.json").write_text('{"provider": "anthropic"}\n')
+    result = scan_config(local_dirs=[d])
+    assert len(result) == 1
+    assert result[0].path == d / "config.json"
+    assert result[0].layer == "local"
+
+
+def test_scan_layers_priority(tmp_path: Path):
+    """S0.3.1: Layers are ordered global < project < local."""
+    from cscode.core.config_scanner import scan_config
+    # search_dirs: layer="global" for plain dirs, "project" when path has ".cscode"
+    global_d = tmp_path / "global"
+    project_d = tmp_path / "project" / ".cscode"
+    local_d = tmp_path / "local"
+    for d in (global_d, project_d, local_d):
+        d.mkdir(parents=True)
+    (global_d / "config.yaml").write_text("")
+    (project_d / "config.yaml").write_text("")
+    (local_d / "config.yaml").write_text("")
+    result = scan_config(
+        search_dirs=[global_d, project_d],
+        local_dirs=[local_d],
+    )
+    layers = [r.layer for r in result]
+    assert layers == ["global", "project", "local"]
+
+
+def test_load_config_uses_scanner(tmp_path: Path):
+    """S0.3.5: load_config uses config_scanner to discover files."""
+    from cscode.core.config_scanner import load_config_from_layers
+    global_d = tmp_path / "global" / ".cscode"
+    global_d.mkdir(parents=True)
+    (global_d / "config.yaml").write_text("provider: openai\nmodel: gpt-4o\n")
+    project_d = tmp_path / "project" / ".cscode"
+    project_d.mkdir(parents=True)
+    (project_d / "config.yaml").write_text("model: gpt-4o-mini\n")
+    cfg = load_config_from_layers(search_dirs=[global_d, project_d])
+    assert cfg.provider == "openai"
+    assert cfg.model == "gpt-4o-mini"
