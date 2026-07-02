@@ -25,7 +25,7 @@ export function Sidebar() {
   const addToast = useToastStore((s) => s.addToast);
 
   useEffect(() => {
-    api.sessions.list().then(setSessions).catch((e) => {
+    api.session.list().then(setSessions).catch((e) => {
       addToast('Failed to fetch sessions', 'error');
       console.error('Failed to fetch sessions', e);
     });
@@ -54,7 +54,7 @@ export function Sidebar() {
     setActiveSession(id);
     try {
       console.log('[sidebar] fetching messages for session=%s', id);
-      const msgs = await api.sessions.messages(id);
+      const msgs = await api.session.messages(id);
       console.log('[sidebar] fetched %d messages from server for session=%s', msgs.length, id);
       const emptyAssistants = msgs.filter(m => m.role === 'assistant' && !m.content?.trim()).length;
       if (emptyAssistants > 0) console.log('[sidebar] SERVER RETURNED %d EMPTY ASSISTANT MESSAGES!', emptyAssistants);
@@ -92,7 +92,7 @@ export function Sidebar() {
     if (current === null) return;  // already creating
     setActiveSession(null);
     try {
-      const session = await api.sessions.create();
+      const session = await api.session.create();
       addSession(session);
       setActiveSession(session.id);
       setMessages([], session.id);
@@ -111,7 +111,7 @@ export function Sidebar() {
     e.stopPropagation();
     if (!confirm('Delete this session?')) return;
     try {
-      await api.sessions.delete(id);
+      await api.session.delete(id);
       removeSession(id);
       if (useSessionStore.getState().activeSessionId === id) {
         setActiveSession(null);

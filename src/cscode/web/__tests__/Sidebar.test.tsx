@@ -11,7 +11,7 @@ import { useUIStore } from '../src/stores/useUIStore';
 
 jest.mock('../src/lib/api', () => ({
   api: {
-    sessions: {
+    session: {
       list: jest.fn(),
       create: jest.fn(),
       delete: jest.fn(),
@@ -55,7 +55,7 @@ const mockMessages2 = [
 async function renderSidebar() {
   const result = render(<Sidebar />);
   await waitFor(() => {
-    expect(api.sessions.list).toHaveBeenCalled();
+    expect(api.session.list).toHaveBeenCalled();
   });
   return result;
 }
@@ -63,9 +63,9 @@ async function renderSidebar() {
 describe('Sidebar Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (api.sessions.list as jest.Mock).mockResolvedValue([]);
-    (api.sessions.delete as jest.Mock).mockResolvedValue(undefined);
-    (api.sessions.create as jest.Mock).mockResolvedValue(mockSession1);
+    (api.session.list as jest.Mock).mockResolvedValue([]);
+    (api.session.delete as jest.Mock).mockResolvedValue(undefined);
+    (api.session.create as jest.Mock).mockResolvedValue(mockSession1);
     jest.spyOn(window, 'confirm').mockReturnValue(true);
     useSessionStore.setState({
       sessions: [],
@@ -89,7 +89,7 @@ describe('Sidebar Component', () => {
   });
 
   test('renders sessions list', async () => {
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
     await renderSidebar();
     expect(screen.getByText('Session 1')).toBeInTheDocument();
     expect(screen.getByText('Session 2')).toBeInTheDocument();
@@ -98,12 +98,12 @@ describe('Sidebar Component', () => {
   // ─── SESSION SELECTION ──────────────────────────
 
   test('selecting a session loads its messages', async () => {
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1]);
-    (api.sessions.messages as jest.Mock).mockResolvedValue(mockMessages1);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1]);
+    (api.session.messages as jest.Mock).mockResolvedValue(mockMessages1);
     await renderSidebar();
     await userEvent.click(screen.getByText('Session 1'));
     await waitFor(() => {
-      expect(api.sessions.messages).toHaveBeenCalledWith('session_1');
+      expect(api.session.messages).toHaveBeenCalledWith('session_1');
     });
     await waitFor(() => {
       const state = useSessionStore.getState();
@@ -113,8 +113,8 @@ describe('Sidebar Component', () => {
   });
 
   test('selecting a different session switches active session and messages', async () => {
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
-    (api.sessions.messages as jest.Mock)
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.messages as jest.Mock)
       .mockResolvedValueOnce(mockMessages1)
       .mockResolvedValue(mockMessages2);
     await renderSidebar();
@@ -133,7 +133,7 @@ describe('Sidebar Component', () => {
   // ─── SESSION DELETION ───────────────────────────
 
   test('deleting a non-active session removes it from sidebar without affecting current view', async () => {
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
     useSessionStore.setState({
       sessions: [mockSession1, mockSession2],
       activeSessionId: 'session_1',
@@ -151,7 +151,7 @@ describe('Sidebar Component', () => {
   });
 
   test('deleting the active session clears messages and deselects', async () => {
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
     useSessionStore.setState({
       sessions: [mockSession1, mockSession2],
       activeSessionId: 'session_1',
@@ -170,12 +170,12 @@ describe('Sidebar Component', () => {
 
   test('cancelling delete confirmation does not delete session', async () => {
     (window.confirm as jest.Mock).mockReturnValue(false);
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1]);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1]);
     useSessionStore.setState({ sessions: [mockSession1] });
     await renderSidebar();
     const deleteButtons = screen.getAllByTitle('Delete session');
     await userEvent.click(deleteButtons[0]);
-    expect(api.sessions.delete).not.toHaveBeenCalled();
+    expect(api.session.delete).not.toHaveBeenCalled();
     expect(useSessionStore.getState().sessions).toHaveLength(1);
   });
 
@@ -183,12 +183,12 @@ describe('Sidebar Component', () => {
 
   test('creating a new session adds it to the list and activates it', async () => {
     const newSession = { ...mockSession1, id: 'session_new', title: 'New Session' };
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1]);
-    (api.sessions.create as jest.Mock).mockResolvedValue(newSession);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1]);
+    (api.session.create as jest.Mock).mockResolvedValue(newSession);
     await renderSidebar();
     await userEvent.click(screen.getByTitle('New session'));
     await waitFor(() => {
-      expect(api.sessions.create).toHaveBeenCalled();
+      expect(api.session.create).toHaveBeenCalled();
     });
     await waitFor(() => {
       const state = useSessionStore.getState();
@@ -204,9 +204,9 @@ describe('Sidebar Component', () => {
       resolveCreate = resolve;
     });
     const newSession = { ...mockSession1, id: 'session_new', title: 'New Session' };
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
-    (api.sessions.create as jest.Mock).mockReturnValue(createDeferred);
-    (api.sessions.messages as jest.Mock).mockResolvedValue(mockMessages2);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.create as jest.Mock).mockReturnValue(createDeferred);
+    (api.session.messages as jest.Mock).mockResolvedValue(mockMessages2);
     useSessionStore.setState({
       sessions: [mockSession1, mockSession2],
       activeSessionId: 'session_1',
@@ -214,12 +214,12 @@ describe('Sidebar Component', () => {
     });
     await renderSidebar();
     await userEvent.click(screen.getByTitle('New session'));
-    expect(api.sessions.create).toHaveBeenCalled();
+    expect(api.session.create).toHaveBeenCalled();
     await userEvent.click(screen.getByText('Session 2'));
     await waitFor(() => {
       expect(useSessionStore.getState().activeSessionId).toBe('session_2');
     });
-    (api.sessions.create as jest.Mock).mockResolvedValue(newSession);
+    (api.session.create as jest.Mock).mockResolvedValue(newSession);
     await act(async () => {
       resolveCreate(newSession);
     });
@@ -239,8 +239,8 @@ describe('Sidebar Component', () => {
     const messagesDeferred = new Promise((resolve) => {
       resolveMessages = resolve;
     });
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
-    (api.sessions.messages as jest.Mock).mockReturnValue(messagesDeferred);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.messages as jest.Mock).mockReturnValue(messagesDeferred);
     await renderSidebar();
     await userEvent.click(screen.getByText('Session 1'));
     expect(useSessionStore.getState().activeSessionId).toBe('session_1');
@@ -254,7 +254,7 @@ describe('Sidebar Component', () => {
       expect(state.activeSessionId).toBeNull();
       expect(state.sessionMessages['session_1']).toEqual([]);
     });
-    expect(api.sessions.messages).toHaveBeenCalledWith('session_1');
+    expect(api.session.messages).toHaveBeenCalledWith('session_1');
   });
 
   test('race condition: rapid session switching discards stale messages', async () => {
@@ -262,8 +262,8 @@ describe('Sidebar Component', () => {
     const messages1Deferred = new Promise((resolve) => {
       resolveMessages1 = resolve;
     });
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
-    (api.sessions.messages as jest.Mock)
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.messages as jest.Mock)
       .mockReturnValueOnce(messages1Deferred)
       .mockResolvedValue(mockMessages2);
     await renderSidebar();
@@ -288,9 +288,9 @@ describe('Sidebar Component', () => {
     const deleteDeferred = new Promise((resolve) => {
       resolveDelete = resolve;
     });
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
-    (api.sessions.delete as jest.Mock).mockReturnValue(deleteDeferred);
-    (api.sessions.messages as jest.Mock).mockResolvedValue(mockMessages2);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.delete as jest.Mock).mockReturnValue(deleteDeferred);
+    (api.session.messages as jest.Mock).mockResolvedValue(mockMessages2);
     useSessionStore.setState({
       sessions: [mockSession1, mockSession2],
       activeSessionId: 'session_1',
@@ -299,7 +299,7 @@ describe('Sidebar Component', () => {
     await renderSidebar();
     const deleteButtons = screen.getAllByTitle('Delete session');
     await userEvent.click(deleteButtons[0]);
-    expect(api.sessions.delete).toHaveBeenCalledWith('session_1');
+    expect(api.session.delete).toHaveBeenCalledWith('session_1');
     await userEvent.click(screen.getByText('Session 2'));
     await waitFor(() => {
       expect(useSessionStore.getState().activeSessionId).toBe('session_2');
@@ -324,9 +324,9 @@ describe('Sidebar Component', () => {
     const messagesDeferred = new Promise((resolve) => {
       resolveMessages = resolve;
     });
-    (api.sessions.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
-    (api.sessions.messages as jest.Mock).mockReturnValue(messagesDeferred);
-    (api.sessions.delete as jest.Mock).mockReturnValue(deleteDeferred);
+    (api.session.list as jest.Mock).mockResolvedValue([mockSession1, mockSession2]);
+    (api.session.messages as jest.Mock).mockReturnValue(messagesDeferred);
+    (api.session.delete as jest.Mock).mockReturnValue(deleteDeferred);
     useSessionStore.setState({
       sessions: [mockSession1, mockSession2],
       activeSessionId: 'session_1',

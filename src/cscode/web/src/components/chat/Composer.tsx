@@ -86,7 +86,7 @@ export function Composer() {
 
     if (!sid) {
       try {
-        const newSession = await api.sessions.create();
+        const newSession = await api.session.create();
         addSession(newSession);
         setActiveSession(newSession.id);
         sid = newSession.id;
@@ -143,7 +143,7 @@ export function Composer() {
     // Auto-create session if none exists, so files can be attached
     if (!sid) {
       try {
-        const session = await api.sessions.create();
+        const session = await api.session.create();
         addSession(session);
         setActiveSession(session.id);
         sid = session.id;

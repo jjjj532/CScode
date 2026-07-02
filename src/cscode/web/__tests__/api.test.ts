@@ -52,6 +52,66 @@ describe('api', () => {
     });
   });
 
+  describe('session (singular alias)', () => {
+    test('session.list calls /api/session', async () => {
+      const mockSessions = [
+        { id: 'session_1', title: 'Session 1' },
+      ];
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSessions,
+      });
+      const result = await api.session.list();
+      expect(result).toEqual(mockSessions);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/session',
+        expect.any(Object)
+      );
+    });
+
+    test('session.create calls POST /api/session', async () => {
+      const mockSession = { id: 'session_123', title: 'New Session' };
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockSession,
+      });
+      const result = await api.session.create();
+      expect(result).toEqual(mockSession);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/session',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    test('session.delete calls DELETE /api/session/:id', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+      await api.session.delete('session_123');
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/session/session_123',
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+
+    test('session.messages calls /api/session/:id/messages', async () => {
+      const mockMessages = [
+        { id: '1', role: 'user', content: 'Hello' },
+      ];
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockMessages,
+      });
+      const result = await api.session.messages('session_123');
+      expect(result).toEqual(mockMessages);
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/session/session_123/messages',
+        expect.any(Object)
+      );
+    });
+  });
+
   describe('sessions', () => {
     test('lists all sessions', async () => {
       const mockSessions = [

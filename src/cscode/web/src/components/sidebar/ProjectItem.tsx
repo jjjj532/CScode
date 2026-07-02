@@ -45,7 +45,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
       return;
     }
     try {
-      await api.sessions.update(sessionId, { title: newTitle });
+      await api.session.update(sessionId, { title: newTitle });
       onUpdateSession(sessionId, newTitle);
       addToast('Session renamed', 'success');
     } catch {
@@ -62,7 +62,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
   const handleExport = async (sessionId: string, title: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const data = await api.sessions.export(sessionId);
+      const data = await api.session.export(sessionId);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -82,7 +82,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      const session = await api.sessions.import(data);
+      const session = await api.session.import(data);
       onImportSession(session);
       addToast('Session imported', 'success');
     } catch {
