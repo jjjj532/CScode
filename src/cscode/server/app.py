@@ -181,6 +181,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next: Any) -> Response:
+    """Log method, path, status, duration for every request."""
+    start = time.monotonic()
+    response: Response = await call_next(request)
+    duration_ms = (time.monotonic() - start) * 1000
+    logger.info(
+        "%s %s %s %.0fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
+
+
 _db: Database | None = None
 _event_store: EventStore | None = None
 _coordinator: SessionCoordinator | None = None
@@ -1266,8 +1283,9 @@ _web_dist_candidates = [
     Path(__file__).parent.parent.parent / "web" / "dist",   # dev alt: src/web/dist/
 ]
 # PyInstaller: sys._MEIPASS points to the temp extraction root
-if hasattr(sys, "_MEIPASS"):
-    _mei = Path(sys._MEIPASS)
+_mei_path: str | None = getattr(sys, "_MEIPASS", None)
+if _mei_path is not None:
+    _mei = Path(_mei_path)
     _web_dist_candidates.insert(0, _mei / "web" / "dist")
     _web_dist_candidates.append(_mei.parent / "web" / "dist")
 

@@ -158,7 +158,7 @@ def test_persist_event_types_include_error():
 def test_session_events_sse():
     """P1-3: Sessions events SSE endpoint is registered."""
     from cscode.server.app import api_router
-    paths = [r.path for r in api_router.routes if hasattr(r, 'path')]
+    paths = [p for r in api_router.routes for p in [getattr(r, 'path', '')] if p]
     assert any("events" in p and "session_id" in p for p in paths)
 
 
@@ -232,6 +232,38 @@ def test_file_list():
 # ---------------------------------------------------------------------------
 # P2-1: API path naming consistency — /api/session/... aliases
 # ---------------------------------------------------------------------------
+
+def _normalize_path_for_test(path: str) -> str:
+    """Strip query params for path matching."""
+    return path.split("?")[0]
+
+
+def test_logging_middleware_logs_api_requests(caplog: pytest.LogCaptureFixture):
+    """S0.1: Logging middleware records method, path, status, duration for /api/ requests."""
+    import logging
+    caplog.set_level(logging.INFO)
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            client.get("/api/health")
+        # Find the log message matching the request
+        matching = [r for r in caplog.records
+                    if r.name == "cscode.server.app"
+                    and "GET" in r.getMessage()
+                    and "/api/health" in r.getMessage()
+                    and "200" in r.getMessage()]
+        assert matching, (
+            f"No matching log record found.\n"
+            f"Captured records ({len(caplog.records)}):\n" +
+            "\n".join(f"  [{r.name}] {r.getMessage()}" for r in caplog.records)
+        )
+        msg = matching[0].getMessage()
+        assert "ms" in msg or "duration" in msg.lower(), f"Log message missing duration: {msg}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
 
 def test_session_alias_list():
     """P2-1: GET /api/session behaves like /api/sessions."""
