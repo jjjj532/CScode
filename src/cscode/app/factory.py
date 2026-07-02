@@ -26,11 +26,15 @@ from cscode.tools2 import (
     GlobTool,
     GrepTool,
     LsTool,
+    OutputStoreTool,
+    PlanTool,
     QuestionTool,
     ReadTool,
     SkillTool,
+    TaskTool,
     TodoWriteTool,
     ToolRegistry,
+    TruncateTool,
     WebFetchTool,
     WebSearchTool,
     WriteTool,
@@ -91,6 +95,10 @@ def create_tool_registry() -> ToolRegistry:
         SkillTool(),
         QuestionTool(),
         ApplyPatchTool(),
+        PlanTool(),
+        TaskTool(),
+        TruncateTool(),
+        OutputStoreTool(),
     ]
     for tool in tools:
         registry.register(tool)

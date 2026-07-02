@@ -12,11 +12,15 @@ from cscode.tools2.edit import EditTool
 from cscode.tools2.glob import GlobTool
 from cscode.tools2.grep import GrepTool
 from cscode.tools2.ls import LsTool
+from cscode.tools2.output_store import OutputStoreTool
+from cscode.tools2.plan import PlanTool
 from cscode.tools2.question import QuestionTool
 from cscode.tools2.read import ReadTool
 from cscode.tools2.registry import ToolRegistry
 from cscode.tools2.skill import SkillTool
+from cscode.tools2.task import TaskTool
 from cscode.tools2.todowrite import TodoWriteTool
+from cscode.tools2.truncate import TruncateTool
 from cscode.tools2.webfetch import WebFetchTool
 from cscode.tools2.websearch import WebSearchTool
 from cscode.tools2.write import WriteTool
@@ -39,4 +43,8 @@ __all__ = [
     "SkillTool",
     "ApplyPatchTool",
     "BrowserTool",
+    "PlanTool",
+    "TaskTool",
+    "TruncateTool",
+    "OutputStoreTool",
 ]
