@@ -135,5 +135,88 @@ def desktop() -> None:
     subprocess.Popen(["open", "-a", "CScode"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+@cli.group()
+def migration() -> None:
+    """Manage database migrations."""
+
+
+@migration.command("list")
+def migration_list() -> None:
+    """List registered migrations with their status."""
+    import asyncio
+
+    from cscode.storage.db import Database, _get_migration_registry
+
+    registry = _get_migration_registry()
+    click.echo(f"{'Version':<8} {'Status':<12} Description")
+    click.echo("-" * 60)
+
+    async def _fetch():
+        db = Database()
+        await db.init()
+        applied = set()
+        try:
+            cursor = await db.conn.execute("SELECT version FROM schema_version")
+            applied = {row[0] async for row in cursor}
+        except Exception:
+            pass
+        finally:
+            await db.close()
+        return applied
+
+    try:
+        applied = asyncio.run(_fetch())
+    except Exception as e:
+        click.echo(f"Could not connect to database: {e}")
+        applied = set()
+
+    for m in registry.sorted():
+        status = "applied" if m.version in applied else "pending"
+        click.echo(f"{m.version:<8} {status:<12} {m.description}")
+
+
+@migration.command("run")
+@click.option("--target", default=None, type=int, help="Target version (default: latest)")
+def migration_run(target: int | None) -> None:
+    """Run pending migrations."""
+    import asyncio
+
+    from cscode.storage.db import Database, _get_migration_registry
+    from cscode.storage.migration_runner import MigrationRunner
+
+    async def _run():
+        db = Database()
+        await db.init()
+        runner = MigrationRunner(db.conn, _get_migration_registry())
+        applied = await runner.upgrade(target_version=target)
+        if applied:
+            click.echo(f"Applied migrations: {applied}")
+        else:
+            click.echo("No pending migrations.")
+        await db.close()
+
+    asyncio.run(_run())
+
+
+@migration.command("rollback")
+@click.argument("target", type=int, default=0)
+def migration_rollback(target: int) -> None:
+    """Roll back migrations to target version."""
+    import asyncio
+
+    from cscode.storage.db import Database, _get_migration_registry
+    from cscode.storage.migration_runner import MigrationRunner
+
+    async def _rollback():
+        db = Database()
+        await db.init()
+        runner = MigrationRunner(db.conn, _get_migration_registry())
+        rolled = await runner.downgrade(target)
+        click.echo(f"Rolled back: {rolled}")
+        await db.close()
+
+    asyncio.run(_rollback())
+
+
 def main() -> None:
     cli()

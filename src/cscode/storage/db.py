@@ -5,9 +5,33 @@ from typing import Any
 
 import aiosqlite
 
+from cscode.storage.migration import Migration, MigrationRegistry
+from cscode.storage.migration_runner import MigrationRunner
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+async def _noop(conn: object = None) -> None:
+    """Async no-op for migration downgrade stubs."""
+
+
+# Lazy-initialized registry so built-in migrations can reference functions
+# defined later in this file without forward-declaration issues.
+_migration_registry: MigrationRegistry | None = None
+
+
+def _get_migration_registry() -> MigrationRegistry:
+    global _migration_registry
+    if _migration_registry is None:
+        reg = MigrationRegistry()
+        reg.register(Migration(1, "create sessions and messages tables", _migration_001, _noop))
+        reg.register(Migration(2, "create config table", _migration_002, _noop))
+        reg.register(Migration(3, "create event store tables", _migration_003, _noop))
+        reg.register(Migration(4, "create context_epochs table", _migration_004, _noop))
+        reg.register(Migration(5, "create expected_tasks and task_verifications", _migration_005, _noop))
+        _migration_registry = reg
+    return _migration_registry
 
 
 class Database:
@@ -29,22 +53,10 @@ class Database:
         await self._run_migrations()
 
     async def _run_migrations(self) -> None:
-        async with self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
-        ):
-            pass
-        cursor = await self.conn.execute("SELECT MAX(version) FROM schema_version")
-        row = await cursor.fetchone()
-        current_version = row[0] if row is not None and row[0] is not None else 0
-
-        migrations = [_migration_001, _migration_002, _migration_003, _migration_004, _migration_005]
-        logger.info("Running migrations from version %d", current_version)
-        for i, migration in enumerate(migrations, start=1):
-            if i > current_version:
-                logger.debug("Applying migration %d", i)
-                await migration(self.conn)
-                await self.conn.execute("INSERT INTO schema_version (version) VALUES (?)", (i,))
-        await self.conn.commit()
+        runner = MigrationRunner(self.conn, _get_migration_registry())
+        applied = await runner.upgrade()
+        if applied:
+            logger.info("Applied migrations: %s", applied)
 
     async def close(self) -> None:
         logger.info("Database closing: %s", self._db_path)
