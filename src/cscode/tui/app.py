@@ -5,36 +5,16 @@ from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import Footer, Header, Input, RichLog
 
+from cscode.app.factory import create_agent_v2
 from cscode.core.config import load_config
-from cscode.core.engine import Agent, AgentOptions
 from cscode.core.tui_sessions import TuiSessionManager
-from cscode.providers import create_provider
-from cscode.tools.base import ToolRegistry
-from cscode.tools.bash import BashTool
-from cscode.tools.edit import EditTool
-from cscode.tools.glob import GlobTool
-from cscode.tools.grep import GrepTool
-from cscode.tools.ls import LsTool
-from cscode.tools.read import ReadTool
-from cscode.tools.write import WriteTool
 from cscode.tui.themes import apply_theme
-
-
-def _default_registry() -> ToolRegistry:
-    registry = ToolRegistry()
-    registry.register(ReadTool())
-    registry.register(WriteTool())
-    registry.register(EditTool())
-    registry.register(BashTool())
-    registry.register(GrepTool())
-    registry.register(GlobTool())
-    registry.register(LsTool())
-    return registry
 
 
 class CScodeTUI(App[None]):
     TITLE = "CScode"
     SUB_TITLE = "AI-powered coding assistant"
+
     def __init__(self) -> None:
         super().__init__()
         config = load_config()
@@ -59,16 +39,10 @@ class CScodeTUI(App[None]):
         }
         """
         self.CSS = css  # type: ignore[misc]
-        provider = create_provider(config)
+
+        config.system_prompt = "You are CScode, an AI-powered coding assistant."
+        self._agent = create_agent_v2(config)
         self._session_manager = TuiSessionManager()
-        self._agent = Agent(
-            config=config,
-            provider=provider,
-            registry=_default_registry(),
-            options=AgentOptions(
-                system_prompt="You are CScode, an AI-powered coding assistant.",
-            ),
-        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -82,7 +56,7 @@ class CScodeTUI(App[None]):
     def on_mount(self) -> None:
         output = self.query_one("#output-panel", RichLog)
         output.write("[bold cyan]CScode[/] AI coding assistant")
-        output.write(f"Model: {self._agent.provider.model}")
+        output.write(f"Model: {self._agent.llm_client.route.model}")
         output.write("Type your message and press Enter.")
         output.write("")
 
