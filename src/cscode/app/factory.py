@@ -15,9 +15,12 @@ if TYPE_CHECKING:
     from cscode.app.agent import AgentV2
     from cscode.core.config import Config
 
+from cscode.core.permission_v2 import Ruleset, SavedRules
+from cscode.core.tool_registry import ToolRegistryV2
 from cscode.llm.client import LLMClient
 from cscode.llm.route import resolve_route
 from cscode.schema.ids import ModelID, ProviderID
+from cscode.storage.db import Database
 from cscode.tools2 import (
     ApplyPatchTool,
     BashTool,
@@ -33,7 +36,6 @@ from cscode.tools2 import (
     SkillTool,
     TaskTool,
     TodoWriteTool,
-    ToolRegistry,
     TruncateTool,
     WebFetchTool,
     WebSearchTool,
@@ -77,9 +79,30 @@ def _resolve_api_key(config: Config) -> str:
     return ""
 
 
-def create_tool_registry() -> ToolRegistry:
+async def load_permission_rules(database: Database) -> list[Ruleset]:
+    """Load permission rules from the database via SavedRules.
+
+    Returns an empty list when no rules exist (→ all tools allowed).
+
+    Usage:
+        database = Database()
+        await database.init()
+        rules = await load_permission_rules(database)
+        agent = create_agent_v2(config, permissions=rules)
+    """
+    saved = SavedRules(database)
+    rules = await saved.load()
+    if not rules:
+        logger.debug("load_permission_rules: no rules found")
+        return []
+    ruleset = Ruleset(name="saved", rules=rules)
+    logger.info("load_permission_rules: loaded %d rule(s)", len(rules))
+    return [ruleset]
+
+
+def create_tool_registry() -> ToolRegistryV2:
     """Create the default tool registry with all standard tools."""
-    registry = ToolRegistry()
+    registry = ToolRegistryV2()
     tools: list[_Tool[Any, Any]] = [
         ReadTool(),
         WriteTool(),
@@ -101,14 +124,15 @@ def create_tool_registry() -> ToolRegistry:
         OutputStoreTool(),
     ]
     for tool in tools:
-        registry.register(tool)
+        registry.register_tool(tool)
     logger.info("Tool registry created with %d tools: %s", len(tools), [t.name for t in tools])
     return registry
 
 
 def create_agent_v2(
     config: Config,
-    tool_registry: ToolRegistry | None = None,
+    tool_registry: ToolRegistryV2 | None = None,
+    permissions: list[Ruleset] | None = None,
 ) -> AgentV2:
     """Build an AgentV2 from a Config object.
 
@@ -123,6 +147,8 @@ def create_agent_v2(
         config: Application configuration (provider, model, api_key, etc.).
         tool_registry: Optional pre-configured tool registry.
                        Defaults to create_tool_registry().
+        permissions: Optional permission rulesets. When provided, only
+                     tools matching an ALLOW rule are materialized.
 
     Returns:
         A fully configured AgentV2 instance.
@@ -155,4 +181,5 @@ def create_agent_v2(
         llm_client=llm_client,
         tool_registry=tool_registry,
         system_prompt=config.system_prompt,
+        permissions=permissions,
     )

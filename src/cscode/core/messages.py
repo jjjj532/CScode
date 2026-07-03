@@ -1,3 +1,24 @@
+"""
+⚠️ LEGACY — Prefer ``cscode.schema.messages`` for new code.
+
+This module exists for backward compatibility. The new Parts-based API
+(``cscode.schema.messages``) is the standard for new code instead of the
+flat ``content: str`` + ``tool_calls: list[dict]`` format here.
+
+Migration guide:
+    Old: from cscode.core.messages import Message, MessageRole
+    New: from cscode.schema.messages import Message, MessageRole
+
+    Old Message:
+        msg = Message(role=MessageRole.USER, content="hello")
+        msg.tool_calls = [...]
+
+    New Message:
+        msg = Message.user("hello")             # shortcut
+        msg = Message.from_text(role, "hello")   # explicit
+        msg = Message(role=role, parts=(TextPart(text="hello"),))  # full form
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

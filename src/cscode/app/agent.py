@@ -1,7 +1,6 @@
 """AgentV2 — App-level Agent 封装 LLMClient + ToolRegistry。
 
-提供与旧 Agent (engine.py) 兼容的 run() 接口，
-内部实现完整的 Agent Loop：
+实现了完整的 Agent Loop：
 
   1. Build messages from history + user input
   2. Send LLMRequest with tool definitions
@@ -11,9 +10,7 @@
   6. Loop until Finish or max tool rounds
   7. Return final content
 
-对比旧 Agent:
-  - 旧: Agent (engine.py) → 474 行单文件，耦合 LLM provider + tool dispatch
-  - 新: AgentV2 (app/agent.py) → LLMClient(网络层) + ToolRegistry(工具调度)
+架构: LLMClient(网络层) + ToolRegistryV2(工具调度)
 """
 
 from __future__ import annotations
@@ -22,8 +19,10 @@ import inspect
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from cscode.core.permission_v2 import Ruleset
 from cscode.core.session import SessionV2
 from cscode.core.sub_agent import SubAgentOrchestrator
+from cscode.core.tool_registry import ToolRegistryV2
 from cscode.llm.client import LLMClient
 from cscode.llm.types import LLMRequest
 from cscode.schema.events import (
@@ -45,7 +44,6 @@ from cscode.schema.messages import (
 )
 from cscode.schema.options import GenerationOptions
 from cscode.tools2.base import ToolResult as Tool2Result
-from cscode.tools2.registry import ToolRegistry
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,26 +63,31 @@ class AgentV2:
     def __init__(
         self,
         llm_client: LLMClient,
-        tool_registry: ToolRegistry,
+        tool_registry: ToolRegistryV2,
         max_tool_rounds: int = 20,
         system_prompt: str | None = None,
+        permissions: list[Ruleset] | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._tool_registry = tool_registry
         self._max_tool_rounds = max_tool_rounds
         self._system_prompt = system_prompt
+        self._permissions = permissions
 
         # Materialize tool definitions + settle once
-        self._tool_definitions, self._settle = tool_registry.materialize()
+        mat = tool_registry.materialize(permissions=permissions)
+        self._tool_definitions = mat.definitions
+        self._settle = mat.settle
 
         # SubAgentOrchestrator for @tool mention processing
         self._sub_agent = SubAgentOrchestrator(tool_registry)
 
         logger.info(
-            "AgentV2 initialized: model=%s tools=%d max_rounds=%d",
+            "AgentV2 initialized: model=%s tools=%d max_rounds=%d permissions=%s",
             llm_client.route.model,
             len(self._tool_definitions),
             max_tool_rounds,
+            len(permissions) if permissions else None,
         )
 
     @property
@@ -92,7 +95,7 @@ class AgentV2:
         return self._llm_client
 
     @property
-    def tool_registry(self) -> ToolRegistry:
+    def tool_registry(self) -> ToolRegistryV2:
         return self._tool_registry
 
     async def run(

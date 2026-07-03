@@ -1,7 +1,6 @@
 """SessionRunner — standardized Agent Loop.
 
-Extracts the core agent loop from engine.py's _run_loop into a
-clean abstraction that uses the LLM layer (LLMClient + ToolRuntime)
+A clean abstraction that uses the LLM layer (LLMClient + ToolRuntime)
 and Event Sourcing (SessionV2).
 
 The loop:

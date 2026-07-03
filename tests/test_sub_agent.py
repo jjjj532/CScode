@@ -4,9 +4,9 @@ import pytest
 from pydantic import BaseModel
 
 from cscode.core.sub_agent import SubAgentOrchestrator
+from cscode.core.tool_registry import ToolRegistryV2
 from cscode.schema.messages import Message, MessageRole, TextPart
 from cscode.tools2.base import Tool, ToolResult
-from cscode.tools2.registry import ToolRegistry
 
 # ─── Test tools ─────────────────────────────────────────────────────
 
@@ -50,15 +50,15 @@ class FailTool(Tool[FailInput, FailOutput]):
 # ─── Fixtures ───────────────────────────────────────────────────────
 
 @pytest.fixture
-def registry() -> ToolRegistry:
-    reg = ToolRegistry()
-    reg.register(EchoTool())
-    reg.register(FailTool())
+def registry() -> ToolRegistryV2:
+    reg = ToolRegistryV2()
+    reg.register_tool(EchoTool())
+    reg.register_tool(FailTool())
     return reg
 
 
 @pytest.fixture
-def sub_agent(registry: ToolRegistry) -> SubAgentOrchestrator:
+def sub_agent(registry: ToolRegistryV2) -> SubAgentOrchestrator:
     return SubAgentOrchestrator(registry)
 
 

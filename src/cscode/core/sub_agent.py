@@ -16,15 +16,16 @@ from __future__ import annotations
 
 import re
 
+from cscode.core.tool_registry import ToolRegistryV2
 from cscode.schema.messages import Message, MessageRole, TextPart
-from cscode.tools2.registry import ToolRegistry
 
 
 class SubAgentOrchestrator:
     """Processes @tool mentions by executing tools and injecting results."""
 
-    def __init__(self, tool_registry: ToolRegistry) -> None:
-        _, self._settle = tool_registry.materialize()
+    def __init__(self, tool_registry: ToolRegistryV2) -> None:
+        mat = tool_registry.materialize()
+        self._settle = mat.settle
 
     async def process_messages(self, messages: list[Message]) -> list[Message]:
         """Process @tool mentions in all user messages.

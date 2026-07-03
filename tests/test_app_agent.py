@@ -28,7 +28,8 @@ from cscode.schema.events import (
     ToolCallEnded,
 )
 from cscode.schema.ids import ModelID, ToolCallID
-from cscode.tools2 import Tool, ToolRegistry, ToolResult
+from cscode.core.tool_registry import ToolRegistryV2
+from cscode.tools2 import Tool, ToolResult
 
 # ─── Mock LLMClient ───────────────────────────────────────────────
 
@@ -99,12 +100,12 @@ class _FailingTool(Tool[_FailingInput, _FailingOutput]):
 
 
 @pytest.fixture
-def echo_registry() -> ToolRegistry:
+def echo_registry() -> ToolRegistryV2:
     """Registry with _EchoTool from conftest."""
     from tests.conftest import _EchoTool
 
-    r = ToolRegistry()
-    r.register(_EchoTool())
+    r = ToolRegistryV2()
+    r.register_tool(_EchoTool())
     return r
 
 
@@ -123,7 +124,7 @@ def text_only_batch() -> list[LLMEvent]:
 
 
 @pytest.mark.asyncio
-async def test_run_text_only(text_only_batch: list[LLMEvent], echo_registry: ToolRegistry) -> None:
+async def test_run_text_only(text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2) -> None:
     """AgentV2.run() should return concatenated text for text-only responses."""
     mock_client = MockLLMClient([text_only_batch])
     agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
@@ -136,7 +137,7 @@ async def test_run_text_only(text_only_batch: list[LLMEvent], echo_registry: Too
 
 @pytest.mark.asyncio
 async def test_run_text_with_system_prompt(
-    text_only_batch: list[LLMEvent], echo_registry: ToolRegistry
+    text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2
 ) -> None:
     """AgentV2.run() should include system prompt in messages."""
     mock_client = MockLLMClient([text_only_batch])
@@ -160,7 +161,7 @@ async def test_run_text_with_system_prompt(
 
 
 @pytest.mark.asyncio
-async def test_run_with_tool_call(echo_registry: ToolRegistry) -> None:
+async def test_run_with_tool_call(echo_registry: ToolRegistryV2) -> None:
     """AgentV2.run() should handle tool calls and return assistant text."""
     batch1: list[LLMEvent] = [
         Pending(),
@@ -189,11 +190,11 @@ async def test_run_with_tool_call(echo_registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_with_tool_error(echo_registry: ToolRegistry) -> None:
+async def test_run_with_tool_error(echo_registry: ToolRegistryV2) -> None:
     """AgentV2.run() should handle tool failures gracefully."""
     # Register a failing tool
-    failing_registry = ToolRegistry()
-    failing_registry.register(_FailingTool())
+    failing_registry = ToolRegistryV2()
+    failing_registry.register_tool(_FailingTool())
 
     batch1: list[LLMEvent] = [
         Pending(),
@@ -225,7 +226,7 @@ async def test_run_with_tool_error(echo_registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_llm_error(echo_registry: ToolRegistry) -> None:
+async def test_run_llm_error(echo_registry: ToolRegistryV2) -> None:
     """AgentV2.run() should return error message on LLM failure."""
     from cscode.schema.errors import LLMError, LLMErrorReason
     from cscode.schema.events import Error as LLMEventError
@@ -256,7 +257,7 @@ async def test_run_llm_error(echo_registry: ToolRegistry) -> None:
 
 @pytest.mark.asyncio
 async def test_run_on_event_callback(
-    text_only_batch: list[LLMEvent], echo_registry: ToolRegistry
+    text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2
 ) -> None:
     """AgentV2.run() should invoke on_event callback for each event."""
     mock_client = MockLLMClient([text_only_batch])
@@ -277,7 +278,7 @@ async def test_run_on_event_callback(
 
 @pytest.mark.asyncio
 async def test_run_stream_text_only(
-    text_only_batch: list[LLMEvent], echo_registry: ToolRegistry
+    text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2
 ) -> None:
     """run_stream() should yield all events for text-only responses."""
     mock_client = MockLLMClient([text_only_batch])
@@ -295,7 +296,7 @@ async def test_run_stream_text_only(
 
 
 @pytest.mark.asyncio
-async def test_run_stream_tool_call(echo_registry: ToolRegistry) -> None:
+async def test_run_stream_tool_call(echo_registry: ToolRegistryV2) -> None:
     """run_stream() should include tool result events."""
     batch1: list[LLMEvent] = [
         Pending(),
@@ -323,7 +324,7 @@ async def test_run_stream_tool_call(echo_registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_stream_llm_error(echo_registry: ToolRegistry) -> None:
+async def test_run_stream_llm_error(echo_registry: ToolRegistryV2) -> None:
     """run_stream() should yield error event and stop."""
     from cscode.schema.errors import LLMError, LLMErrorReason
     from cscode.schema.events import Error as LLMEventError
@@ -397,7 +398,7 @@ async def test_create_agent_v2_with_system_prompt() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_empty_input(echo_registry: ToolRegistry) -> None:
+async def test_run_empty_input(echo_registry: ToolRegistryV2) -> None:
     """AgentV2.run() should handle empty user input."""
     batch: list[LLMEvent] = [
         Pending(),
@@ -415,7 +416,7 @@ async def test_run_empty_input(echo_registry: ToolRegistry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_max_tool_rounds(echo_registry: ToolRegistry) -> None:
+async def test_run_max_tool_rounds(echo_registry: ToolRegistryV2) -> None:
     """AgentV2.run() should stop after max_tool_rounds."""
     batch: list[LLMEvent] = [
         Pending(),
