@@ -12,6 +12,7 @@ from cscode.tools2.edit import EditTool
 from cscode.tools2.glob import GlobTool
 from cscode.tools2.grep import GrepTool
 from cscode.tools2.ls import LsTool
+from cscode.tools2.lsp import LSPTool
 from cscode.tools2.output_store import OutputStoreTool
 from cscode.tools2.plan import PlanTool
 from cscode.tools2.question import QuestionTool
@@ -47,4 +48,5 @@ __all__ = [
     "TaskTool",
     "TruncateTool",
     "OutputStoreTool",
+    "LSPTool",
 ]
