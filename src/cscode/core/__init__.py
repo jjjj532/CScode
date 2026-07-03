@@ -1,17 +1,11 @@
-"""CScode Core Layer — Event Sourcing engine, session management, agent loop.
+"""CScode Core Layer — sessions, coordinator, runner.
 
-New architecture (Phase 2+):
   SessionV2           — Event Sourcing-based session
   SessionProjector    — Events → SessionState reconstruction
   SessionCoordinator  — Per-session state machine (run/wake/interrupt)
   SessionRunner       — Standardized agent loop using LLM layer
-
-Legacy (existing, stable):
-  Agent               — engine.py: traditional agent loop
   Config              — config.py: flat configuration
-  PermissionService   — permissions.py: tool permission checks
   TuiSessionManager  — tui_sessions.py: TUI session management
-  EventBus            — events.py: pub/sub event system
 """
 
 from __future__ import annotations
