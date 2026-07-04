@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from cscode.sharing.serializer import SessionSerializer
 from cscode.sharing.links import ShareLinkGenerator
@@ -97,3 +99,88 @@ class TestShareManager:
         retrieved = mgr.get_share(share["share_id"])
         assert retrieved is not None
         assert retrieved["public"] is False
+
+
+# ─── ShareStore persistence tests ────────────────────────────────────────
+
+
+class TestSharedSessionModel:
+    def test_create_defaults(self) -> None:
+        from cscode.core.sharing import SharedSession
+        s = SharedSession(session_id="sess_001")
+        assert s.session_id == "sess_001"
+        assert s.id is not None
+        assert s.title == ""
+        assert s.is_active is True
+
+    def test_expired(self) -> None:
+        from cscode.core.sharing import SharedSession
+        past = datetime.now(timezone.utc) - timedelta(days=1)
+        s = SharedSession(session_id="sess_001", expires_at=past)
+        assert s.is_expired() is True
+
+    def test_not_expired(self) -> None:
+        from cscode.core.sharing import SharedSession
+        future = datetime.now(timezone.utc) + timedelta(days=1)
+        s = SharedSession(session_id="sess_001", expires_at=future)
+        assert s.is_expired() is False
+
+
+class TestShareStore:
+    @pytest.fixture
+    async def store(self) -> object:
+        from cscode.storage.db import Database
+        db = Database(":memory:")
+        await db.init()
+        from cscode.core.sharing import ShareStore
+        return ShareStore(db)
+
+    async def test_create_and_get(self, store: object) -> None:
+        from cscode.core.sharing import ShareStore
+        s = store  # type: ignore
+        created = await s.create("sess_001", title="Test")
+        assert created.session_id == "sess_001"
+        fetched = await s.get(created.id)
+        assert fetched is not None
+        assert fetched.session_id == "sess_001"
+
+    async def test_get_not_found(self, store: object) -> None:
+        from cscode.core.sharing import ShareStore
+        s = store  # type: ignore
+        result = await s.get("nonexistent")
+        assert result is None
+
+    async def test_list(self, store: object) -> None:
+        from cscode.core.sharing import ShareStore
+        s = store  # type: ignore
+        await s.create("sess_001")
+        await s.create("sess_002")
+        shares = await s.list()
+        assert len(shares) == 2
+
+    async def test_list_by_session(self, store: object) -> None:
+        from cscode.core.sharing import ShareStore
+        s = store  # type: ignore
+        await s.create("sess_001")
+        await s.create("sess_001")
+        shares = await s.list_by_session("sess_001")
+        assert len(shares) == 2
+
+    async def test_deactivate(self, store: object) -> None:
+        from cscode.core.sharing import ShareStore
+        s = store  # type: ignore
+        created = await s.create("sess_001")
+        result = await s.deactivate(created.id)
+        assert result is True
+        fetched = await s.get(created.id)
+        assert fetched is not None
+        assert fetched.is_active is False
+
+    async def test_delete(self, store: object) -> None:
+        from cscode.core.sharing import ShareStore
+        s = store  # type: ignore
+        created = await s.create("sess_001")
+        result = await s.delete(created.id)
+        assert result is True
+        fetched = await s.get(created.id)
+        assert fetched is None
