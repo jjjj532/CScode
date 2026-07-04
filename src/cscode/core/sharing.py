@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List
 
 if TYPE_CHECKING:
     from cscode.storage.db import Database
@@ -71,7 +71,7 @@ class ShareStore:
             return None
         return self._row_to_share(row)
 
-    async def list(self) -> list[SharedSession]:
+    async def list(self) -> List[SharedSession]:
         rows = await self._db.fetchall(
             "SELECT * FROM shares WHERE is_active = 1 "
             "AND (expires_at IS NULL OR expires_at > datetime('now')) "
@@ -79,7 +79,7 @@ class ShareStore:
         )
         return [self._row_to_share(r) for r in rows]
 
-    async def list_by_session(self, session_id: str) -> list[SharedSession]:
+    async def list_by_session(self, session_id: str) -> List[SharedSession]:
         rows = await self._db.fetchall(
             "SELECT * FROM shares WHERE session_id = ? AND is_active = 1 "
             "ORDER BY created_at DESC",
@@ -117,7 +117,7 @@ class ShareStore:
         )
 
     @staticmethod
-    def _row_to_share(row) -> SharedSession:
+    def _row_to_share(row: Any) -> SharedSession:
         created = row["created_at"]
         if isinstance(created, str):
             created_dt = datetime.fromisoformat(created)

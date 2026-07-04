@@ -50,8 +50,8 @@ from cscode.schema.messages import (
 from cscode.schema.messages import (
     MessageRole,
 )
-from cscode.server.integration import WebSocketManager
 from cscode.server.compactor import Compactor
+from cscode.server.integration import WebSocketManager
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
 from cscode.storage.db import Database
@@ -119,7 +119,8 @@ class _CallableProcessor:
         self._handler = handler
 
     async def process(self, session_id: str) -> str:
-        return await self._handler()
+        result = await self._handler()
+        return str(result) if result else ""
 
 
 @asynccontextmanager

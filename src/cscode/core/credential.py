@@ -205,7 +205,7 @@ class CredentialStore:
             cred_id: Credential ID.
             name: New name (None to keep unchanged).
             value: New value (None to keep unchanged).
-            expires_at: New expiry (None to keep unchanged).
+            expires_at: New expiry (omit to keep unchanged, None to clear).
 
         Returns:
             The updated Credential, or None if not found.
@@ -217,10 +217,7 @@ class CredentialStore:
         now = time.time()
         new_name = name if name is not None else existing.name
         new_value = value if value is not None else existing.value
-        # Explicit sentinel for expires_at since None is a valid value
-        new_expires = expires_at if "expires_at" in locals() and expires_at is not None else existing.expires_at
-        if expires_at is ...:
-            new_expires = existing.expires_at
+        new_expires = expires_at if expires_at is not None else existing.expires_at
 
         await self._db.execute(
             "UPDATE credentials SET name=?, value=?, expires_at=?, updated_at=? WHERE id=?",

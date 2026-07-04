@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from cscode.core.session import SessionV2
@@ -20,7 +20,7 @@ class SessionSummary:
     def __init__(self, session: SessionV2) -> None:
         self._session = session
 
-    def generate(self) -> dict:
+    def generate(self) -> dict[str, object]:
         """Produce a summary dict from the session state."""
         state = self._session.state
         messages = state.messages
@@ -65,7 +65,7 @@ class SessionSummary:
         }
 
 
-def _truncate_message(message) -> str:
+def _truncate_message(message: Any) -> str:
     parts_text = []
     for part in message.parts:
         text = getattr(part, "text", None)
