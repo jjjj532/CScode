@@ -1293,7 +1293,7 @@ async def get_session_context(session_id: str) -> list[dict[str, object]]:
 
 
 @api_router.get("/sessions/{session_id}/summary")
-async def get_session_summary(session_id: str) -> dict:
+async def get_session_summary(session_id: str) -> dict[str, object]:
     """P1-8: Return a statistical summary of a session."""
     global _event_store
     if _event_store is None:

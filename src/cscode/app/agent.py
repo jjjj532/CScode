@@ -227,7 +227,7 @@ class AgentV2:
                         assistant_text = raw.content
                         assistant_parts.append(TextPart(text=raw.content))
                         if on_event is not None:
-                            evt = TextDelta(text=raw.content)
+                            evt: LLMEvent = TextDelta(text=raw.content)
                             await on_event(evt) if hasattr(on_event, "__await__") else on_event(evt)
                             evt = TextEnded(full_text=raw.content)
                             await on_event(evt) if hasattr(on_event, "__await__") else on_event(evt)
@@ -296,7 +296,7 @@ class AgentV2:
                     from cscode.schema.events import ToolFailure, ToolResult
 
                     if is_error:
-                        evt: LLMEvent = ToolFailure(
+                        evt = ToolFailure(
                             tool_call_id=tc.tool_call_id,
                             error=result_str,
                         )

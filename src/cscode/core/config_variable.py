@@ -21,7 +21,7 @@ def resolve_variables(value: str) -> str:
     if not value or "${" not in value:
         return value
 
-    def _replace(m: re.Match) -> str:
+    def _replace(m: re.Match[str]) -> str:
         var = m.group(1)
         default = m.group(2)
         if default is not None:

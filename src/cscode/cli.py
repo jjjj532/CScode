@@ -151,7 +151,7 @@ def migration_list() -> None:
     click.echo(f"{'Version':<8} {'Status':<12} Description")
     click.echo("-" * 60)
 
-    async def _fetch():
+    async def _fetch() -> set[int]:
         db = Database()
         await db.init()
         applied = set()
@@ -184,7 +184,7 @@ def migration_run(target: int | None) -> None:
     from cscode.storage.db import Database, _get_migration_registry
     from cscode.storage.migration_runner import MigrationRunner
 
-    async def _run():
+    async def _run() -> None:
         db = Database()
         await db.init()
         runner = MigrationRunner(db.conn, _get_migration_registry())
@@ -207,7 +207,7 @@ def migration_rollback(target: int) -> None:
     from cscode.storage.db import Database, _get_migration_registry
     from cscode.storage.migration_runner import MigrationRunner
 
-    async def _rollback():
+    async def _rollback() -> None:
         db = Database()
         await db.init()
         runner = MigrationRunner(db.conn, _get_migration_registry())

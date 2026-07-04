@@ -457,7 +457,7 @@ def _prepty() -> None:
 # ═══════════════════════════════════════════════════════════════════
 
 
-class PTYTool(Tool[PTYInput, Any]):  # type: ignore[type-arg]
+class PTYTool(Tool[PTYInput, Any]):
     """Tool for managing persistent PTY shell sessions.
 
     Supports create/exec/read/close/list actions for interactive
@@ -467,7 +467,7 @@ class PTYTool(Tool[PTYInput, Any]):  # type: ignore[type-arg]
     name = "pty"
     description = "Manage persistent shell sessions via PTY. Use action=create to start a session, action=exec to run commands, action=read to get pending output, action=close to end a session, action=list to see all sessions. Sessions preserve state (cwd, env) across exec calls."
     input_schema = PTYInput
-    output_schema = PTYOutput  # type: ignore[arg-type]
+    output_schema = PTYOutput  # type: ignore[assignment]
 
     def __init__(self, manager: PTYSessionManager | None = None) -> None:
         super().__init__()

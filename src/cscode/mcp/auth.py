@@ -354,7 +354,8 @@ class MCPOAuthClient:
             "method": "tools/list",
             "params": {},
         })
-        return result.get("result", {}).get("tools", [])
+        tools: list[dict[str, Any]] = result.get("result", {}).get("tools", [])
+        return tools
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         result = await self.request({
@@ -363,7 +364,7 @@ class MCPOAuthClient:
             "method": "tools/call",
             "params": {"name": name, "arguments": arguments},
         })
-        return result.get("result", {})
+        return dict(result.get("result", {}))
 
 
 async def discover_oauth_metadata(server_url: str) -> OAuthServerMetadata | None:

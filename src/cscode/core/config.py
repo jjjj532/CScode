@@ -202,7 +202,7 @@ class Config:
         for _key, _cls in _SUB_CONFIG_CLASSES.items():
             _val = getattr(self, _key, None)
             if isinstance(_val, dict):
-                object.__setattr__(self, _key, _cls.from_dict(_val))
+                object.__setattr__(self, _key, _cls.from_dict(_val))  # type: ignore[attr-defined]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
@@ -217,7 +217,7 @@ class Config:
             # Sub-config dicts: instantiate the sub-dataclass; skip non-dict values (e.g. env var strings)
             if k in _SUB_CONFIG_CLASSES:
                 if isinstance(v, dict):
-                    filtered[k] = _SUB_CONFIG_CLASSES[k].from_dict(v)
+                    filtered[k] = _SUB_CONFIG_CLASSES[k].from_dict(v)  # type: ignore[attr-defined]
             else:
                 filtered[k] = v
         return cls(**filtered)
