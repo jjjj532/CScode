@@ -27,6 +27,30 @@ def create_provider(config: Config) -> LLMProvider:
         case "openrouter":
             from cscode.providers.openrouter import OpenRouterProvider
             return OpenRouterProvider(config)
+        case "cohere":
+            from cscode.providers.cohere import CohereProvider
+            return CohereProvider(config)
+        case "grok":
+            from cscode.providers.grok import GrokProvider
+            return GrokProvider(config)
+        case "mistral":
+            from cscode.providers.mistral import MistralProvider
+            return MistralProvider(config)
+        case "nvidia":
+            from cscode.providers.nvidia import NvidiaProvider
+            return NvidiaProvider(config)
+        case "perplexity":
+            from cscode.providers.perplexity import PerplexityProvider
+            return PerplexityProvider(config)
+        case "xai":
+            from cscode.providers.xai import XAIProvider
+            return XAIProvider(config)
+        case "bedrock":
+            from cscode.providers.bedrock import BedrockProvider
+            return BedrockProvider(config)
+        case "vertex":
+            from cscode.providers.vertex import VertexProvider
+            return VertexProvider(config)
         case "custom" | "scnet":
             from cscode.providers.openai import OpenAIProvider
             return OpenAIProvider(config)
