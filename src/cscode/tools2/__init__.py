@@ -15,6 +15,7 @@ from cscode.tools2.ls import LsTool
 from cscode.tools2.lsp import LSPTool
 from cscode.tools2.output_store import OutputStoreTool
 from cscode.tools2.plan import PlanTool
+from cscode.tools2.pty import PTYTool
 from cscode.tools2.question import QuestionTool
 from cscode.tools2.read import ReadTool
 from cscode.tools2.registry import ToolRegistry
@@ -45,6 +46,7 @@ __all__ = [
     "ApplyPatchTool",
     "BrowserTool",
     "PlanTool",
+    "PTYTool",
     "TaskTool",
     "TruncateTool",
     "OutputStoreTool",

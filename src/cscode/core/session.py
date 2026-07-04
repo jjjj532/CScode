@@ -50,6 +50,8 @@ class SessionProjector:
         logger.debug("Projecting %d events", len(events))
         state = SessionState(session_id=SessionID(""), created_at=time.time())
         messages: list[Message] = []
+        msg_seqs: list[int] = []
+        tool_seqs: list[int] = []
 
         for event in events:
             state.seq = event.seq
@@ -78,32 +80,72 @@ class SessionProjector:
 
                 case "prompt.admitted":
                     content = event.data.get("prompt") or event.data.get("content", "")
-                    messages.append(
-                        Message(
-                            id=None,
-                            role=MessageRole.USER,
-                            parts=(TextPart(text=str(content)),),
-                        )
+                    msg = Message(
+                        id=None,
+                        role=MessageRole.USER,
+                        parts=(TextPart(text=str(content)),),
                     )
+                    messages.append(msg)
+                    msg_seqs.append(event.seq)
 
                 case "text.ended":
-                    messages.append(
-                        Message(
-                            id=None,
-                            role=MessageRole.ASSISTANT,
-                            parts=(TextPart(text=str(event.data.get("content", ""))),),
-                        )
+                    msg = Message(
+                        id=None,
+                        role=MessageRole.ASSISTANT,
+                        parts=(TextPart(text=str(event.data.get("content", ""))),),
                     )
+                    messages.append(msg)
+                    msg_seqs.append(event.seq)
 
                 case "tool.called":
                     state.tool_rounds += 1
+                    tool_seqs.append(event.seq)
+
+                case "session.reverted":
+                    target_seq = event.data.get("target_seq", 0)
+                    if target_seq > 0:
+                        filtered: list[tuple[Message, int]] = [
+                            (m, s) for m, s in zip(messages, msg_seqs)
+                            if s <= target_seq
+                        ]
+                        messages = [m for m, _ in filtered]
+                        msg_seqs = [s for _, s in filtered]
+                        tool_seqs = [s for s in tool_seqs if s <= target_seq]
+                        state.tool_rounds = len(tool_seqs)
 
                 case "compaction":
                     baseline_seq = event.data.get("baseline_seq", 0)
-                    messages = [
-                        m for m in messages
-                        if getattr(m, "_seq", float("inf")) >= baseline_seq
+                    filtered = [
+                        (m, s) for m, s in zip(messages, msg_seqs)
+                        if s >= baseline_seq
                     ]
+                    messages = [m for m, _ in filtered]
+                    msg_seqs = [s for _, s in filtered]
+
+                case "msg.edited":
+                    idx = int(event.data.get("msg_index", -1))
+                    if idx < 0 or idx >= len(messages):
+                        raise IndexError(
+                            f"msg.edited: msg_index {idx} out of range "
+                            f"(0-{len(messages) - 1})"
+                        )
+                    new_content = str(event.data.get("new_content", ""))
+                    old = messages[idx]
+                    messages[idx] = Message(
+                        id=old.id,
+                        role=old.role,
+                        parts=(TextPart(text=new_content), *old.parts[1:]),
+                    )
+
+                case "msg.deleted":
+                    idx = int(event.data.get("msg_index", -1))
+                    if idx < 0 or idx >= len(messages):
+                        raise IndexError(
+                            f"msg.deleted: msg_index {idx} out of range "
+                            f"(0-{len(messages) - 1})"
+                        )
+                    messages.pop(idx)
+                    msg_seqs.pop(idx)
 
                 case "session.deleted":
                     state.status = "deleted"
@@ -270,6 +312,122 @@ class SessionV2:
         events = await self._event_store.append(
             self._session_id,
             [{"type": "session.updated", "data": data}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def revert(self, target_seq: int) -> list[Event]:
+        """Revert session to a previous state by target event sequence.
+
+        Appends a session.reverted event. The projector will truncate
+        messages to only those with seq <= target_seq on next project.
+
+        Args:
+            target_seq: Target event sequence to revert to.
+                        Must be > 0 and < current seq.
+
+        Returns:
+            The stored events.
+
+        Raises:
+            ValueError: If target_seq is out of valid range.
+        """
+        current_seq = self.state.seq
+        if target_seq <= 0:
+            msg = f"target_seq must be > 0, got {target_seq}"
+            raise ValueError(msg)
+        if target_seq >= current_seq:
+            msg = f"target_seq ({target_seq}) must be < current seq ({current_seq})"
+            raise ValueError(msg)
+
+        logger.info(
+            "Session revert: id=%s target_seq=%d current_seq=%d",
+            self._session_id, target_seq, current_seq,
+        )
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "session.reverted", "data": {"target_seq": target_seq}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def edit_message(self, msg_index: int, new_content: str) -> list[Event]:
+        """Edit the content of a message at the given index.
+
+        Appends a msg.edited event. The projector will replace the
+        message text while preserving the role and any non-text parts.
+
+        Args:
+            msg_index: 0-based index of the message to edit.
+            new_content: Replacement text content (must be non-empty).
+
+        Returns:
+            The stored events.
+
+        Raises:
+            IndexError: If msg_index is out of range.
+            ValueError: If new_content is empty.
+        """
+        if not new_content.strip():
+            msg = "new_content must not be empty"
+            raise ValueError(msg)
+        n = len(self.state.messages)
+        if msg_index < 0 or msg_index >= n:
+            raise IndexError(
+                f"edit_message: msg_index {msg_index} out of range "
+                f"(0-{n - 1})"
+            )
+        logger.debug(
+            "Edit message: session=%s msg_index=%d",
+            self._session_id, msg_index,
+        )
+        events = await self._event_store.append(
+            self._session_id,
+            [{
+                "type": "msg.edited",
+                "data": {"msg_index": msg_index, "new_content": new_content},
+            }],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def delete_message(self, msg_index: int) -> list[Event]:
+        """Delete a message at the given index.
+
+        Appends a msg.deleted event. The projector will remove the
+        message from the list. Subsequent messages shift down.
+
+        Args:
+            msg_index: 0-based index of the message to delete.
+
+        Returns:
+            The stored events.
+
+        Raises:
+            IndexError: If msg_index is out of range.
+        """
+        n = len(self.state.messages)
+        if msg_index < 0 or msg_index >= n:
+            raise IndexError(
+                f"delete_message: msg_index {msg_index} out of range "
+                f"(0-{n - 1})"
+            )
+        logger.debug(
+            "Delete message: session=%s msg_index=%d",
+            self._session_id, msg_index,
+        )
+        events = await self._event_store.append(
+            self._session_id,
+            [{
+                "type": "msg.deleted",
+                "data": {"msg_index": msg_index},
+            }],
         )
         self._state = SessionProjector.project(
             await self._event_store.read(self._session_id)

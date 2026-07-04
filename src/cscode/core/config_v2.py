@@ -100,6 +100,59 @@ class ProviderConfig:
     api_base: str | None = None
 
 
+@dataclass
+class AttachmentConfig:
+    """文件附件配置。
+
+    Controls file attachment behavior: size limits, allowed extensions,
+    max attachments per message, and base directory for file storage.
+    """
+
+    max_size: int = 10 * 1024 * 1024  # 10 MB
+    allowed_extensions: tuple[str, ...] = (
+        ".py", ".pyi", ".pyx",
+        ".ts", ".tsx", ".mts", ".cts",
+        ".js", ".jsx", ".mjs", ".cjs",
+        ".rs", ".go", ".rb", ".java", ".kt",
+        ".swift", ".c", ".cpp", ".h", ".hpp",
+        ".css", ".scss", ".less",
+        ".html", ".htm", ".xhtml",
+        ".xml", ".json", ".yaml", ".yml", ".toml",
+        ".md", ".mdx", ".rst", ".txt",
+        ".sh", ".bash", ".zsh", ".fish",
+        ".env", ".gitignore",
+        ".sql", ".graphql", ".proto",
+        ".csv", ".tsv",
+    )
+    max_count: int = 10
+    allow_all: bool = False
+    """When True, skip allowed_extensions check (accepts any file type)."""
+    base_dir: str | None = None
+    """Optional base directory for resolving relative attachment paths."""
+
+    # ─── Validation helpers ─────────────────────────────────────────
+
+    def is_extension_allowed(self, filename: str) -> bool:
+        """Check if a filename has an allowed extension.
+
+        When allow_all is True, always returns True.
+        """
+        if self.allow_all:
+            return True
+        for ext in self.allowed_extensions:
+            if filename.endswith(ext):
+                return True
+        return False
+
+    def is_size_allowed(self, size: int) -> bool:
+        """Check if a file size is within the limit."""
+        return 0 <= size <= self.max_size
+
+    def is_count_allowed(self, count: int) -> bool:
+        """Check if the attachment count is within the limit."""
+        return 0 <= count <= self.max_count
+
+
 # ─── ConfigV2 ────────────────────────────────────────────────────────
 
 
@@ -148,6 +201,7 @@ class ConfigV2:
     mcp: list[MCPConfig] = field(default_factory=list)
     plugin: list[PluginConfig] = field(default_factory=list)
     provider: dict[str, ProviderConfig] = field(default_factory=dict)
+    attachment: AttachmentConfig | None = None
 
     # ─── Serialisation ──────────────────────────────────────────────
 
@@ -185,6 +239,16 @@ class ConfigV2:
             result["plugin"] = [{"name": p.name, "enabled": p.enabled, "config": p.config} for p in self.plugin]
         if self.provider:
             result["provider"] = {name: {"api_base": p.api_base} for name, p in self.provider.items() if p.api_base}
+        if self.attachment is not None:
+            att: dict[str, Any] = {
+                "max_size": self.attachment.max_size,
+                "allowed_extensions": list(self.attachment.allowed_extensions),
+                "max_count": self.attachment.max_count,
+                "allow_all": self.attachment.allow_all,
+            }
+            if self.attachment.base_dir is not None:
+                att["base_dir"] = self.attachment.base_dir
+            result["attachment"] = att
         return result
 
     @classmethod
@@ -288,6 +352,18 @@ class ConfigV2:
                         api_key=pd.get("api_key"),
                         api_base=pd.get("api_base"),
                     )
+
+        # Attachment
+        attachment_data = data.get("attachment")
+        if isinstance(attachment_data, dict):
+            exts = attachment_data.get("allowed_extensions")
+            cfg.attachment = AttachmentConfig(
+                max_size=int(attachment_data.get("max_size", 10 * 1024 * 1024)),
+                allowed_extensions=tuple(str(e) for e in exts) if isinstance(exts, list) else AttachmentConfig.allowed_extensions,
+                max_count=int(attachment_data.get("max_count", 10)),
+                allow_all=bool(attachment_data.get("allow_all", False)),
+                base_dir=attachment_data.get("base_dir"),
+            )
 
         return cfg
 
@@ -414,6 +490,9 @@ class ConfigV2:
         mcp = list(other.mcp) if other.mcp else list(self.mcp)
         plugin = list(other.plugin) if other.plugin else list(self.plugin)
 
+        # Scalar (optional) — replace
+        attachment = other.attachment if other.attachment is not None else self.attachment
+
         return ConfigV2(
             shell=shell,
             model=model,
@@ -422,6 +501,7 @@ class ConfigV2:
             mcp=mcp,
             plugin=plugin,
             provider=provider,
+            attachment=attachment,
         )
 
 

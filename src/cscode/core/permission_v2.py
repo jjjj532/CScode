@@ -190,6 +190,7 @@ class PermissionV2:
 _SAVED_RULES_TABLE = """
 CREATE TABLE IF NOT EXISTS saved_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,
     action TEXT NOT NULL DEFAULT '*',
     resource TEXT NOT NULL DEFAULT '*',
     effect TEXT NOT NULL DEFAULT 'deny',
@@ -201,7 +202,8 @@ CREATE TABLE IF NOT EXISTS saved_rules (
 class SavedRules:
     """Persistent rule storage backed by the application database.
 
-    Rules are serialized as rows in the saved_rules table.
+    Supports both global rules (session_id=NULL) and session-scoped rules.
+    Session rules take precedence over global rules during evaluation.
     """
 
     def __init__(self, db: Database) -> None:
@@ -210,8 +212,10 @@ class SavedRules:
     async def _ensure_table(self) -> None:
         await self._db.conn.execute(_SAVED_RULES_TABLE)
 
+    # ── Global rules ────────────────────────────────────────────────
+
     async def save(self, rule: Rule) -> None:
-        """Persist a single rule."""
+        """Persist a global rule (applies to all sessions)."""
         logger.debug("SavedRules.save: %s/%s -> %s", rule.action, rule.resource, rule.effect)
         await self._ensure_table()
         await self._db.conn.execute(
@@ -221,10 +225,10 @@ class SavedRules:
         await self._db.conn.commit()
 
     async def load(self) -> list[Rule]:
-        """Load all persisted rules, in insertion order."""
+        """Load all global rules (session_id IS NULL)."""
         await self._ensure_table()
         cursor = await self._db.conn.execute(
-            "SELECT action, resource, effect FROM saved_rules ORDER BY id ASC"
+            "SELECT action, resource, effect FROM saved_rules WHERE session_id IS NULL ORDER BY id ASC"
         )
         rows = await cursor.fetchall()
         return [
@@ -237,8 +241,104 @@ class SavedRules:
         ]
 
     async def clear(self) -> None:
-        """Remove all saved rules."""
+        """Remove all saved rules (global and session-level)."""
         logger.debug("SavedRules.clear")
         await self._ensure_table()
         await self._db.conn.execute("DELETE FROM saved_rules")
         await self._db.conn.commit()
+
+    # ── Session-scoped rules ────────────────────────────────────────
+
+    async def save_session_rule(self, session_id: str, rule: Rule) -> None:
+        """Save a rule scoped to a specific session."""
+        logger.debug("SavedRules.save_session_rule: session=%s %s/%s -> %s",
+                     session_id, rule.action, rule.resource, rule.effect)
+        await self._ensure_table()
+        await self._db.conn.execute(
+            "INSERT INTO saved_rules (session_id, action, resource, effect) VALUES (?, ?, ?, ?)",
+            (session_id, rule.action, rule.resource, rule.effect.value),
+        )
+        await self._db.conn.commit()
+
+    async def load_session_rules(self, session_id: str) -> list[Rule]:
+        """Load all rules scoped to a specific session."""
+        await self._ensure_table()
+        cursor = await self._db.conn.execute(
+            "SELECT action, resource, effect FROM saved_rules WHERE session_id = ? ORDER BY id ASC",
+            (session_id,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            Rule(
+                action=row["action"],
+                resource=row["resource"],
+                effect=RuleEffect(row["effect"]),
+            )
+            for row in rows
+        ]
+
+    async def clear_session_rules(self, session_id: str) -> None:
+        """Remove all rules for a specific session."""
+        logger.debug("SavedRules.clear_session_rules: session=%s", session_id)
+        await self._ensure_table()
+        await self._db.conn.execute(
+            "DELETE FROM saved_rules WHERE session_id = ?", (session_id,)
+        )
+        await self._db.conn.commit()
+
+    async def load_all(self) -> list[tuple[str | None, Rule]]:
+        """Load all rules (global + session) with their session_id."""
+        await self._ensure_table()
+        cursor = await self._db.conn.execute(
+            "SELECT session_id, action, resource, effect FROM saved_rules ORDER BY id ASC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            (row["session_id"], Rule(
+                action=row["action"],
+                resource=row["resource"],
+                effect=RuleEffect(row["effect"]),
+            ))
+            for row in rows
+        ]
+
+
+class SessionPermission:
+    """Session-level permission evaluator.
+
+    Merges global rules and session-specific rules, evaluating them
+    together with last-match-wins semantics. Session rules are evaluated
+    AFTER global rules, giving them higher priority.
+    """
+
+    def __init__(self, saved_rules: SavedRules) -> None:
+        self._saved_rules = saved_rules
+
+    async def evaluate(
+        self,
+        session_id: str,
+        action: str,
+        resource: str,
+    ) -> Rule | None:
+        """Evaluate action+resource for a specific session.
+
+        Global rules are evaluated first, then session-level rules
+        override them (last-match-wins).
+        """
+        all_rules = await self._saved_rules.load_all()
+        # Build rulesets: global first, then session-specific
+        global_rules = Ruleset(name="global", rules=[
+            rule for sid, rule in all_rules if sid is None
+        ])
+        session_rules = Ruleset(name=f"session:{session_id}", rules=[
+            rule for sid, rule in all_rules if sid == session_id
+        ])
+        return PermissionV2.evaluate(action, resource, [global_rules, session_rules])
+
+    async def is_allowed(self, session_id: str, action: str, resource: str) -> bool:
+        rule = await self.evaluate(session_id, action, resource)
+        return rule is not None and rule.effect == RuleEffect.ALLOW
+
+    async def is_denied(self, session_id: str, action: str, resource: str) -> bool:
+        rule = await self.evaluate(session_id, action, resource)
+        return rule is not None and rule.effect == RuleEffect.DENY

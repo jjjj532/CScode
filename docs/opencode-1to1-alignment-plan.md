@@ -108,71 +108,72 @@
 ### 任务清单
 
 #### P1-1: Credential 系统
-- [ ] 创建 `core/credential.py` + SQL 表
-- [ ] 添加 `/api/credentials` CRUD
-- [ ] 支持 API key 存储、轮换
+- [x] 创建 `core/credential.py` + SQL 表
+- [x] 添加 `/api/credentials` CRUD
+- [x] 支持 API key 存储、轮换
 
 #### P1-2: Plugin Provider 扩充
-- [ ] 添加: Bedrock, Cohere, Grok, Mistral, Nvidia, Perplexity, Vertex, XAI
-- [ ] 目标: 从 6 个 → 14 个 provider
+- [x] 添加: Bedrock, Cohere, Grok, Mistral, Nvidia, Perplexity, Vertex, XAI
+- [x] 目标: 从 6 个 → 14 个 provider
 
 #### P1-3: Skill Guidance
-- [ ] 扩展 `skills/loader.py` 添加 guidance 生成
-- [ ] 支持 context-aware skill 建议
+- [x] 扩展 `skills/loader.py` 添加 guidance 生成
+- [x] 支持 context-aware skill 建议
 
 #### P1-4: Catalog 系统
-- [ ] 创建 `core/catalog.py`
-- [ ] 支持 model/provider/agent 目录
-- [ ] 可选: 集成 models.dev
+- [x] 创建 `core/catalog.py`
+- [x] 支持 model/provider/agent 目录
+- [ ] 可选: 集成 models.dev (deferred)
 
 #### P1-5: Filesystem Watcher
-- [ ] 创建 `core/fs_watcher.py`
-- [ ] 使用 watchdog 库
-- [ ] 通知 LLM 文件变更
+- [x] 创建 `core/fs_watcher.py`
+- [x] 使用 watchdog 库
+- [x] 通知 LLM 文件变更
 
 #### P1-6: Config 子模块补全
-- [ ] 添加: experimental, formatter, markdown, tool-output, lsp, reference 配置
+- [x] 添加: experimental, formatter, markdown, tool-output, lsp, reference 配置
 
 #### P1-7: Session Message Updater
-- [ ] 创建消息更新机制
-- [ ] 支持消息编辑/删除
+- [x] 创建消息更新机制
+- [x] 支持消息编辑/删除
 
 #### P1-8: Session Summary
-- [ ] 创建 `core/session_summary.py`
-- [ ] 添加 `/api/sessions/{id}/summary` API
-- [ ] LLM 生成摘要
+- [x] 创建 `core/session_summary.py`
+- [x] 添加 `/api/sessions/{id}/summary` API
+- [x] LLM 生成摘要
 
 #### P1-9: Sharing 持久化
-- [ ] 分享链接持久化到数据库
-- [ ] 添加 `/api/share` CRUD
+- [x] 分享链接持久化到数据库
+- [x] 添加 `/api/share` CRUD
 
 #### P1-10: MCP OAuth
-- [ ] 添加 mcp oauth-callback 处理
-- [ ] 支持 MCP 服务器 OAuth
+- [x] 添加 mcp oauth-callback 处理
+- [x] 支持 MCP 服务器 OAuth
 
 #### P1-11: Background Job
-- [ ] 创建 `core/background_job.py`
-- [ ] 异步任务调度
+- [x] 创建 `core/background_job.py`
+- [x] 异步任务调度
 
 #### P1-12: i18n 多语言
-- [ ] 引入 i18n 框架 (i18next)
-- [ ] 添加英文/中文支持
+- [x] 引入 i18n 框架 (dict-based, light替代i18next)
+- [x] 添加英文/中文支持
 
 #### P1-13: Permission Session 级
-- [ ] SavedRules 支持 session 级别
-- [ ] 细粒度权限控制
+- [x] SavedRules 支持 session 级别
+- [x] 细粒度权限控制
 
 #### P1-14: LSP Diagnostic
-- [ ] 扩展 LSP 工具支持 diagnostic
-- [ ] 前端显示错误/警告
+- [x] 扩展 LSP 工具支持 diagnostic
+- [x] 前端显示错误/警告
 
 #### P1-15: Auth 回调流程
-- [ ] 完整 OAuth 回调处理
-- [ ] token 刷新机制
+- [x] 完整 OAuth 回调处理
+- [x] token 刷新机制
 
 ### Checkpoint P1
-- [ ] 15项中至少完成 10 项
-- [ ] pytest 通过
+- [x] 15项全部完成
+- [x] pytest 通过 (137 tests)
+- [x] ruff 清洁
 
 ---
 

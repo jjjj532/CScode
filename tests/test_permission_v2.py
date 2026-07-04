@@ -14,6 +14,7 @@ from cscode.core.permission_v2 import (
     RuleEffect,
     Ruleset,
     SavedRules,
+    SessionPermission,
     Wildcard,
 )
 
@@ -240,3 +241,164 @@ async def test_saved_rules_empty_db() -> None:
     store = SavedRules(db)
     loaded = await store.load()
     assert loaded == []
+
+
+# ─── Session-level SavedRules ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_saved_rules_save_session_rule() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule = Rule(action="*", resource="/tmp/*", effect=RuleEffect.ALLOW)
+
+    await store.save_session_rule("sess_001", rule)
+    loaded = await store.load_session_rules("sess_001")
+
+    assert len(loaded) == 1
+    assert loaded[0].action == "*"
+    assert loaded[0].resource == "/tmp/*"
+    assert loaded[0].effect == RuleEffect.ALLOW
+
+
+@pytest.mark.asyncio
+async def test_saved_rules_session_isolation() -> None:
+    """Session A rules should not appear in Session B."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    await store.save_session_rule("sess_a", Rule(action="read", resource="*", effect=RuleEffect.ALLOW))
+    await store.save_session_rule("sess_b", Rule(action="write", resource="*", effect=RuleEffect.DENY))
+
+    a_rules = await store.load_session_rules("sess_a")
+    b_rules = await store.load_session_rules("sess_b")
+
+    assert len(a_rules) == 1
+    assert a_rules[0].effect == RuleEffect.ALLOW
+    assert len(b_rules) == 1
+    assert b_rules[0].effect == RuleEffect.DENY
+
+
+@pytest.mark.asyncio
+async def test_saved_rules_global_vs_session() -> None:
+    """Global rules should not contain session rules and vice versa."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    await store.save(Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+    await store.save_session_rule("sess_001", Rule(action="*", resource="*", effect=RuleEffect.DENY))
+
+    global_rules = await store.load()
+    session_rules = await store.load_session_rules("sess_001")
+
+    assert len(global_rules) == 1
+    assert len(session_rules) == 1
+
+
+@pytest.mark.asyncio
+async def test_saved_rules_clear_session_rules() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    await store.save_session_rule("sess_001", Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+    await store.clear_session_rules("sess_001")
+
+    loaded = await store.load_session_rules("sess_001")
+    assert loaded == []
+
+
+@pytest.mark.asyncio
+async def test_saved_rules_load_all() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    await store.save(Rule(action="read", resource="*", effect=RuleEffect.ALLOW))
+    await store.save_session_rule("sess_001", Rule(action="write", resource="*", effect=RuleEffect.DENY))
+
+    all_rules = await store.load_all()
+    assert len(all_rules) == 2
+    # First is global (session_id is None)
+    assert all_rules[0][0] is None
+    assert all_rules[0][1].action == "read"
+    # Second is session-scoped
+    assert all_rules[1][0] == "sess_001"
+    assert all_rules[1][1].action == "write"
+
+
+# ─── SessionPermission ───────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_session_permission_global_rule() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    saved = SavedRules(db)
+    await saved.save(Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+
+    perm = SessionPermission(saved)
+    result = await perm.evaluate("sess_001", "read", "/tmp/x")
+    assert result is not None
+    assert result.effect == RuleEffect.ALLOW
+
+
+@pytest.mark.asyncio
+async def test_session_permission_session_overrides_global() -> None:
+    """Session-level rule should override global rule (last-match-wins)."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    saved = SavedRules(db)
+    await saved.save(Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+    await saved.save_session_rule("sess_001", Rule(action="*", resource="/secret/*", effect=RuleEffect.DENY))
+
+    perm = SessionPermission(saved)
+    # Global allows everything
+    allowed = await perm.is_allowed("sess_001", "read", "/public/file")
+    assert allowed is True
+    # Session denies /secret/*
+    denied = await perm.is_allowed("sess_001", "read", "/secret/data")
+    assert denied is False
+
+
+@pytest.mark.asyncio
+async def test_session_permission_other_session_unaffected() -> None:
+    """Rules for session A should not affect session B."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    saved = SavedRules(db)
+    await saved.save(Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+    await saved.save_session_rule("sess_001", Rule(action="*", resource="/secret/*", effect=RuleEffect.DENY))
+
+    perm = SessionPermission(saved)
+    # Session B should still have global-only permissions
+    allowed = await perm.is_allowed("sess_002", "read", "/secret/data")
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_session_permission_default_deny() -> None:
+    """No rules should result in deny (None returned = no match)."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    saved = SavedRules(db)
+    perm = SessionPermission(saved)
+    result = await perm.evaluate("sess_001", "read", "/tmp/x")
+    assert result is None

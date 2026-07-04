@@ -16,6 +16,162 @@ from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Sub-config dataclasses
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ExperimentalConfig:
+    """Configuration for experimental features."""
+
+    tools_v2: bool = False
+    streaming: bool = True
+    mcp: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ExperimentalConfig:
+        valid = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def merge(self, other: ExperimentalConfig) -> ExperimentalConfig:
+        merged = asdict(self)
+        for k, v in asdict(other).items():
+            merged[k] = v
+        return ExperimentalConfig(**merged)
+
+
+@dataclass
+class FormatterConfig:
+    """Configuration for code formatters."""
+
+    enabled: bool = True
+    line_length: int = 88
+    python: str = "ruff"
+    javascript: str | None = None
+    typescript: str | None = None
+    rust: str | None = None
+    go: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FormatterConfig:
+        valid = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def merge(self, other: FormatterConfig) -> FormatterConfig:
+        merged = asdict(self)
+        for k, v in asdict(other).items():
+            merged[k] = v
+        return FormatterConfig(**merged)
+
+
+@dataclass
+class MarkdownConfig:
+    """Configuration for markdown rendering."""
+
+    render: bool = True
+    line_wrapping: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MarkdownConfig:
+        valid = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def merge(self, other: MarkdownConfig) -> MarkdownConfig:
+        merged = asdict(self)
+        for k, v in asdict(other).items():
+            merged[k] = v
+        return MarkdownConfig(**merged)
+
+
+@dataclass
+class ToolOutputConfig:
+    """Configuration for tool output rendering."""
+
+    max_chars: int = 10000
+    truncation_message: str = "[truncated]"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ToolOutputConfig:
+        valid = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def merge(self, other: ToolOutputConfig) -> ToolOutputConfig:
+        merged = asdict(self)
+        for k, v in asdict(other).items():
+            merged[k] = v
+        return ToolOutputConfig(**merged)
+
+
+@dataclass
+class LSPConfig:
+    """Configuration for Language Server Protocol integration."""
+
+    enabled: bool = True
+    diagnostics: bool = True
+    code_actions: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> LSPConfig:
+        valid = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def merge(self, other: LSPConfig) -> LSPConfig:
+        merged = asdict(self)
+        for k, v in asdict(other).items():
+            merged[k] = v
+        return LSPConfig(**merged)
+
+
+@dataclass
+class ReferenceConfig:
+    """Configuration for reference/documentation search."""
+
+    max_results: int = 5
+    include_snippets: bool = True
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ReferenceConfig:
+        valid = set(cls.__dataclass_fields__)
+        return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def merge(self, other: ReferenceConfig) -> ReferenceConfig:
+        merged = asdict(self)
+        for k, v in asdict(other).items():
+            merged[k] = v
+        return ReferenceConfig(**merged)
+
+
+# ---------------------------------------------------------------------------
+# Sub-config dispatch map
+# ---------------------------------------------------------------------------
+_SUB_CONFIG_CLASSES: dict[str, type] = {
+    "experimental": ExperimentalConfig,
+    "formatter": FormatterConfig,
+    "markdown": MarkdownConfig,
+    "tool_output": ToolOutputConfig,
+    "lsp": LSPConfig,
+    "reference": ReferenceConfig,
+}
+
 
 @dataclass
 class Config:
@@ -29,23 +185,41 @@ class Config:
     system_prompt: str | None = None
     theme: str = "catppuccin"
 
+    # Sub-config modules
+    experimental: ExperimentalConfig | None = None
+    formatter: FormatterConfig | None = None
+    markdown: MarkdownConfig | None = None
+    tool_output: ToolOutputConfig | None = None
+    lsp: LSPConfig | None = None
+    reference: ReferenceConfig | None = None
+
     def __post_init__(self) -> None:
         if not 0.0 <= self.temperature <= 2.0:
             raise ConfigError(f"temperature must be 0.0-2.0, got {self.temperature}")
         if self.max_tokens < 1:
             raise ConfigError(f"max_tokens must be >= 1, got {self.max_tokens}")
+        # Convert any sub-config dict values (from asdict/merge) to dataclass instances
+        for _key, _cls in _SUB_CONFIG_CLASSES.items():
+            _val = getattr(self, _key, None)
+            if isinstance(_val, dict):
+                object.__setattr__(self, _key, _cls.from_dict(_val))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Config:
         valid_keys = cls.__dataclass_fields__.keys()
-        filtered = {}
+        filtered: dict[str, Any] = {}
         for k, v in data.items():
             if k not in valid_keys:
                 continue
             # Treat empty string as None for string fields
             if isinstance(v, str) and not v:
                 continue
-            filtered[k] = v
+            # Sub-config dicts: instantiate the sub-dataclass; skip non-dict values (e.g. env var strings)
+            if k in _SUB_CONFIG_CLASSES:
+                if isinstance(v, dict):
+                    filtered[k] = _SUB_CONFIG_CLASSES[k].from_dict(v)
+            else:
+                filtered[k] = v
         return cls(**filtered)
 
     @classmethod
@@ -76,7 +250,11 @@ class Config:
     def to_dict(self) -> dict[str, Any]:
         result = asdict(self)
         result.pop("api_key", None)
-        return {k: v for k, v in result.items() if v is not None and (not isinstance(v, str) or v)}
+        return {
+            k: v
+            for k, v in result.items()
+            if v is not None and (not isinstance(v, str) or v)
+        }
 
     def to_yaml(self, path: Path | str) -> None:
         with open(path, "w") as f:
@@ -89,7 +267,17 @@ class Config:
                 continue
             if isinstance(v, str) and not v:
                 continue
-            merged[k] = v
+            # Deep-merge sub-configs
+            if k in _SUB_CONFIG_CLASSES and isinstance(v, dict) and merged.get(k) is not None:
+                base_sub = merged[k]
+                if isinstance(base_sub, dict):
+                    base_sub_cls = _SUB_CONFIG_CLASSES[k]
+                    merged[k] = base_sub_cls(**{**base_sub, **v})
+                else:
+                    # should not happen after asdict, but guard
+                    merged[k] = v
+            else:
+                merged[k] = v
         return Config(**merged)
 
 
