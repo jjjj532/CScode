@@ -17,10 +17,11 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, AsyncIterator
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile
+from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,7 +31,9 @@ from cscode.app.factory import create_agent_v2, create_tool_registry
 from cscode.core.coordinator import SessionCoordinator
 from cscode.core.session import SessionProjector, SessionV2
 from cscode.core.tracker import TaskTracker
+from cscode.core.workspace import WorkspaceStore
 from cscode.llm.types import LLMRequest
+from cscode.lsp.manager import LSPManager
 from cscode.schema.events import (
     Finish,
     LLMEvent,
@@ -47,6 +50,7 @@ from cscode.schema.messages import (
 from cscode.schema.messages import (
     MessageRole,
 )
+from cscode.server.integration import WebSocketManager
 from cscode.server.compactor import Compactor
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
@@ -120,7 +124,7 @@ class _CallableProcessor:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry
+    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry, _workspace_store
 
     # Diagnostics log — stderr + file
     from cscode.utils.logging import setup_logging
@@ -155,6 +159,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Shared tool registry (AgentV2 instances will reuse this)
     _tool_registry = create_tool_registry()
+
+    # Workspace store (P2-3)
+    _workspace_store = WorkspaceStore(_db) if _db else None
 
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     template_path = OUTPUTS_DIR / "xlsx_template.py"
@@ -206,6 +213,7 @@ _compactor: Compactor | None = None
 _tracker: TaskTracker | None = None
 _question_registry: QuestionRegistry | None = None
 _tool_registry: Any = None
+_workspace_store: WorkspaceStore | None = None
 _active_agent_tasks: dict[str, asyncio.Task[Any]] = {}
 _session_queues: dict[str, asyncio.Queue[dict[str, object]]] = {}
 _permission_store: dict[str, dict[str, object]] = {}
@@ -682,6 +690,143 @@ async def session_event_stream(session_id: str, after_seq: int = 0) -> Streaming
     return await event_stream(session_id, after_seq)
 
 
+# ── P2-2: WebSocket endpoint ──────────────────────────────────────
+
+_ws_manager: WebSocketManager | None = None
+
+
+@api_router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    """P2-2: WebSocket endpoint for real-time bidirectional communication.
+
+    Protocol:
+      Client → Server: {"type": "ping"} | {"type": "subscribe", "session_id": "..."}
+      Server → Client: {"type": "pong"} | {"type": "event", ...}
+
+    See openspec/specs/cscode-integration-system.md for full protocol spec.
+    """
+    global _ws_manager, _event_store
+    manager = _ws_manager
+    if manager is None:
+        manager = WebSocketManager(event_store=_event_store)
+        _ws_manager = manager
+
+    client = await manager.connect(websocket)
+    try:
+        await manager._handle_client_messages(client)
+    finally:
+        await manager.disconnect(client.client_id)
+
+
+# ── P2-3: Workspace CRUD endpoints ─────────────────────────────────
+
+
+class WorkspaceCreateRequest(BaseModel):
+    name: str
+    path: str
+    config: dict[str, object] = {}
+
+
+class WorkspaceUpdateRequest(BaseModel):
+    name: str | None = None
+    path: str | None = None
+    config: dict[str, object] | None = None
+
+
+@api_router.get("/workspaces")
+async def list_workspaces(limit: int = 50) -> list[dict[str, object]]:
+    """List all workspaces ordered by last_used_at descending."""
+    global _workspace_store
+    if _workspace_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    workspaces = await _workspace_store.list(limit=limit)
+    return [_workspace_to_dict(ws) for ws in workspaces]
+
+
+@api_router.get("/workspaces/recent")
+async def recent_workspaces(limit: int = 10) -> list[dict[str, object]]:
+    """List recently used workspaces."""
+    global _workspace_store
+    if _workspace_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    workspaces = await _workspace_store.recent(limit=limit)
+    return [_workspace_to_dict(ws) for ws in workspaces]
+
+
+@api_router.post("/workspaces")
+async def create_workspace(req: WorkspaceCreateRequest) -> dict[str, object]:
+    """Create a new workspace."""
+    global _workspace_store
+    if _workspace_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    try:
+        ws = await _workspace_store.create(
+            name=req.name,
+            path=req.path,
+            config=req.config,
+        )
+        return _workspace_to_dict(ws)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.get("/workspaces/{workspace_id}")
+async def get_workspace(workspace_id: str) -> dict[str, object]:
+    """Get a workspace by id."""
+    global _workspace_store
+    if _workspace_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    ws = await _workspace_store.get(workspace_id)
+    if ws is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return _workspace_to_dict(ws)
+
+
+@api_router.put("/workspaces/{workspace_id}")
+async def update_workspace(workspace_id: str, req: WorkspaceUpdateRequest) -> dict[str, object]:
+    """Update a workspace."""
+    global _workspace_store
+    if _workspace_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    try:
+        ws = await _workspace_store.update(
+            workspace_id=workspace_id,
+            name=req.name,
+            path=req.path,
+            config=req.config,
+        )
+        if ws is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        return _workspace_to_dict(ws)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.delete("/workspaces/{workspace_id}", status_code=204)
+async def delete_workspace(workspace_id: str) -> Response:
+    """Delete a workspace."""
+    global _workspace_store
+    if _workspace_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    deleted = await _workspace_store.delete(workspace_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return Response(status_code=204)
+
+
+def _workspace_to_dict(ws: Any) -> dict[str, object]:
+    """Convert a Workspace to a JSON-serializable dict."""
+    return {
+        "workspace_id": ws.workspace_id,
+        "name": ws.name,
+        "path": ws.path,
+        "config": ws.config,
+        "last_used_at": ws.last_used_at,
+        "created_at": ws.created_at,
+        "updated_at": ws.updated_at,
+    }
+
+
 async def _handle_chat(
     message: str, session_id: str | None, files: list[tuple[str, bytes]] | None = None
 ) -> ChatResponse:
@@ -979,6 +1124,143 @@ async def import_session(request: Request) -> dict[str, str]:
     return {"id": str(session_v2.session_id), "title": session_v2.state.title}
 
 
+def _format_dt(dt: object) -> str | None:
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        return dt.isoformat()
+    return str(dt)
+
+
+@api_router.get("/api/share")
+async def list_shares(session_id: str | None = None) -> list[dict[str, object]]:
+    from cscode.core.sharing import ShareStore
+    from cscode.storage.db import Database
+    db = Database()
+    store = ShareStore(db)
+    if session_id:
+        shares = await store.list_by_session(session_id)
+    else:
+        shares = await store.list()
+    return [
+        {
+            "id": s.id,
+            "session_id": s.session_id,
+            "title": s.title,
+            "created_at": _format_dt(s.created_at),
+            "expires_at": _format_dt(s.expires_at) if s.expires_at else None,
+            "is_active": s.is_active,
+        }
+        for s in shares
+    ]
+
+
+@api_router.post("/api/share", status_code=201)
+async def create_share(request: Request) -> dict[str, str]:
+    from cscode.core.sharing import ShareStore
+    from cscode.storage.db import Database
+    body = await request.json()
+    db = Database()
+    store = ShareStore(db)
+    share = await store.create(
+        session_id=body.get("session_id", ""),
+        title=body.get("title", ""),
+    )
+    return {"id": share.id}
+
+
+@api_router.get("/api/share/{share_id}")
+async def get_share(share_id: str) -> dict[str, object]:
+    from cscode.core.sharing import ShareStore
+    from cscode.storage.db import Database
+    db = Database()
+    store = ShareStore(db)
+    share = await store.get(share_id)
+    if share is None:
+        raise HTTPException(status_code=404, detail="Share not found")
+    return {
+        "id": share.id,
+        "session_id": share.session_id,
+        "title": share.title,
+        "created_at": _format_dt(share.created_at),
+        "expires_at": _format_dt(share.expires_at) if share.expires_at else None,
+        "is_active": share.is_active,
+    }
+
+
+@api_router.delete("/api/share/{share_id}", status_code=204)
+async def delete_share(share_id: str) -> None:
+    from cscode.core.sharing import ShareStore
+    from cscode.storage.db import Database
+    db = Database()
+    store = ShareStore(db)
+    result = await store.delete(share_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Share not found")
+
+
+_lsp_manager: LSPManager | None = None
+
+
+@api_router.get("/lsp/diagnostics")
+async def get_lsp_diagnostics(file_path: str) -> dict[str, object]:
+    """Get LSP diagnostics for a file. Used by frontend to show errors/warnings."""
+    global _lsp_manager
+    if _lsp_manager is None:
+        _lsp_manager = LSPManager()
+    try:
+        from cscode.tools2.lsp import LSPInput, LSPTool
+        tool = LSPTool(_lsp_manager)
+        result = await tool.execute(LSPInput(
+            command="diagnostics",
+            file_path=file_path,
+        ))
+        if not result.success:
+            return {"results": [], "error": result.error}
+        diagnostics = result.data.results if result.data else []
+        return {"results": diagnostics}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
+
+
+# ── OAuth callback (for MCP browser-based auth flow) ─────────────────
+
+
+_oAuth_codes: dict[str, dict[str, str]] = {}
+
+
+@api_router.get("/auth/callback")
+async def oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    iss: str | None = None,
+    error: str | None = None,
+) -> dict[str, str]:
+    """OAuth authorization callback endpoint.
+
+    The authorization server redirects the browser here after the user
+    grants/denies access. Stores the authorization code for the MCP
+    OAuth client to retrieve.
+    """
+    if error:
+        return {"status": "error", "error": error}
+
+    if code is None or state is None:
+        raise HTTPException(status_code=400, detail="Missing code or state parameter")
+
+    _oAuth_codes[state] = {"code": code, "iss": iss or ""}
+    return {"status": "success", "message": "Authorization received, you can close this window"}
+
+
+@api_router.get("/auth/token")
+async def get_oauth_token(state: str) -> dict[str, str]:
+    """Retrieve stored OAuth authorization code by state."""
+    data = _oAuth_codes.pop(state, None)
+    if data is None:
+        raise HTTPException(status_code=404, detail="State not found or already consumed")
+    return data
+
+
 @api_router.get("/sessions/{session_id}/messages")
 async def get_session_messages(session_id: str) -> list[dict[str, object]]:
     """P0-1: Return messages for a session (used by sidebar session switching)."""
@@ -1007,6 +1289,18 @@ async def get_session_context(session_id: str) -> list[dict[str, object]]:
         {"role": msg.role, "content": msg.content}
         for msg in messages
     ]
+
+
+@api_router.get("/sessions/{session_id}/summary")
+async def get_session_summary(session_id: str) -> dict:
+    """P1-8: Return a statistical summary of a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    from cscode.core.session_summary import SessionSummary
+    return SessionSummary(session_v2).generate()
 
 
 @api_router.post("/sessions/{session_id}/model")

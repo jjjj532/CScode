@@ -189,6 +189,18 @@ img.save('desktop/src-tauri/icons/icon.ico', format='ICO', sizes=[(32,32),(64,64
 ## CScode Verification (Ratchet Principle)
 Before completion, verify: pytest tests/ && mypy src/ && ruff check src/
 
+## WebSocket 系统注意事项（Ratchet Rules）
+- WebSocket 状态检查用 `WebSocketState.DISCONNECTED` 比较，不要用 `client_state.closed`（后者不存在）
+- `_event_bridge_once` 没有 `break` — 必须转发 subscribe generator 的所有事件，不能只取第一个
+- WebSocketManager 测试用 `MockWebSocket`/`MockWebSocketQueue` 辅助类，`client_state` 设置 `WebSocketState` 枚举值
+- `WebSocketManager.__init__` 接受可选的 `event_store`，用于事件桥接
+- WebSocket endpoint 在 `api_router` 上注册为 `@api_router.websocket("/ws")`，路径为 `/api/ws`
+
+## Workspace 系统注意事项（Ratchet Rules）
+- `from __future__ import annotations` + 类方法名为 `list` → 字符串标注 `list[Workspace]` 会解析为类方法而非内置 `list`。用 `typing.List[Workspace]` 替换。
+- Workspace CRUD endpoint 用 `api_router` 前缀 `/api/workspaces`，遵循已有的 `CredentialStore`/`ShareStore` 模式
+- Workspace 使用简单 SQLite 表（非 EventStore），因为 workspace 是元数据而非事件溯源
+
 ## Anti-Patterns to Avoid
 - Same agent writes and reviews code
 - No state file for resume
@@ -225,3 +237,9 @@ CScode 是一个 AI 编程助手，支持 Claude Code、Cursor 等主流 AI 编�
 - TypeScript: 严格模式
 - 先写测试再写代码 (TDD)
 - 提交前: pytest tests/ && mypy src/ && ruff check src/
+
+## PTY 系统注意事项（Ratchet Rules）
+- `os.read()` on non-blocking PTY fd 必须用 sync os.read + await asyncio.sleep() backoff，不要用 asyncio.to_thread()
+- Shell echoes command text containing the marker — marker 检测必须搜索 `\nMARKER`（行首匹配），不能子串匹配
+- PTY fd 在 create_subprocess_exec 前设置 set_blocking(False)，slave fd 传给子进程后 parent 关闭
+- `os.openpty()` 返回 (master_fd, slave_fd) pair，slave_fd 在子进程中作为 stdin/stdout/stderr

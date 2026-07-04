@@ -461,3 +461,165 @@ def test_permission_rules_crud():
     finally:
         if db_path.exists():
             db_path.unlink()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P2-3: Workspace CRUD API tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestWorkspaceAPI:
+    """Tests for workspace CRUD endpoints."""
+
+    def test_list_workspaces_empty(self):
+        """GET /api/workspaces returns empty list when none exist."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                resp = client.get("/api/workspaces")
+                assert resp.status_code == 200
+                assert resp.json() == []
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_create_and_get_workspace(self):
+        """POST then GET /api/workspaces returns the created workspace."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                create_resp = client.post(
+                    "/api/workspaces",
+                    json={"name": "My Project", "path": "/home/user/project"},
+                )
+                assert create_resp.status_code == 200
+                data = create_resp.json()
+                assert data["name"] == "My Project"
+                assert data["path"] == "/home/user/project"
+                assert "workspace_id" in data
+
+                ws_id = data["workspace_id"]
+                get_resp = client.get(f"/api/workspaces/{ws_id}")
+                assert get_resp.status_code == 200
+                assert get_resp.json()["name"] == "My Project"
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_create_with_config(self):
+        """POST /api/workspaces with config stores the config."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                config = {"provider": "anthropic", "model": "claude-3"}
+                resp = client.post(
+                    "/api/workspaces",
+                    json={"name": "Config Test", "path": "/tmp/cfg", "config": config},
+                )
+                assert resp.status_code == 200
+                assert resp.json()["config"] == config
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_update_workspace(self):
+        """PUT /api/workspaces/{id} updates workspace fields."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                create_resp = client.post(
+                    "/api/workspaces",
+                    json={"name": "Old Name", "path": "/tmp/old"},
+                )
+                ws_id = create_resp.json()["workspace_id"]
+
+                update_resp = client.put(
+                    f"/api/workspaces/{ws_id}",
+                    json={"name": "New Name", "path": "/tmp/new"},
+                )
+                assert update_resp.status_code == 200
+                assert update_resp.json()["name"] == "New Name"
+                assert update_resp.json()["path"] == "/tmp/new"
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_delete_workspace(self):
+        """DELETE /api/workspaces/{id} removes the workspace."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                create_resp = client.post(
+                    "/api/workspaces",
+                    json={"name": "To Delete", "path": "/tmp/delete"},
+                )
+                ws_id = create_resp.json()["workspace_id"]
+
+                del_resp = client.delete(f"/api/workspaces/{ws_id}")
+                assert del_resp.status_code == 204
+
+                get_resp = client.get(f"/api/workspaces/{ws_id}")
+                assert get_resp.status_code == 404
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_get_nonexistent(self):
+        """GET /api/workspaces/{id} returns 404 for unknown id."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                resp = client.get("/api/workspaces/nonexistent")
+                assert resp.status_code == 404
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_create_empty_name(self):
+        """POST /api/workspaces with empty name returns 400."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/api/workspaces",
+                    json={"name": "", "path": "/tmp/test"},
+                )
+                assert resp.status_code == 400
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_recent_workspaces(self):
+        """GET /api/workspaces/recent returns ordered workspaces."""
+        db_path = _get_temp_db_path()
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+            with TestClient(app) as client:
+                ws1 = client.post("/api/workspaces", json={"name": "A", "path": "/tmp/a"}).json()
+                ws2 = client.post("/api/workspaces", json={"name": "B", "path": "/tmp/b"}).json()
+
+                # Use ws1 then ws2 (ws2 should be most recent)
+                client.get(f"/api/workspaces/{ws1['workspace_id']}")
+                client.get(f"/api/workspaces/{ws2['workspace_id']}")
+
+                recent = client.get("/api/workspaces/recent").json()
+                assert len(recent) >= 2
+                assert recent[0]["workspace_id"] == ws2["workspace_id"]
+        finally:
+            if db_path.exists():
+                db_path.unlink()

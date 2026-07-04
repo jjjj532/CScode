@@ -30,6 +30,9 @@ def _get_migration_registry() -> MigrationRegistry:
         reg.register(Migration(3, "create event store tables", _migration_003, _noop))
         reg.register(Migration(4, "create context_epochs table", _migration_004, _noop))
         reg.register(Migration(5, "create expected_tasks and task_verifications", _migration_005, _noop))
+        reg.register(Migration(6, "create credentials table", _migration_006, _noop))
+        reg.register(Migration(7, "create shares table", _migration_007, _noop))
+        reg.register(Migration(8, "create workspaces table", _migration_008, _noop))
         _migration_registry = reg
     return _migration_registry
 
@@ -190,3 +193,49 @@ async def _migration_005(conn: aiosqlite.Connection) -> None:
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_tv_session ON task_verifications(session_id)")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_tv_status ON task_verifications(session_id, status)")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_et_session ON expected_tasks(session_id)")
+
+
+async def _migration_006(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS credentials (
+            id              TEXT PRIMARY KEY,
+            name            TEXT NOT NULL,
+            type            TEXT NOT NULL,
+            value           TEXT NOT NULL,
+            provider        TEXT NOT NULL,
+            created_at      REAL NOT NULL,
+            updated_at      REAL NOT NULL,
+            expires_at      REAL,
+            rotated_at      REAL,
+            previous_value  TEXT
+        )
+    """)
+
+
+async def _migration_007(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS shares (
+            id          TEXT PRIMARY KEY,
+            session_id  TEXT NOT NULL,
+            title       TEXT NOT NULL DEFAULT '',
+            created_at  TEXT NOT NULL,
+            expires_at  TEXT,
+            is_active   INTEGER NOT NULL DEFAULT 1
+        )
+    """)
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_shares_session ON shares(session_id)")
+
+
+async def _migration_008(conn: aiosqlite.Connection) -> None:
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS workspaces (
+            id              TEXT PRIMARY KEY,
+            name            TEXT NOT NULL,
+            path            TEXT NOT NULL,
+            config_json     TEXT NOT NULL DEFAULT '{}',
+            last_used_at    REAL NOT NULL DEFAULT 0,
+            created_at      REAL NOT NULL,
+            updated_at      REAL NOT NULL
+        )
+    """)
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_workspaces_used ON workspaces(last_used_at DESC)")
