@@ -13,7 +13,8 @@ Usage:
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from cscode.schema.ids import SessionID
 from cscode.schema.messages import Message, MessageRole, TextPart
@@ -39,6 +40,16 @@ class SessionState:
     updated_at: float = 0.0
     seq: int = 0
     """The latest event seq applied to this state."""
+    workspace_id: str = ""
+    """Associated workspace id (empty = not associated)."""
+    instruction: str = ""
+    """Per-session custom instruction injected into system prompt."""
+    run_status: str = "idle"
+    """Execution run status: idle, running, stopped, errored, completed."""
+    run_error: str = ""
+    """Error message when run_status is 'errored'."""
+    reminders: list[dict[str, object]] = field(default_factory=list)
+    """Per-session reminders (event-sourced)."""
 
 
 class SessionProjector:
@@ -122,6 +133,33 @@ class SessionProjector:
                     messages = [m for m, _ in filtered]
                     msg_seqs = [s for _, s in filtered]
 
+                case "session.workspace.associated":
+                    state.workspace_id = str(event.data.get("workspace_id", ""))
+
+                case "session.workspace.moved":
+                    state.workspace_id = str(event.data.get("to_workspace_id", ""))
+
+                case "instruction.set":
+                    state.instruction = str(event.data.get("instruction", ""))
+
+                case "instruction.deleted":
+                    state.instruction = ""
+
+                case "session.run_started":
+                    state.run_status = "running"
+                    state.run_error = ""
+
+                case "session.run_stopped":
+                    state.run_status = "stopped"
+
+                case "session.run_errored":
+                    state.run_status = "errored"
+                    state.run_error = str(event.data.get("error", ""))
+
+                case "session.run_completed":
+                    state.run_status = "completed"
+                    state.run_error = ""
+
                 case "msg.edited":
                     idx = int(event.data.get("msg_index", -1))
                     if idx < 0 or idx >= len(messages):
@@ -150,6 +188,15 @@ class SessionProjector:
                 case "session.deleted":
                     state.status = "deleted"
 
+                case "session.reminder_added":
+                    reminder_data = {
+                        "id": event.data.get("id", ""),
+                        "text": event.data.get("text", ""),
+                        "created_at": event.created_at,
+                    }
+                    # Use a list-compatible approach for the frozen state
+                    state.reminders = [*state.reminders, reminder_data]
+
                 case _:
                     logger.warning("Unknown event type in projection: %s", event.type)
 
@@ -160,9 +207,15 @@ class SessionProjector:
     def build_context(state: SessionState) -> list[Message]:
         """Build the LLM context message list from session state.
 
+        If the session has a custom instruction, it is injected as the
+        first system message.
+
         Returns messages suitable for passing to LLMClient.generate/stream.
         """
-        return list(state.messages)
+        messages = list(state.messages)
+        if state.instruction:
+            messages.insert(0, Message.system(state.instruction))
+        return messages
 
 
 class SessionV2:
@@ -206,11 +259,12 @@ class SessionV2:
         provider: str = "openai",
         title: str = "",
         agent: str = "auto",
+        workspace_id: str = "",
     ) -> SessionV2:
         """Create a new session by appending a session.created event."""
         session_id = SessionID(str(time.time_ns()))
         now = time.time()
-        events = [
+        events: list[dict[str, Any]] = [
             {
                 "type": "session.created",
                 "data": {
@@ -221,6 +275,12 @@ class SessionV2:
                 },
             }
         ]
+        if workspace_id:
+            events.append({
+                "type": "session.workspace.associated",
+                "data": {"workspace_id": workspace_id},
+            })
+
         stored = await event_store.append(session_id, events)
 
         logger.info(
@@ -235,6 +295,7 @@ class SessionV2:
             model=model,
             agent=agent,
             status="active",
+            workspace_id=workspace_id,
             created_at=now,
             updated_at=now,
             seq=stored[-1].seq if stored else 0,
@@ -317,6 +378,63 @@ class SessionV2:
             await self._event_store.read(self._session_id)
         )
         return events
+
+    async def associate_workspace(self, workspace_id: str) -> SessionState:
+        """Associate this session with a workspace.
+
+        Args:
+            workspace_id: The workspace ID to associate with.
+                         Must be non-empty.
+
+        Returns:
+            The updated SessionState.
+
+        Raises:
+            ValueError: If workspace_id is empty.
+        """
+        if not workspace_id:
+            raise ValueError("workspace_id must be non-empty")
+
+        await self._event_store.append(
+            self._session_id,
+            [{
+                "type": "session.workspace.associated",
+                "data": {"workspace_id": workspace_id},
+            }],
+        )
+        logger.info(
+            "Session workspace associated: id=%s workspace=%s",
+            self._session_id, workspace_id,
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return self._state
+
+    async def move_workspace(self, to_workspace_id: str) -> SessionState:
+        """Move this session to a different workspace.
+
+        Returns the updated SessionState.
+        """
+        from_ws = self.state.workspace_id
+        await self._event_store.append(
+            self._session_id,
+            [{
+                "type": "session.workspace.moved",
+                "data": {
+                    "from_workspace_id": from_ws,
+                    "to_workspace_id": to_workspace_id,
+                },
+            }],
+        )
+        logger.info(
+            "Session workspace moved: id=%s from=%s to=%s",
+            self._session_id, from_ws, to_workspace_id,
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return self._state
 
     async def revert(self, target_seq: int) -> list[Event]:
         """Revert session to a previous state by target event sequence.
@@ -434,6 +552,91 @@ class SessionV2:
         )
         return events
 
+    async def set_instruction(self, instruction: str) -> list[Event]:
+        """Set or update the per-session custom instruction.
+
+        Appends an instruction.set event. The instruction will be
+        injected as a system message in build_context().
+
+        Args:
+            instruction: The instruction text. Empty string removes it.
+        """
+        logger.debug(
+            "Set instruction: session=%s len=%d",
+            self._session_id, len(instruction),
+        )
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "instruction.set", "data": {"instruction": instruction}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def delete_instruction(self) -> list[Event]:
+        """Remove the per-session custom instruction.
+
+        Appends an instruction.deleted event.
+        """
+        logger.debug("Delete instruction: session=%s", self._session_id)
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "instruction.deleted", "data": {}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def mark_run_start(self) -> list[Event]:
+        """Mark the session as currently running an LLM execution."""
+        logger.debug("Run start: session=%s", self._session_id)
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "session.run_started", "data": {}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def mark_run_stop(self) -> list[Event]:
+        """Mark the session run as stopped (user interruption)."""
+        logger.debug("Run stop: session=%s", self._session_id)
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "session.run_stopped", "data": {}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def mark_run_error(self, error: str = "") -> list[Event]:
+        """Mark the session run as errored."""
+        logger.debug("Run error: session=%s error=%s", self._session_id, error[:80])
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "session.run_errored", "data": {"error": error}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
+    async def mark_run_complete(self) -> list[Event]:
+        """Mark the session run as completed successfully."""
+        logger.debug("Run complete: session=%s", self._session_id)
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "session.run_completed", "data": {}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return events
+
     async def delete(self) -> list[Event]:
         """Mark the session as deleted."""
         logger.info("Session deleted: id=%s", self._session_id)
@@ -445,6 +648,72 @@ class SessionV2:
             await self._event_store.read(self._session_id)
         )
         return events
+
+    def check_overflow(self, threshold: int = 100) -> dict[str, bool | int]:
+        """P2-12: Check if this session is overflowing (too many messages).
+
+        Returns:
+            dict with keys:
+                overflowing (bool): message_count >= threshold
+                near_overflow (bool): message_count >= threshold * 0.8
+                message_count (int): current number of messages
+                threshold (int): the threshold used
+        """
+        msg_count = len(self.state.messages)
+        near_threshold = int(threshold * 0.8)
+        return {
+            "overflowing": msg_count >= threshold,
+            "near_overflow": msg_count >= near_threshold,
+            "message_count": msg_count,
+            "threshold": threshold,
+        }
+
+    def get_last_prompt(self) -> str | None:
+        """P2-13: Return the last user prompt text, or None if empty/not a prompt."""
+        for msg in reversed(self.state.messages):
+            if msg.role == MessageRole.USER:
+                parts = msg.parts
+                if parts and hasattr(parts[0], "text"):
+                    return parts[0].text
+                return None
+        return None
+
+    async def retry(self) -> list[Event]:
+        """P2-13: Re-submit the last user prompt.
+
+        Calls get_last_prompt() and if a prompt exists, appends a new
+        prompt.admitted event with the same content.
+
+        Returns:
+            The stored events, or an empty list if no prompt to retry.
+        """
+        last = self.get_last_prompt()
+        if last is None:
+            return []
+        return await self.prompt(last)
+
+    async def add_reminder(self, text: str) -> dict[str, object]:
+        """P2-14: Add a reminder note to this session.
+
+        Args:
+            text: The reminder text.
+
+        Returns:
+            The reminder dict with id, text, created_at.
+        """
+        reminder_id = f"rem_{time.time_ns()}"
+        events = await self._event_store.append(
+            self._session_id,
+            [{"type": "session.reminder_added", "data": {"id": reminder_id, "text": text}}],
+        )
+        self._state = SessionProjector.project(
+            await self._event_store.read(self._session_id)
+        )
+        return {
+            "id": reminder_id,
+            "text": text,
+            "created_at": events[-1].created_at,
+        }
 
     async def refresh(self) -> None:
         """Reload state from the event store."""

@@ -92,11 +92,25 @@
 | P2-1 | PTY 系统 | ✅ 完成 |
 | P2-2 | Integration 系统 (WebSocket) | ✅ 完成 |
 | P2-3 | Project/Workspace | ✅ 完成 |
-| P2-4 ~ P2-18 | 其余15项 | 待开始 |
+| P2-4 | Control-Plane (workspace routing, worktree) | ✅ 完成 |
+| P2-5 | Sync 系统 (EventStore.scan_events_global, SyncEngine) | ✅ 完成 |
+| P2-6 | Session Instruction (per-session custom instruction, event-sourced) | ✅ 完成 |
+| P2-7 | Session Info (session metadata endpoint) | ✅ 完成 |
+| P2-8 | Session List 增强（分页 + message_count + status） | ✅ 完成 |
+| P2-9 | Session Run State（执行状态：running/stopped/errored/completed） | ✅ 完成 |
+| P2-10 | Config Reference（配置键 schema，含类型/默认值/描述） | ✅ 完成 |
+| P2-11 | Application Tools（应用工具标记，绕过权限提示） | ✅ 完成 |
+| P2-12 | Session Overflow（消息数量溢出检测） | ✅ 完成 |
+| P2-13 | Session Retry（重新提交最后一条用户 prompt） | ✅ 完成 |
+| P2-14 | Session Reminders（事件溯源的提醒系统） | ✅ 完成 |
+| P2-15 | Config tui-cwd（TUI 工作目录配置） | ✅ 完成 |
+| P2-16 | Tool external-directory（外部目录权限注册表） | ✅ 完成 |
+| P2-17 | Config tui-host-attention（TUI 主机注意力配置） | ✅ 完成 |
+| P2-18 | Tool mcp-websearch（Web 搜索工具名称对齐 + MCP 集成） | ✅ 完成 |
 
 ### Checkpoint P2
-- [x] 3/18 项完成 (P2-1, P2-2, P2-3)
-- [x] pytest 通过
+- [x] **18/18 项全部完成** 🎉
+- [x] pytest 通过 (1283 passed)
 - [x] ruff / mypy 清洁
 
 ---
@@ -111,7 +125,7 @@
 
 | 检查项 | 状态 |
 |--------|------|
-| pytest | ✅ 1129 passed |
+| pytest | ✅ 1180 passed (4 skipped) |
 | ruff | ✅ clean |
-| mypy | ✅ 0 errors (167 files) |
+| mypy | ✅ 0 errors (169 files) |
 | git | ✅ 已推送 |

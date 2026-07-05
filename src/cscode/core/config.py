@@ -172,6 +172,93 @@ _SUB_CONFIG_CLASSES: dict[str, type] = {
     "reference": ReferenceConfig,
 }
 
+# ---------------------------------------------------------------------------
+# Config key schema reference (P2-10)
+# ---------------------------------------------------------------------------
+
+CONFIG_KEY_META: dict[str, dict[str, str]] = {
+    "provider": {
+        "type": "string",
+        "default": "openai",
+        "description": "LLM provider name (openai, anthropic, ollama, gemini, azure, openrouter)",
+    },
+    "model": {
+        "type": "string",
+        "default": "gpt-4o",
+        "description": "Model identifier for the selected provider",
+    },
+    "api_base": {
+        "type": "string",
+        "default": "",
+        "description": "Custom API base URL for self-hosted or compatible providers",
+    },
+    "api_key": {
+        "type": "string",
+        "default": "",
+        "description": "API key for the selected provider (stored securely)",
+    },
+    "max_tokens": {
+        "type": "int",
+        "default": "4096",
+        "description": "Maximum tokens per LLM response",
+    },
+    "temperature": {
+        "type": "float",
+        "default": "0.3",
+        "description": "Response randomness (0.0 = deterministic, 2.0 = very random)",
+    },
+    "top_p": {
+        "type": "float",
+        "default": "0.3",
+        "description": "Nucleus sampling threshold",
+    },
+    "system_prompt": {
+        "type": "string",
+        "default": "",
+        "description": "Custom system prompt override",
+    },
+    "theme": {
+        "type": "string",
+        "default": "catppuccin",
+        "description": "UI theme name",
+    },
+    "tui_cwd": {
+        "type": "string",
+        "default": "",
+        "description": "TUI working directory override (empty = default)",
+    },
+    "tui_host_attention": {
+        "type": "string",
+        "default": "",
+        "description": "TUI host attention mode (bell, flash, or empty for none)",
+    },
+    "OPENAI_API_KEY": {
+        "type": "string",
+        "default": "",
+        "description": "OpenAI API key (alternative to api_key with provider=openai)",
+    },
+    "ANTHROPIC_API_KEY": {
+        "type": "string",
+        "default": "",
+        "description": "Anthropic API key (alternative to api_key with provider=anthropic)",
+    },
+    "GEMINI_API_KEY": {
+        "type": "string",
+        "default": "",
+        "description": "Google Gemini API key",
+    },
+    "MODEL": {
+        "type": "string",
+        "default": "",
+        "description": "Model override via environment variable",
+    },
+    "PROVIDER": {
+        "type": "string",
+        "default": "",
+        "description": "Provider override via environment variable",
+    },
+}
+
 
 @dataclass
 class Config:
@@ -184,6 +271,8 @@ class Config:
     top_p: float = 0.3
     system_prompt: str | None = None
     theme: str = "catppuccin"
+    tui_cwd: str = ""
+    tui_host_attention: str = ""
 
     # Sub-config modules
     experimental: ExperimentalConfig | None = None

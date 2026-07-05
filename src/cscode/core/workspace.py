@@ -11,10 +11,15 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List
 
+from cscode.schema.ids import SessionID
 from cscode.storage.db import Database
+from cscode.storage.event_store import EventStore
 from cscode.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from cscode.core.session import SessionV2
 
 logger = get_logger(__name__)
 
@@ -132,6 +137,54 @@ class WorkspaceStore:
         """
         workspaces = await self.list(limit=limit)
         return workspaces
+
+    async def list_sessions(
+        self, event_store: EventStore, workspace_id: str
+    ) -> List[SessionV2]:
+        """List all sessions associated with the given workspace.
+
+        Scans event store for session.workspace.associated/.moved events
+        to determine which sessions belong to this workspace.
+
+        Args:
+            event_store: EventStore instance for scanning workspace events.
+            workspace_id: The workspace ID to filter sessions by.
+
+        Returns:
+            List of SessionV2 instances currently in this workspace.
+        """
+        workspace_events = await event_store.scan_events_by_type(
+            "session.workspace.associated",
+            "session.workspace.moved",
+        )
+
+        session_workspace: dict[str, str] = {}
+        for evt in workspace_events:
+            if evt.type == "session.workspace.associated":
+                session_workspace[evt.aggregate_id] = str(
+                    evt.data.get("workspace_id", "")
+                )
+            elif evt.type == "session.workspace.moved":
+                session_workspace[evt.aggregate_id] = str(
+                    evt.data.get("to_workspace_id", "")
+                )
+
+        from cscode.core.session import SessionV2
+
+        result: List[SessionV2] = []
+        for sess_id, ws_id in session_workspace.items():
+            if ws_id == workspace_id:
+                try:
+                    session = await SessionV2.load(
+                        event_store, SessionID(sess_id)
+                    )
+                    result.append(session)
+                except Exception:
+                    logger.warning(
+                        "Failed to load session %s for workspace %s",
+                        sess_id, workspace_id,
+                    )
+        return result
 
     # ── Update ──────────────────────────────────────────────────────
 

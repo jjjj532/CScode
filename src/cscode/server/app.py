@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from cscode.app.factory import create_agent_v2, create_tool_registry
 from cscode.core.coordinator import SessionCoordinator
+from cscode.core.external_directory import ExternalDirectoryStore
 from cscode.core.session import SessionProjector, SessionV2
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
@@ -164,6 +165,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Workspace store (P2-3)
     _workspace_store = WorkspaceStore(_db) if _db else None
 
+    # External directory registry (P2-16)
+    _external_dir_store = ExternalDirectoryStore()
+
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     template_path = OUTPUTS_DIR / "xlsx_template.py"
     if not template_path.exists():
@@ -215,6 +219,7 @@ _tracker: TaskTracker | None = None
 _question_registry: QuestionRegistry | None = None
 _tool_registry: Any = None
 _workspace_store: WorkspaceStore | None = None
+_external_dir_store: ExternalDirectoryStore | None = None
 _active_agent_tasks: dict[str, asyncio.Task[Any]] = {}
 _session_queues: dict[str, asyncio.Queue[dict[str, object]]] = {}
 _permission_store: dict[str, dict[str, object]] = {}
@@ -942,15 +947,23 @@ async def _handle_chat(
 
 
 @api_router.get("/sessions")
-async def list_sessions() -> list[dict[str, Any]]:
+async def list_sessions(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """P2-8: List all sessions with metadata and pagination.
+
+    Args:
+        limit: Maximum sessions to return (default 50).
+        offset: Number of sessions to skip (default 0).
+    """
     global _event_store, _projector
     if _event_store is None or _projector is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
-    # Get all session IDs from event_sequences
     if _db is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
-    cursor = await _db.conn.execute("SELECT aggregate_id FROM event_sequences")
+    cursor = await _db.conn.execute(
+        "SELECT aggregate_id FROM event_sequences ORDER BY aggregate_id LIMIT ? OFFSET ?",
+        (limit, offset),
+    )
     rows = await cursor.fetchall()
 
     sessions = []
@@ -964,6 +977,9 @@ async def list_sessions() -> list[dict[str, Any]]:
                 "title": state.title,
                 "provider": state.provider,
                 "model": state.model,
+                "status": state.status,
+                "message_count": len(state.messages),
+                "event_count": state.seq,
                 "created_at": state.created_at,
                 "updated_at": state.updated_at,
             })
@@ -1331,6 +1347,274 @@ async def switch_agent(session_id: str, body: dict[str, object]) -> dict[str, st
     await session_v2.update_metadata(agent=str(agent))
     logger.info("Session %s agent switched to %s", session_id, agent)
     return {"status": "ok"}
+
+
+@api_router.get("/sessions/{session_id}/info")
+async def get_session_info(session_id: str) -> dict[str, object]:
+    """P2-7: Return full session metadata."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    st = session_v2.state
+    return {
+        "session_id": str(st.session_id),
+        "title": st.title,
+        "model": st.model,
+        "provider": st.provider,
+        "agent": st.agent,
+        "status": st.status,
+        "workspace_id": st.workspace_id,
+        "message_count": len(st.messages),
+        "event_count": st.seq,
+        "tool_rounds": st.tool_rounds,
+        "created_at": st.created_at,
+        "updated_at": st.updated_at,
+        "seq": st.seq,
+    }
+
+
+@api_router.get("/sessions/{session_id}/instruction")
+async def get_session_instruction(session_id: str) -> dict[str, str]:
+    """P2-6: Get the per-session custom instruction."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    return {"instruction": session_v2.state.instruction}
+
+
+@api_router.put("/sessions/{session_id}/instruction")
+async def set_session_instruction(session_id: str, body: dict[str, object]) -> dict[str, str]:
+    """P2-6: Set or update the per-session custom instruction."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    instruction = str(body.get("instruction", ""))
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    await session_v2.set_instruction(instruction)
+    return {"instruction": session_v2.state.instruction}
+
+
+@api_router.delete("/sessions/{session_id}/instruction")
+async def delete_session_instruction(session_id: str) -> dict[str, bool]:
+    """P2-6: Remove the per-session custom instruction."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    await session_v2.delete_instruction()
+    return {"deleted": True}
+
+
+@api_router.get("/sessions/{session_id}/run-state")
+async def get_session_run_state(session_id: str) -> dict[str, str]:
+    """P2-9: Get the current run state of a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {
+        "status": session_v2.state.run_status,
+        "error": session_v2.state.run_error,
+    }
+
+
+@api_router.put("/sessions/{session_id}/run-state")
+async def set_session_run_state(
+    session_id: str, body: dict[str, str]
+) -> dict[str, str]:
+    """P2-9: Set the run state of a session.
+
+    Valid status values: running, stopped, errored, completed.
+    """
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    status = body.get("status", "")
+    if status not in ("running", "stopped", "errored", "completed"):
+        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    method_map = {
+        "running": session_v2.mark_run_start,
+        "stopped": session_v2.mark_run_stop,
+        "errored": lambda: session_v2.mark_run_error(error=body.get("error", "")),
+        "completed": session_v2.mark_run_complete,
+    }
+    fn = method_map[status]
+    await fn()
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    return {
+        "status": session_v2.state.run_status,
+        "error": session_v2.state.run_error,
+    }
+
+
+@api_router.get("/config/reference")
+async def get_config_reference() -> list[dict[str, str]]:
+    """P2-10: Return schema of all known config keys with types, defaults, descriptions."""
+    from cscode.core.config import CONFIG_KEY_META
+
+    return [
+        {
+            "key": k,
+            "type": v.get("type", "string"),
+            "default": v.get("default", ""),
+            "description": v.get("description", ""),
+        }
+        for k, v in sorted(CONFIG_KEY_META.items())
+    ]
+
+
+@api_router.get("/tools/application")
+async def list_application_tools() -> dict[str, list[str]]:
+    """P2-11: List all application-level tools (safe, read-only tools)."""
+    from cscode.core.application_tools import get_application_tools
+
+    return {"tools": get_application_tools()}
+
+
+@api_router.get("/sessions/{session_id}/overflow")
+async def get_session_overflow(session_id: str) -> dict[str, bool | int]:
+    """P2-12: Check if a session is overflowing (too many messages)."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    info = session_v2.check_overflow()
+    return {
+        "overflowing": info["overflowing"],
+        "near_overflow": info["near_overflow"],
+        "message_count": info["message_count"],
+        "threshold": info["threshold"],
+    }
+
+
+@api_router.post("/sessions/{session_id}/retry")
+async def retry_session(session_id: str) -> dict[str, bool | str | int]:
+    """P2-13: Retry the last prompt in a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    last = session_v2.get_last_prompt()
+    if last is None:
+        raise HTTPException(status_code=400, detail="No prompt to retry")
+
+    events = await session_v2.retry()
+    return {
+        "retried": True,
+        "last_prompt": last,
+        "event_count": len(events),
+    }
+
+
+@api_router.get("/sessions/{session_id}/reminders")
+async def list_reminders(session_id: str) -> dict[str, list[dict[str, object]]]:
+    """P2-14: List all reminders for a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {"reminders": session_v2.state.reminders}
+
+
+@api_router.post("/sessions/{session_id}/reminders")
+async def add_reminder(session_id: str, body: dict[str, str]) -> dict[str, object]:
+    """P2-14: Add a reminder to a session."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    text = body.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return await session_v2.add_reminder(text)
+
+
+@api_router.get("/directories/external")
+async def list_external_directories() -> dict[str, list[dict[str, object]]]:
+    """P2-16: List all approved external directories."""
+    global _external_dir_store
+    if _external_dir_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    return {
+        "directories": [
+            {"id": d.id, "path": d.path, "created_at": d.created_at}
+            for d in _external_dir_store.list()
+        ]
+    }
+
+
+@api_router.post("/directories/external")
+async def add_external_directory(body: dict[str, str]) -> dict[str, object]:
+    """P2-16: Register a new approved external directory."""
+    global _external_dir_store
+    if _external_dir_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    path = body.get("path", "")
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        entry = _external_dir_store.add(path)
+        return {"id": entry.id, "path": entry.path, "created_at": entry.created_at}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@api_router.delete("/directories/external/{dir_id}")
+async def remove_external_directory(dir_id: str) -> dict[str, bool]:
+    """P2-16: Remove an approved external directory."""
+    global _external_dir_store
+    if _external_dir_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    ok = _external_dir_store.remove(dir_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Directory not found")
+    return {"ok": True}
+
+
+@api_router.get("/directories/external/check")
+async def check_external_directory(path: str = "") -> dict[str, bool]:
+    """P2-16: Check if a path is within an approved external directory."""
+    global _external_dir_store
+    if _external_dir_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    return {"approved": _external_dir_store.is_approved(path)}
 
 
 @api_router.get("/sessions/{session_id}/questions")

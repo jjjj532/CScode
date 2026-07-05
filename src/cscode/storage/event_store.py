@@ -14,11 +14,12 @@ logger = get_logger(__name__)
 
 @dataclass
 class Event:
-    aggregate_id: str
-    seq: int
-    type: str
+    aggregate_id: str = ""
+    seq: int = 0
+    type: str = ""
     data: dict[str, Any] = field(default_factory=dict)
     created_at: float = 0.0
+    id: int = 0
 
 
 class EventStore:
@@ -62,16 +63,20 @@ class EventStore:
             result = []
             for i, evt in enumerate(events):
                 seq = base_seq + i + 1
+                await self._db.conn.execute(
+                    "INSERT INTO events (aggregate_id, seq, type, data, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (aggregate_id, seq, evt["type"], json.dumps(evt.get("data", {})), now),
+                )
+                cursor = await self._db.conn.execute("SELECT last_insert_rowid()")
+                row = await cursor.fetchone()
+                event_id = int(row[0]) if row else 0
                 event = Event(
+                    id=event_id,
                     aggregate_id=aggregate_id,
                     seq=seq,
                     type=evt["type"],
                     data=evt.get("data", {}),
                     created_at=now,
-                )
-                await self._db.conn.execute(
-                    "INSERT INTO events (aggregate_id, seq, type, data, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (aggregate_id, seq, event.type, json.dumps(event.data), now),
                 )
                 result.append(event)
 
@@ -96,6 +101,39 @@ class EventStore:
         rows = await cursor.fetchall()
         return [
             Event(
+                id=r["id"],
+                aggregate_id=r["aggregate_id"],
+                seq=r["seq"],
+                type=r["type"],
+                data=json.loads(r["data"]),
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    async def scan_events_global(
+        self, after_id: int = 0, limit: int = 100
+    ) -> list[Event]:
+        """Scan all events globally ordered by auto-increment id.
+
+        This is the primary method for incremental sync — new events always
+        get monotonically increasing ids via AUTOINCREMENT.
+
+        Args:
+            after_id: Only return events with id > after_id (0 = all).
+            limit: Maximum number of events to return (default 100).
+
+        Returns:
+            List of events ordered by id ascending.
+        """
+        cursor = await self._db.conn.execute(
+            "SELECT * FROM events WHERE id > ? ORDER BY id ASC LIMIT ?",
+            (after_id, limit),
+        )
+        rows = await cursor.fetchall()
+        return [
+            Event(
+                id=r["id"],
                 aggregate_id=r["aggregate_id"],
                 seq=r["seq"],
                 type=r["type"],
@@ -128,6 +166,41 @@ class EventStore:
                             self._listeners[aggregate_id] = [
                                 e for e in self._listeners[aggregate_id] if e is not evt
                             ]
+
+    async def scan_events_by_type(self, *types: str) -> list[Event]:
+        """Scan events across all aggregates by type(s).
+
+        Args:
+            *types: Event types to filter by.
+
+        Returns:
+            List of matching events ordered by aggregate_id, seq.
+        """
+        placeholders = ",".join("?" for _ in types)
+        cursor = await self._db.conn.execute(
+            f"SELECT * FROM events WHERE type IN ({placeholders}) ORDER BY aggregate_id, seq ASC",
+            types,
+        )
+        rows = await cursor.fetchall()
+        return [
+            Event(
+                id=r["id"],
+                aggregate_id=r["aggregate_id"],
+                seq=r["seq"],
+                type=r["type"],
+                data=json.loads(r["data"]),
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    async def list_aggregate_ids(self) -> list[str]:
+        """List all aggregate IDs that have events."""
+        cursor = await self._db.conn.execute(
+            "SELECT DISTINCT aggregate_id FROM events ORDER BY aggregate_id"
+        )
+        rows = await cursor.fetchall()
+        return [r[0] for r in rows]
 
     async def _notify(self, aggregate_id: str) -> None:
         async with self._listener_lock:

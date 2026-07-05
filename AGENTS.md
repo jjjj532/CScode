@@ -243,3 +243,83 @@ CScode 是一个 AI 编程助手，支持 Claude Code、Cursor 等主流 AI 编�
 - Shell echoes command text containing the marker — marker 检测必须搜索 `\nMARKER`（行首匹配），不能子串匹配
 - PTY fd 在 create_subprocess_exec 前设置 set_blocking(False)，slave fd 传给子进程后 parent 关闭
 - `os.openpty()` 返回 (master_fd, slave_fd) pair，slave_fd 在子进程中作为 stdin/stdout/stderr
+
+## Sync 系统注意事项（Ratchet Rules）
+- `Event.id` 必须放在 dataclass 字段最后（`id: int = 0`），避免破坏位置参数兼容性（`Event("agg", 1, "type", data, t)`）
+- `scan_events_global()` 使用 `id > ?` 而非 `id >= ?` 作为 after_id 过滤条件，避免重复拉取
+- SyncEngine 提供两种传输模式：direct (EventStore-to-EventStore) 用于测试，HTTP (REST API) 用于生产
+- Sync dedup 依赖 events 表的 `UNIQUE(aggregate_id, seq)` 约束，而非应用层去重
+- `_push_direct`/`_pull_direct` 在 append 失败时静默跳过（预期行为：duplicate key），其他异常也应该跳过
+
+## Session Instruction 系统注意事项（Ratchet Rules）
+- `SessionV2.set_instruction()` / `delete_instruction()` 必须通过事件溯源（instruction.set / instruction.deleted），不能直接修改 state
+- `build_context()` 在有 `state.instruction` 时自动注入为第一个 system message，位置在 epoch snapshot 之后（如果存在）
+- Instruction API 端点（GET/PUT/DELETE）遵循现有 `@api_router` 模式，异常处理同上
+- Instruction 必须跨 session load 持久化（通过 EventStore）
+
+## Session List 系统注意事项（Ratchet Rules）
+- `GET /api/sessions` 必须从 `event_sequences` 表获取 aggregate ID 列表，而非直接从 EventStore 扫描（后者无法列出无事件但已注册的 aggregate）
+- 分页参数 `limit` / `offset` 直接在 SQL 层面实现（`ORDER BY aggregate_id LIMIT ? OFFSET ?`），不在 Python 层面过滤
+- 响应包含 `status`、`message_count`、`event_count` 等增强字段，按需从 SessionState 读取
+- 每个 session 的 load 用 try/except 包裹，单个 session 失败不影响返回列表
+
+## Session Run State 系统注意事项（Ratchet Rules）
+- `SessionState` 新增 `run_status` / `run_error` 字段必须在构造器中显式传入默认值，避免投影状态未覆盖
+- `SessionV2.mark_run_error()` 接受可选的 `error` 参数，其他 run state 方法无参数
+- API 端点 `GET/PUT /sessions/{id}/run-state` 接受 `dict[str, str]` 而非 Pydantic 模型（与现有端点风格一致）
+- 默认初始状态为 `idle`，非 `running`
+
+## Config Reference 系统注意事项（Ratchet Rules）
+- Config metadata (`CONFIG_KEY_META`) 定义在 `config.py` 中，以静态字典形式存在，与 Config dataclass 字段一一对应
+- API 端点 `GET /config/reference` 读取 `CONFIG_KEY_META` 并转换为列表返回，不做运行时反射
+- 描述信息保持简短、面向终端用户
+
+## Application Tools 系统注意事项（Ratchet Rules）
+- `APPLICATION_TOOLS` 作为不可变集合导出（`Final[set[str]]`），对外只读
+- `is_application_tool()` 是纯函数，无副作用，可被任何权限模块调用
+- 默认集合包含只读工具（read, grep, glob, ls），不含写入/执行工具
+- API 端点 `GET /tools/application` 返回排序列表，不可修改集合
+
+## Session Overflow 系统注意事项（Ratchet Rules）
+- `SessionV2.check_overflow()` 返回字典而非抛出异常，无副作用
+- overflow 检测基于 `len(state.messages)` 计数，不做 token 估算
+- 阈值默认 100，可通过 `threshold` 参数覆盖
+- `near_overflow` 阈值为 `int(threshold * 0.8)`
+
+## Session Retry 系统注意事项（Ratchet Rules）
+- `SessionV2.get_last_prompt()` 从后向前扫描 messages，返回最后一条 USER role 消息的 text 内容
+- `SessionV2.retry()` 无参数，调用 `get_last_prompt()` + `self.prompt(last)` 实现
+- `role` 属性是字符串（`"user"` / `"assistant"`），不是 `MessageRole` 枚举实例
+- 空 session 的 `get_last_prompt()` 返回 `None`，`retry()` 返回空列表
+
+## Session Reminders 系统注意事项（Ratchet Rules）
+- 提醒通过 `session.reminder_added` 事件实现事件溯源，不设独立删除/清除事件（简化实现）
+- `SessionState.reminders` 使用 `field(default_factory=list)` 而非元组，因为 reminder 列表是可变增长的
+- `add_reminder()` 使用 `time.time_ns()` 生成唯一 ID，不依赖数据库自增
+- 当前实现只支持添加和查询，不支持删除（未来可通过 `session.reminder_removed` 事件扩展）
+
+## Config tui-cwd 系统注意事项（Ratchet Rules）
+- `Config` 新增字段必须在 dataclass 字段列表和 `CONFIG_KEY_META` 字典中同时添加，缺一不可
+- `CONFIG_KEY_META` 的 `"type"` 字段使用字符串描述（`"string"` / `"int"` / `"float"`），非 Python 类型对象
+- `from_dict()` 默认将空字符串跳过（`if isinstance(v, str) and not v: continue`），因此 `tui_cwd` 的空字符串默认值会正确保留
+
+## External Directory 系统注意事项（Ratchet Rules）
+- `ExternalDirectoryStore` 是纯内存存储，不依赖数据库，适合轻量级权限管理
+- `is_approved()` 使用 `normalized.startswith(prefix)` 匹配子路径，`prefix` 必须包含尾部 `/` 确保目录边界正确
+- `_normalize_path()` 调用 `os.path.abspath()` 解析为绝对路径并去除尾部斜杠（根目录 `/` 除外）
+- 添加重复路径时抛出 `ValueError`，API 层将其转换为 409 响应
+
+## Config tui-host-attention 系统注意事项（Ratchet Rules）
+- 与 tui-cwd 模式相同：Config 类加字段 + CONFIG_KEY_META 加条目，两步缺一不可
+
+## mcp-websearch 系统注意事项（Ratchet Rules）
+- `APPLICATION_TOOLS` 中的名称必须与工具类的 `name` 属性完全一致（如 `"websearch"` 而非 `"web_search"`）
+- 名称不一致会导致 `is_application_tool()` 返回 False，触发不必要的权限确认
+- WebSearchTool 有 v1（`tools/websearch.py`）和 v2（`tools2/websearch.py`）两个版本，名称必须同步对齐
+
+## Control-Plane 系统注意事项（Ratchet Rules）
+- `SessionV2.create()` 直接构造 SessionState（绕过 projector），新增字段必须在 `SessionState()` 构造器中显式传入，不能只靠事件追加
+- `EventStore.scan_events_by_type()` 用于跨 aggregate 的事件扫描，适用于 workspace→session 映射等跨聚合查询
+- `WorktreeManager._parse_line()` 处理非 porcelain 格式，bare repo 无 hash 字段需先判断 `(bare)` 再赋 hash
+- 生产代码优先使用 `--porcelain` 格式（`_parse_output()`），`_parse_line()` 仅为辅助/测试用
+- `WorkspaceStore.list_sessions()` 使用事件溯源方式（scan_events_by_type）而非 SQL 直接查询
