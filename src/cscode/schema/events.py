@@ -96,22 +96,28 @@ class ToolCallEnded:
 # ─── Tool Result Events ────────────────────────────────────────────
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class ToolResult:
     """A tool executed successfully and produced output."""
 
     type: Literal["tool-result"] = field(default="tool-result", init=False)
     tool_call_id: ToolCallID
     result: str
+    tool_name: str = ""
+    tool_args: dict[str, object] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class ToolFailure:
     """A tool failed during execution (error inside the tool handler)."""
 
     type: Literal["tool-failure"] = field(default="tool-failure", init=False)
     tool_call_id: ToolCallID
     error: str
+    tool_name: str = ""
+    tool_args: dict[str, object] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 # ─── Reasoning Events ──────────────────────────────────────────────

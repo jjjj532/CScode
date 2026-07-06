@@ -28,9 +28,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from cscode.app.factory import create_agent_v2, create_tool_registry
+from cscode.core.compression import ContextCompressor
 from cscode.core.coordinator import SessionCoordinator
 from cscode.core.external_directory import ExternalDirectoryStore
-from cscode.core.session import SessionProjector, SessionV2
+from cscode.core.session import SessionLockManager, SessionProjector, SessionV2
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
 from cscode.llm.types import LLMRequest
@@ -85,22 +86,33 @@ def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
             return {"type": "text.ended", "data": {"content": full_text}}
         case ToolCallEnded(tool_call_id=id, name=name, args=args):
             return {"type": "tool.called", "data": {"tool_call_id": id, "name": name, "args": args}}
-        case ToolResult(tool_call_id=id, result=result):
-            return {"type": "tool.success", "data": {"tool_call_id": id, "result": result}}
+        case ToolResult(tool_call_id=id, result=result, tool_name=tool_name, tool_args=tool_args, metadata=metadata):
+            return {"type": "tool.success", "data": {
+                "tool_call_id": id, "result": result,
+                "name": tool_name, "args": tool_args,
+                "metadata": metadata,
+            }}
         case Finish(finish_reason=finish_reason):
             return {"type": "complete", "data": {"finish_reason": finish_reason}}
-        case ToolFailure(tool_call_id=id, error=error):
-            return {"type": "tool.failed", "data": {"tool_call_id": id, "error": error}}
+        case ToolFailure(tool_call_id=id, error=error, tool_name=tool_name, tool_args=tool_args, metadata=metadata):
+            return {"type": "tool.failed", "data": {
+                "tool_call_id": id, "error": error,
+                "name": tool_name, "args": tool_args,
+                "metadata": metadata,
+            }}
         case _:
             return {"type": "unknown", "data": {}}
 
 
 async def _auto_compact(session_id: str, event_store: EventStore) -> None:
-    """Fire-and-forget auto-compaction."""
+    """Fire-and-forget event compaction via Compactor."""
+    global _compactor
+    if _compactor is None:
+        return
     try:
-        await asyncio.sleep(0)  # yield to event loop
+        await _compactor.compact(session_id)
     except Exception:
-        pass
+        logger.exception("auto_compact failed for %s", session_id)
 
 
 def _build_system_prompt(file_context: str = "") -> NewMessage:
@@ -111,6 +123,23 @@ def _build_system_prompt(file_context: str = "") -> NewMessage:
     )
     if file_context:
         base += f"\n\n{file_context}"
+    base += "\n\nCRITICAL RULES FOR TESTING — VIOLATION WILL BE DETECTED:\n"
+    base += "1. Every test case MUST be executed through real tool calls (browser, bash, etc.).\n"
+    base += "   Each tool call is recorded and verified. You CANNOT fake execution.\n"
+    base += "2. NEVER infer or guess test results from documentation, code, or prior knowledge.\n"
+    base += "   If you did not call a tool, the result does not exist.\n"
+    base += "3. If a test cannot be executed (no credentials, blocked URL, timeout):\n"
+    base += "   Mark it SKIPPED — do NOT mark it as passed or failed.\n"
+    base += "4. For browser tests, you MUST capture BOTH screenshot AND HTML content.\n"
+    base += "   A test without both is UNVERIFIED and will not count as executed.\n"
+    base += "5. task_id format MUST be: TC-XXX (XXX is 3-digit number, e.g. TC-001, TC-002).\n"
+    base += "6. In your final response, use this format for each test case:\n"
+    base += "   [EXECUTED]   TC-001 — Login success — evidence: screenshot + HTML\n"
+    base += "   [FAILED]     TC-002 — Login failure — error: timeout\n"
+    base += "   [SKIPPED]    TC-003 — Payment test — reason: no test credentials\n"
+    base += "   [UNVERIFIED] TC-004 — Empty page — re-run needed\n"
+    base += "7. The verification report is generated from the database, not from your text.\n"
+    base += "   You cannot convince the system — only real tool calls count."
     return NewMessage.system(base)
 
 
@@ -169,6 +198,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _external_dir_store = ExternalDirectoryStore()
 
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+    (OUTPUTS_DIR / "evidence").mkdir(parents=True, exist_ok=True)
     template_path = OUTPUTS_DIR / "xlsx_template.py"
     if not template_path.exists():
         template_path.write_text(_XLSX_TEMPLATE)
@@ -421,6 +451,11 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             session_v2, is_new = await _get_or_create_session(session_id, _event_store, config_data)
 
+            # Per-session concurrency lock: reject if already processing
+            if not await SessionLockManager.try_lock(str(session_v2.session_id)):
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Session is already processing'})}\n\n"
+                return
+
             if is_new:
                 yield f"data: {json.dumps({'type': 'session', 'session_id': session_v2.session_id})}\n\n"
 
@@ -476,6 +511,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         await _event_store.append(str(session_v2.session_id), [
                             {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
                         ])
+                # Notify TaskTracker for tool events with task_id
+                if _tracker is not None and sse_event.get("type") in ("tool.success", "tool.failed"):
+                    await _tracker.handle_event(str(session_v2.session_id), sse_event)
 
             async def _emit_step_started() -> None:
                 step_event: dict[str, object] = {"type": "step.started", "data": {}, "session_id": str(session_v2.session_id)}
@@ -651,6 +689,8 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 yield f"data: {json.dumps({'type': 'error', 'data': {'content': str(e)}, 'session_id': str(session_v2.session_id) if session_v2 else 'unknown'})}\n\n"
 
         finally:
+            if session_v2 is not None:
+                SessionLockManager.unlock(str(session_v2.session_id))
             if session_v2 is not None and agent_task is not None:
                 if _active_agent_tasks.get(str(session_v2.session_id)) is agent_task:
                     del _active_agent_tasks[str(session_v2.session_id)]
@@ -833,6 +873,93 @@ def _workspace_to_dict(ws: Any) -> dict[str, object]:
     }
 
 
+@api_router.get("/workspaces/{workspace_id}/sessions")
+async def list_workspace_sessions(workspace_id: str) -> list[dict[str, object]]:
+    """P2-3: List all sessions associated with a workspace."""
+    global _workspace_store, _event_store
+    if _workspace_store is None or _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    ws = await _workspace_store.get(workspace_id)
+    if ws is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    sessions = await _workspace_store.list_sessions(_event_store, workspace_id)
+    return [
+        {
+            "session_id": str(s.session_id),
+            "title": s.state.title,
+            "model": s.state.model,
+            "provider": s.state.provider,
+            "status": s.state.status,
+        }
+        for s in sessions
+    ]
+
+
+@api_router.post("/sessions/{session_id}/move-workspace")
+async def move_session_workspace(
+    session_id: str, body: dict[str, str],
+) -> dict[str, str]:
+    """P2-4: Move a session to another workspace."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    to_ws = body.get("to_workspace_id", "")
+    if not to_ws:
+        raise HTTPException(status_code=400, detail="to_workspace_id is required")
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await session_v2.move_workspace(to_ws)
+    return {"status": "ok"}
+
+
+@api_router.get("/worktrees")
+async def list_worktrees() -> list[dict[str, object]]:
+    """P2-4: List all git worktrees."""
+    from cscode.core.control_plane import WorktreeManager
+    try:
+        worktrees = WorktreeManager.list_worktrees()
+        return [
+            {
+                "path": wt.path,
+                "hash": wt.hash,
+                "branch": wt.branch,
+                "bare": wt.bare,
+                "detached": wt.detached,
+            }
+            for wt in worktrees
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/worktrees")
+async def create_worktree(body: dict[str, str]) -> dict[str, object]:
+    """P2-4: Create a new git worktree."""
+    from cscode.core.control_plane import WorktreeManager
+    path = body.get("path", "")
+    branch = body.get("branch", "")
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    success, message = WorktreeManager.add_worktree(path, branch or None)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"path": path, "message": message}
+
+
+@api_router.delete("/worktrees")
+async def remove_worktree(body: dict[str, str]) -> dict[str, str]:
+    """P2-4: Remove (prune) a git worktree."""
+    from cscode.core.control_plane import WorktreeManager
+    path = body.get("path", "")
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    success, message = WorktreeManager.remove_worktree(path)
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"status": "ok"}
+
+
 async def _handle_chat(
     message: str, session_id: str | None, files: list[tuple[str, bytes]] | None = None
 ) -> ChatResponse:
@@ -884,6 +1011,11 @@ async def _handle_chat(
         # Build messages for LLM
         user_text = message.strip() if message else "请分析附件内容"
         messages = await _build_context_messages(session_v2, user_text, file_context)
+
+        _compressor = ContextCompressor(threshold=50_000, keep_recent=10)
+        if _compressor.needs_compression(messages):
+            logger.info("Compressing %d messages before LLM call", len(messages))
+            messages = _compressor.compress(messages)
 
         # Append prompt.admitted event
         await _event_store.append(str(session_v2.session_id), [
@@ -1349,6 +1481,24 @@ async def switch_agent(session_id: str, body: dict[str, object]) -> dict[str, st
     return {"status": "ok"}
 
 
+@api_router.post("/sessions/{session_id}/workspace")
+async def associate_session_workspace(
+    session_id: str, body: dict[str, str],
+) -> dict[str, str]:
+    """P2-3: Associate a session with a workspace."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    ws_id = body.get("workspace_id", "")
+    if not ws_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required")
+    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await session_v2.associate_workspace(ws_id)
+    return {"status": "ok"}
+
+
 @api_router.get("/sessions/{session_id}/info")
 async def get_session_info(session_id: str) -> dict[str, object]:
     """P2-7: Return full session metadata."""
@@ -1789,6 +1939,512 @@ async def list_directory(path: str = ".") -> dict[str, object]:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# P0-3: Session Input Inbox — event-sourced input queue per session
+# ---------------------------------------------------------------------------
+
+
+@api_router.get("/sessions/{session_id}/inbox")
+async def get_inbox(session_id: str) -> dict[str, object]:
+    """Get the current inbox state (pending inputs, processing ID)."""
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _event_store is not None
+    from cscode.core.session_input import InputInbox
+    inbox = InputInbox(_event_store, session_id)
+    await inbox.reload()
+    return {
+        "pending": [
+            {"id": inp.id, "content": inp.content[:200], "created_at": inp.created_at}
+            for inp in inbox.state.pending
+        ],
+        "processing_id": inbox.state.processing_id,
+    }
+
+
+@api_router.post("/sessions/{session_id}/inbox", status_code=201)
+async def enqueue_input(session_id: str, request: Request) -> dict[str, object]:
+    """Enqueue a new input to the session's inbox."""
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _event_store is not None
+    from cscode.core.session_input import InputInbox
+    body = await request.json()
+    inbox = InputInbox(_event_store, session_id)
+    try:
+        inp = await inbox.enqueue(
+            content=body.get("content", ""),
+            files=body.get("files"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"id": inp.id, "content": inp.content[:200]}
+
+
+@api_router.delete("/sessions/{session_id}/inbox/{input_id}")
+async def cancel_input(session_id: str, input_id: str) -> dict[str, bool]:
+    """Cancel a pending input in the session's inbox."""
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _event_store is not None
+    from cscode.core.session_input import InputInbox
+    inbox = InputInbox(_event_store, session_id)
+    await inbox.reload()
+    cancelled = await inbox.cancel(input_id)
+    return {"cancelled": cancelled}
+
+
+@api_router.delete("/sessions/{session_id}/inbox", status_code=204)
+async def clear_inbox(session_id: str) -> None:
+    """Clear all pending inputs in the session's inbox."""
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _event_store is not None
+    from cscode.core.session_input import InputInbox
+    inbox = InputInbox(_event_store, session_id)
+    await inbox.reload()
+    await inbox.clear()
+
+
+# ---------------------------------------------------------------------------
+# Task Verification Report
+# ---------------------------------------------------------------------------
+
+
+@api_router.get("/sessions/{session_id}/verification-report")
+async def get_verification_report(session_id: str) -> dict[str, object]:
+    """Return a database-backed verification report for a session.
+
+    The report is generated from the task_verifications projection table,
+    not from LLM text. This prevents the LLM from fabricating results.
+    """
+    global _tracker
+    if _tracker is None:
+        return {"summary": {"executed": 0, "failed": 0, "unverified": 0, "skipped": 0}, "details": []}
+    report = await _tracker.get_execution_report(session_id)
+
+    # Compute SKIPPED: expected tasks not in the projection table
+    db = getattr(_tracker, "db", None)
+    if db is not None:
+        all_expected = await db.fetchall(
+            "SELECT task_id FROM expected_tasks WHERE session_id = ?",
+            (session_id,),
+        )
+        expected_ids = {r["task_id"] for r in all_expected}
+        recorded_ids = {d["task_id"] for d in report["details"]}
+        skipped = expected_ids - recorded_ids
+        report["summary"]["skipped"] = len(skipped)
+        report["details"].extend([
+            {"task_id": tid, "status": "SKIPPED", "evidence": {}, "result_summary": "", "timestamp": None}
+            for tid in skipped
+        ])
+    return report
+
+
+# ---------------------------------------------------------------------------
+# P0-8: Provider Status — check LLM provider availability
+# ---------------------------------------------------------------------------
+
+
+@api_router.get("/providers/status")
+async def get_provider_status(provider: str = "") -> dict[str, object]:
+    """Check the status of LLM providers.
+
+    If provider is specified, checks that provider only.
+    Otherwise checks all known providers.
+    """
+    from cscode.providers.status import ProviderStatusChecker
+    checker = ProviderStatusChecker()
+
+    if provider:
+        result = checker.check(provider)
+        return {"provider": provider, "status": result.status.value, "message": result.message}
+
+    from cscode.providers.status import _DEFAULT_BASE_URLS
+    results: dict[str, dict[str, str]] = {}
+    for p in _DEFAULT_BASE_URLS:
+        result = checker.check(p)
+        results[p] = {"status": result.status.value, "message": result.message}
+    return {"providers": results}
+
+
+# ---------------------------------------------------------------------------
+# P1-1: Credential CRUD — secure credential storage
+# ---------------------------------------------------------------------------
+
+
+@api_router.get("/credentials")
+async def list_credentials(
+    provider: str | None = None,
+    cred_type: str | None = None,
+) -> list[dict[str, object]]:
+    """List stored credentials with optional filters."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _db is not None
+    from cscode.core.credential import CredentialStore
+    store = CredentialStore(_db)
+    creds = await store.list(provider=provider, cred_type=cred_type)
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "type": c.type,
+            "display_value": c.display_value,
+            "provider": c.provider,
+            "created_at": c.created_at,
+            "updated_at": c.updated_at,
+            "expires_at": c.expires_at,
+            "is_expired": c.is_expired,
+        }
+        for c in creds
+    ]
+
+
+@api_router.post("/credentials", status_code=201)
+async def create_credential(request: Request) -> dict[str, str]:
+    """Create a new credential."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _db is not None
+    from cscode.core.credential import CredentialStore
+    body = await request.json()
+    store = CredentialStore(_db)
+    cred = await store.create(
+        name=body.get("name", ""),
+        type=body.get("type", "api_key"),
+        value=body.get("value", ""),
+        provider=body.get("provider", "custom"),
+        expires_at=body.get("expires_at"),
+    )
+    return {"id": cred.id}
+
+
+@api_router.get("/credentials/{cred_id}")
+async def get_credential(cred_id: str) -> dict[str, object]:
+    """Get a credential by ID (with masked display value)."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _db is not None
+    from cscode.core.credential import CredentialStore
+    store = CredentialStore(_db)
+    cred = await store.get(cred_id)
+    if cred is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    return {
+        "id": cred.id,
+        "name": cred.name,
+        "type": cred.type,
+        "display_value": cred.display_value,
+        "provider": cred.provider,
+        "created_at": cred.created_at,
+        "updated_at": cred.updated_at,
+        "expires_at": cred.expires_at,
+        "is_expired": cred.is_expired,
+    }
+
+
+@api_router.put("/credentials/{cred_id}")
+async def update_credential(cred_id: str, request: Request) -> dict[str, object]:
+    """Update a credential's mutable fields."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _db is not None
+    from cscode.core.credential import CredentialStore
+    body = await request.json()
+    store = CredentialStore(_db)
+    cred = await store.update(
+        cred_id=cred_id,
+        name=body.get("name"),
+        value=body.get("value"),
+        expires_at=body.get("expires_at"),
+    )
+    if cred is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    return {"id": cred.id, "updated_at": cred.updated_at}
+
+
+@api_router.delete("/credentials/{cred_id}", status_code=204)
+async def delete_credential(cred_id: str) -> None:
+    """Delete a credential by ID."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _db is not None
+    from cscode.core.credential import CredentialStore
+    store = CredentialStore(_db)
+    deleted = await store.delete(cred_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Credential not found")
+
+
+@api_router.post("/credentials/{cred_id}/rotate")
+async def rotate_credential(cred_id: str, request: Request) -> dict[str, object]:
+    """Rotate a credential value, preserving the previous value."""
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    assert _db is not None
+    from cscode.core.credential import CredentialStore
+    body = await request.json()
+    store = CredentialStore(_db)
+    try:
+        cred = await store.rotate(cred_id, body.get("new_value", ""))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if cred is None:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    return {"id": cred.id, "rotated_at": cred.rotated_at}
+
+
+# ---------------------------------------------------------------------------
+# P1-4: Catalog — model/provider/agent registry
+# ---------------------------------------------------------------------------
+
+
+_catalog: object | None = None
+
+
+def _get_catalog() -> object:
+    """Lazy-initialized singleton catalog with known providers."""
+    global _catalog
+    if _catalog is not None:
+        return _catalog
+    from cscode.core.catalog import (
+        AgentEntry,
+        Catalog,
+        ModelEntry,
+        ProviderEntry,
+    )
+    cat = Catalog()
+    # Pre-populate known providers
+    providers_data = [
+        ("openai", "OpenAI", "openai"),
+        ("anthropic", "Anthropic", "anthropic"),
+        ("gemini", "Google Gemini", "gemini"),
+        ("azure", "Azure OpenAI", "openai"),
+        ("ollama", "Ollama", "openai"),
+        ("openrouter", "OpenRouter", "openai"),
+        ("bedrock", "AWS Bedrock", "anthropic"),
+        ("cohere", "Cohere", "openai"),
+        ("grok", "Grok (xAI)", "openai"),
+        ("mistral", "Mistral AI", "openai"),
+        ("nvidia", "NVIDIA NIM", "openai"),
+        ("perplexity", "Perplexity", "openai"),
+        ("vertex", "Google Vertex AI", "vertex"),
+        ("xai", "xAI", "openai"),
+    ]
+    models_data = [
+        ("gpt-4o", "GPT-4o", "openai", ["chat", "vision"], 128000),
+        ("gpt-4o-mini", "GPT-4o Mini", "openai", ["chat", "vision"], 128000),
+        ("claude-sonnet-4-20250514", "Claude Sonnet 4", "anthropic", ["chat"], 200000),
+        ("claude-haiku-3-5-20241022", "Claude Haiku 3.5", "anthropic", ["chat"], 200000),
+        ("gemini-2.5-pro-exp-03-25", "Gemini 2.5 Pro", "gemini", ["chat"], 1048576),
+        ("command-a-03-2025", "Command A", "cohere", ["chat"], 256000),
+        ("deepseek-chat", "DeepSeek V3", "openrouter", ["chat"], 65536),
+    ]
+    for pid, pname, api_type in providers_data:
+        cat.register_provider(ProviderEntry(id=pid, name=pname, api_type=api_type))
+    for mid, mname, mprovider, caps, ctx in models_data:
+        cat.register_model(ModelEntry(id=mid, name=mname, provider=mprovider, capabilities=caps, context_length=ctx))
+    cat.register_agent(AgentEntry(id="default", name="Default Agent", description="General-purpose coding assistant", tools=["read", "grep", "edit", "bash"]))
+    _catalog = cat
+    return cat
+
+
+@api_router.get("/catalog/models")
+async def list_catalog_models(provider: str | None = None, search: str = "") -> list[dict[str, object]]:
+    """List models in the catalog, optionally filtered by provider or search."""
+    from cscode.core.catalog import Catalog
+    cat: Catalog = _get_catalog()  # type: ignore[assignment]
+    if search:
+        results = cat.search_models(search)
+    else:
+        results = cat.list_models(provider=provider)
+    return [
+        {"id": m.id, "name": m.name, "provider": m.provider, "capabilities": m.capabilities, "context_length": m.context_length}
+        for m in results
+    ]
+
+
+@api_router.get("/catalog/providers")
+async def list_catalog_providers() -> list[dict[str, object]]:
+    """List all providers in the catalog."""
+    from cscode.core.catalog import Catalog
+    cat: Catalog = _get_catalog()  # type: ignore[assignment]
+    return [
+        {"id": p.id, "name": p.name, "api_type": p.api_type, "models": p.models}
+        for p in cat.list_providers()
+    ]
+
+
+@api_router.get("/catalog/agents")
+async def list_catalog_agents() -> list[dict[str, object]]:
+    """List all agents in the catalog."""
+    from cscode.core.catalog import Catalog
+    cat: Catalog = _get_catalog()  # type: ignore[assignment]
+    return [
+        {"id": a.id, "name": a.name, "description": a.description, "tools": a.tools}
+        for a in cat.list_agents()
+    ]
+
+
+# ---------------------------------------------------------------------------
+# P1-11: Background Jobs — async job queue with status tracking
+# ---------------------------------------------------------------------------
+
+_job_queue: object | None = None
+
+
+def _get_job_queue() -> object:
+    global _job_queue
+    if _job_queue is not None:
+        return _job_queue
+    from cscode.core.background_job import BackgroundJobQueue
+    q = BackgroundJobQueue()
+    _job_queue = q
+    return q
+
+
+@api_router.post("/jobs", status_code=201)
+async def enqueue_job(request: Request) -> dict[str, str]:
+    """Enqueue a new background job."""
+    body = await request.json()
+    from cscode.core.background_job import BackgroundJobQueue
+    q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
+    job = await q.enqueue(
+        job_type=body.get("job_type", ""),
+        params=body.get("params"),
+    )
+    return {"id": job.id}
+
+
+@api_router.get("/jobs")
+async def list_jobs(
+    status: str | None = None,
+    job_type: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, object]]:
+    """List background jobs with optional filters."""
+    from cscode.core.background_job import BackgroundJobQueue, JobStatus
+    q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
+    status_enum = JobStatus(status) if status else None
+    jobs = await q.list_jobs(status=status_enum, job_type=job_type, limit=limit)
+    return [j.to_dict() for j in jobs]
+
+
+@api_router.get("/jobs/{job_id}")
+async def get_job(job_id: str) -> dict[str, object]:
+    """Get the status and details of a background job."""
+    from cscode.core.background_job import BackgroundJobQueue
+    q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
+    job = await q.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job.to_dict()
+
+
+@api_router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str) -> dict[str, bool]:
+    """Cancel a pending or running job."""
+    from cscode.core.background_job import BackgroundJobQueue
+    q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
+    cancelled = await q.cancel_job(job_id)
+    return {"cancelled": cancelled}
+
+
+# ---------------------------------------------------------------------------
+# P0-4 / P1-12: File Attachments & Locale — convenience endpoints
+# ---------------------------------------------------------------------------
+
+
+@api_router.post("/files/attach")
+async def create_attachment(request: Request) -> dict[str, object]:
+    """Create an Attachment from a file path. Reads the file and returns metadata."""
+    from cscode.core.attachment import Attachment
+    body = await request.json()
+    file_path = body.get("path", "")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        attachment = Attachment.from_path(file_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "name": attachment.name,
+        "path": attachment.path,
+        "size": attachment.size,
+        "mime_type": attachment.mime_type,
+        "is_image": attachment.is_image,
+        "is_text": attachment.is_text,
+    }
+
+
+@api_router.get("/locale")
+async def get_locale() -> dict[str, str]:
+    """Get the current system locale."""
+    from cscode.core.i18n import I18n
+    locale = I18n.detect_locale()
+    return {"locale": locale}
+
+
+@api_router.post("/locale")
+async def set_locale(request: Request) -> dict[str, str]:
+    """Set the locale (en or zh)."""
+    from cscode.core.i18n import get_i18n
+    body = await request.json()
+    locale = body.get("locale", "en")
+    get_i18n().set_locale(locale)
+    return {"locale": get_i18n().locale}
+
+
+# ─── P2-5: Sync — multi-instance event sync ──────────────────────────
+
+
+@api_router.get("/sync/events")
+async def get_sync_events(after_id: int = 0) -> list[dict[str, object]]:
+    """P2-5: Return events with id > after_id for incremental sync."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    events = await _event_store.scan_events_global(after_id=after_id)
+    return [
+        {
+            "id": e.id,
+            "aggregate_id": e.aggregate_id,
+            "seq": e.seq,
+            "type": e.type,
+            "data": e.data,
+            "created_at": e.created_at,
+        }
+        for e in events
+    ]
+
+
+@api_router.post("/sync/push")
+async def push_sync_events(body: dict[str, object]) -> dict[str, int]:
+    """P2-5: Accept pushed events from a remote instance."""
+    global _event_store
+    if _event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    count = 0
+    raw_events = body.get("events", [])
+    if not isinstance(raw_events, list):
+        raw_events = []
+    for evt_data in raw_events:
+        if not isinstance(evt_data, dict):
+            continue
+        try:
+            await _event_store.append(
+                evt_data["aggregate_id"],
+                [{"type": evt_data.get("type", ""), "data": evt_data.get("data", {})}],
+            )
+            count += 1
+        except Exception:
+            pass
+    return {"pushed": count}
 
 
 _XLSX_TEMPLATE = """import openpyxl

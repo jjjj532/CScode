@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -110,9 +111,56 @@ class BedrockProvider(LLMProvider):
             finish_reason=stop_reason,
         )
 
-    def stream(
+    async def stream(
         self,
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
-        raise NotImplementedError("Bedrock streaming not yet implemented")
+        logger.info("Bedrock.stream: model=%s messages=%d", self._model, len(messages))
+        client = await self._ensure_client()
+        body: dict[str, Any] = {
+            "modelId": self._model,
+            "messages": self.build_messages(messages),
+        }
+        system = self._extract_system(messages)
+        if system:
+            body["system"] = system
+        if tools:
+            body["toolConfig"] = {"tools": tools}
+        body["inferenceConfig"] = {
+            "maxTokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "topP": self.config.top_p,
+        }
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+        def _producer() -> None:
+            """Synchronous boto3 stream producer running in a thread."""
+            try:
+                response = client.converse_stream(**body)
+                event_stream = response.get("stream", [])
+                for event in event_stream:
+                    if "contentBlockDelta" in event:
+                        delta = event["contentBlockDelta"]
+                        text = delta.get("delta", {}).get("text", "")
+                        if text:
+                            queue.put_nowait(text)
+                queue.put_nowait(None)  # sentinel
+            except Exception as e:
+                logger.error("Bedrock stream error: %s", e)
+                queue.put_nowait(None)
+
+        loop = asyncio.get_running_loop()
+        task = loop.run_in_executor(None, _producer)
+
+        try:
+            while True:
+                chunk = await queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+            await task
+        except Exception as e:
+            logger.error("Bedrock stream failed: %s", e)
+            raise ProviderError(f"Bedrock stream error: {e}") from e

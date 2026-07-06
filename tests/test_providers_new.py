@@ -265,13 +265,14 @@ class TestBedrockProvider:
                 sys.modules["boto3"] = saved_boto3
 
     @pytest.mark.asyncio
-    async def test_stream_not_implemented(self) -> None:
+    async def test_stream_returns_iterator(self) -> None:
+        """stream() no longer raises NotImplementedError; it is callable."""
         from cscode.providers.bedrock import BedrockProvider
         cfg = Config(provider="bedrock")
         p = BedrockProvider(cfg)
-        with pytest.raises(NotImplementedError):
-            async for _ in p.stream([Message(role=MessageRole.USER, content="hi")]):
-                pass
+        it = p.stream([Message(role=MessageRole.USER, content="hi")])
+        # Should be an async iterator, not raise NotImplementedError
+        assert hasattr(it, "__aiter__")
 
 
 # ─── Vertex ─────────────────────────────────────────────────────
@@ -360,10 +361,10 @@ class TestVertexProvider:
                 __import__("sys").modules["google.auth"] = saved_auth
 
     @pytest.mark.asyncio
-    async def test_stream_not_implemented(self) -> None:
+    async def test_stream_returns_iterator(self) -> None:
+        """stream() no longer raises NotImplementedError; it is callable."""
         from cscode.providers.vertex import VertexProvider
         cfg = Config(provider="vertex", api_key="key")
         p = VertexProvider(cfg)
-        with pytest.raises(NotImplementedError):
-            async for _ in p.stream([Message(role=MessageRole.USER, content="hi")]):
-                pass
+        it = p.stream([Message(role=MessageRole.USER, content="hi")])
+        assert hasattr(it, "__aiter__")

@@ -33,6 +33,7 @@ def _get_migration_registry() -> MigrationRegistry:
         reg.register(Migration(6, "create credentials table", _migration_006, _noop))
         reg.register(Migration(7, "create shares table", _migration_007, _noop))
         reg.register(Migration(8, "create workspaces table", _migration_008, _noop))
+        reg.register(Migration(9, "add event_seq to messages table", _migration_009, _noop))
         _migration_registry = reg
     return _migration_registry
 
@@ -224,6 +225,14 @@ async def _migration_007(conn: aiosqlite.Connection) -> None:
         )
     """)
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_shares_session ON shares(session_id)")
+
+
+async def _migration_009(conn: aiosqlite.Connection) -> None:
+    """CQRS: add event_seq to messages table for projection ordering."""
+    try:
+        await conn.execute("ALTER TABLE messages ADD COLUMN event_seq INTEGER")
+    except Exception:
+        pass  # column already exists (SQLite has no IF NOT EXISTS for ADD COLUMN)
 
 
 async def _migration_008(conn: aiosqlite.Connection) -> None:

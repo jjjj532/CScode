@@ -74,12 +74,19 @@ class ToolRuntime:
         try:
             result = await self._execute(handler, args)
             logger.debug("Tool %s completed: %d chars", name, len(str(result)))
-            yield ToolResult(tool_call_id=tool_call_id, result=str(result))
+            yield ToolResult(
+                tool_call_id=tool_call_id,
+                result=str(result),
+                tool_name=name,
+                tool_args=dict(args),
+            )
         except Exception as e:
             logger.error("Tool %s failed: %s", name, e)
             yield EventToolFailure(
                 tool_call_id=tool_call_id,
                 error=f"Tool {name} failed: {e}",
+                tool_name=name,
+                tool_args=dict(args),
             )
 
     async def _execute(self, handler: Callable[..., Any], args: dict[str, object]) -> str:

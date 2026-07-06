@@ -131,11 +131,49 @@ class VertexProvider(LLMProvider):
             logger.error("Vertex request failed: %s", e)
             raise ProviderError(f"Vertex request failed: {e}") from e
 
-    def stream(
+    async def stream(
         self,
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
-        raise NotImplementedError("Vertex streaming not yet implemented")
+        logger.info("Vertex.stream: model=%s messages=%d", self._model, len(messages))
+        body = self.build_messages(messages)
+        url = self._build_url().replace(":generateContent", ":streamGenerateContent")
+        if self._api_key and not self._project:
+            url = f"{url}?alt=sse&key={self._api_key}"
+        else:
+            url = f"{url}?alt=sse"
+
+        headers = await self._get_headers()
+
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0)) as client:
+                async with client.stream("POST", url, json=body, headers=headers) as response:
+                    response.raise_for_status()
+                    chunk_count = 0
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]
+                            if not data_str.strip():
+                                continue
+                            import json
+                            data = json.loads(data_str)
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                if parts:
+                                    text = parts[0].get("text", "")
+                                    if text:
+                                        chunk_count += 1
+                                        yield text
+                    logger.debug("Vertex stream complete: %d chunks", chunk_count)
+        except httpx.HTTPStatusError as e:
+            logger.error("Vertex stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
+            raise ProviderError(
+                f"Vertex API error: {e.response.status_code} {e.response.text}"
+            ) from e
+        except httpx.RequestError as e:
+            logger.error("Vertex stream request failed: %s", e)
+            raise ProviderError(f"Request failed: {e}") from e
 
 

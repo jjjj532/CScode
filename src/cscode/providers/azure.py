@@ -66,12 +66,50 @@ class AzureProvider(OpenAIProvider):
             logger.error("Azure request failed: %s", e)
             raise ProviderError(f"Azure request failed: {e}") from e
 
-    def stream(
+    async def stream(
         self,
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
-        raise NotImplementedError("Azure streaming not yet implemented")
+        logger.info("Azure.stream: model=%s messages=%d", self._model, len(messages))
+        body: dict[str, Any] = {
+            "model": self._model,
+            "messages": self.build_messages(messages),
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+            "stream": True,
+        }
+        if tools:
+            body["tools"] = tools
+
+        try:
+            async with self._client.stream("POST", self._url, json=body) as response:
+                response.raise_for_status()
+                chunk_count = 0
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]
+                        if data_str.strip() == "[DONE]":
+                            logger.debug("Azure stream complete: %d chunks", chunk_count)
+                            break
+                        import json
+                        data = json.loads(data_str)
+                        choices = data.get("choices", [])
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                chunk_count += 1
+                                yield content
+        except httpx.HTTPStatusError as e:
+            logger.error("Azure stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
+            raise ProviderError(
+                f"Azure API error: {e.response.status_code} {e.response.text}"
+            ) from e
+        except httpx.RequestError as e:
+            logger.error("Azure stream request failed: %s", e)
+            raise ProviderError(f"Request failed: {e}") from e
 
     def _parse_response(self, data: dict[str, Any]) -> LLMResult:
         choice = data["choices"][0]

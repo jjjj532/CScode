@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from cscode.core.messages import Message, MessageRole
+from cscode.schema.messages import Message, MessageRole
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -52,9 +52,8 @@ class ContextCompressor:
         recent = messages[-self.keep_recent :]
 
         result: list[Message] = []
-        compression_note = Message(
-            role=MessageRole.SYSTEM,
-            content=f"[Compressed] Earlier conversation history was compressed. Keeping last {self.keep_recent} messages.",
+        compression_note = Message.system(
+            f"[Compressed] Earlier conversation history was compressed. Keeping last {self.keep_recent} messages.",
         )
 
         if system_msgs:

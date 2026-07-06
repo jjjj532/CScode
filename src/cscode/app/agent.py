@@ -295,15 +295,26 @@ class AgentV2:
                 if on_event is not None:
                     from cscode.schema.events import ToolFailure, ToolResult
 
+                    # Extract metadata from tool result (task_id, evidence, etc.)
+                    tool_metadata: dict[str, object] = {}
+                    if hasattr(tool_result, "metadata") and isinstance(tool_result.metadata, dict):
+                        tool_metadata = dict(tool_result.metadata)
+
                     if is_error:
                         evt = ToolFailure(
                             tool_call_id=tc.tool_call_id,
                             error=result_str,
+                            tool_name=tc.name,
+                            tool_args=dict(tc.args),
+                            metadata=tool_metadata,
                         )
                     else:
                         evt = ToolResult(
                             tool_call_id=tc.tool_call_id,
                             result=result_str,
+                            tool_name=tc.name,
+                            tool_args=dict(tc.args),
+                            metadata=tool_metadata,
                         )
                     await on_event(evt) if hasattr(on_event, "__await__") else on_event(evt)
 

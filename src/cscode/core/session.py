@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,6 +23,76 @@ from cscode.storage.event_store import Event, EventStore
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class EventLock:
+    """Per-session lock with try_acquire() for Python <3.13 compatibility.
+
+    Uses an asyncio.Event-based waiter queue so that concurrent
+    acquire() calls are queued and woken in FIFO order.
+    """
+
+    def __init__(self) -> None:
+        self._locked = False
+        self._waiters: list[asyncio.Event] = []
+
+    async def acquire(self) -> bool:
+        while self._locked:
+            evt = asyncio.Event()
+            self._waiters.append(evt)
+            await evt.wait()
+        self._locked = True
+        return True
+
+    def try_acquire(self) -> bool:
+        if self._locked:
+            return False
+        self._locked = True
+        return True
+
+    def release(self) -> None:
+        self._locked = False
+        if self._waiters:
+            self._waiters.pop(0).set()
+
+    @property
+    def locked(self) -> bool:
+        return self._locked
+
+
+class SessionLockManager:
+    """Manages per-session EventLocks for concurrency control.
+
+    Usage:
+        if not await SessionLockManager.try_lock(session_id):
+            # Session is already processing — reject
+            return
+        try:
+            # ... process ...
+        finally:
+            SessionLockManager.unlock(session_id)
+    """
+
+    _locks: dict[str, EventLock] = {}
+    _dict_lock = asyncio.Lock()
+
+    @classmethod
+    async def try_lock(cls, session_id: str) -> bool:
+        async with cls._dict_lock:
+            if session_id not in cls._locks:
+                cls._locks[session_id] = EventLock()
+        return cls._locks[session_id].try_acquire()
+
+    @classmethod
+    def unlock(cls, session_id: str) -> None:
+        lock = cls._locks.get(session_id)
+        if lock is not None:
+            lock.release()
+
+    @classmethod
+    def cleanup(cls, session_id: str) -> None:
+        """Remove the lock entry for an idle session."""
+        cls._locks.pop(session_id, None)
 
 
 @dataclass

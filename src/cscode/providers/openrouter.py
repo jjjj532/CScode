@@ -75,9 +75,50 @@ class OpenRouterProvider(LLMProvider):
                 logger.error("OpenRouter request failed: %s", e)
                 raise ProviderError(f"OpenRouter request failed: {e}") from e
 
-    def stream(
+    async def stream(
         self,
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
-        raise NotImplementedError("OpenRouter streaming not yet implemented")
+        logger.info("OpenRouter.stream: model=%s messages=%d", self._model, len(messages))
+        body = {"model": self._model, "messages": self.build_messages(messages), "stream": True}
+        if tools:
+            body["tools"] = tools
+
+        async with httpx.AsyncClient(
+            base_url="https://openrouter.ai/api/v1",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://cscode.dev",
+                "X-Title": "CScode",
+            },
+            timeout=httpx.Timeout(600.0),
+        ) as client:
+            try:
+                async with client.stream("POST", "/chat/completions", json=body) as response:
+                    response.raise_for_status()
+                    chunk_count = 0
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]
+                            if data_str.strip() == "[DONE]":
+                                logger.debug("OpenRouter stream complete: %d chunks", chunk_count)
+                                break
+                            import json
+                            data = json.loads(data_str)
+                            choices = data.get("choices", [])
+                            if choices:
+                                delta = choices[0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    chunk_count += 1
+                                    yield content
+            except httpx.HTTPStatusError as e:
+                logger.error("OpenRouter stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
+                raise ProviderError(
+                    f"OpenRouter API error: {e.response.status_code} {e.response.text}"
+                ) from e
+            except httpx.RequestError as e:
+                logger.error("OpenRouter stream request failed: %s", e)
+                raise ProviderError(f"Request failed: {e}") from e

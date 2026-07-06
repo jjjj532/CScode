@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::Manager;
+use tauri::tray::TrayIconBuilder;
+use tauri::menu::{Menu, MenuItem};
 
 struct BackendState {
     child: Option<Child>,
@@ -79,7 +81,6 @@ impl BackendState {
             if backend_bin.exists() {
                 let mut cmd = Command::new(&backend_bin);
                 cmd.env("PATH", &safe_path);
-                // 从环境变量读取用户实际配置，不覆盖用户设置
                 if let Ok(key) = std::env::var("CSCODE_API_KEY") {
                     if !key.is_empty() { cmd.env("CSCODE_API_KEY", key); }
                 }
@@ -262,7 +263,6 @@ async fn open_output_file(filename: String) -> Result<String, String> {
     let file_path = output_dir.join(&safe_name);
 
     if !file_path.exists() {
-        // Open the parent directory in file manager so user sees what files exist
         let _ = std::fs::create_dir_all(&output_dir);
         let _ = open_in_file_manager(&output_dir);
         return Err(format!("File not found: {safe_name}"));
@@ -303,7 +303,6 @@ fn open_in_file_manager(path: &Path) -> Result<(), String> {
 
 #[cfg(target_os = "linux")]
 fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
-    // xdg-open doesn't support -R; open the parent dir instead
     if let Some(parent) = path.parent() {
         std::process::Command::new("xdg-open")
             .arg(parent)
@@ -331,30 +330,150 @@ fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Check if a process is alive by sending signal 0 (Unix) or checking tasklist (Windows).
+fn is_process_alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+    #[cfg(windows)]
+    {
+        let output = std::process::Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+            .output();
+        match output {
+            Ok(o) => String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()),
+            Err(_) => false,
+        }
+    }
+}
+
+/// Spawn a monitoring task that restarts the backend if it exits unexpectedly.
+/// Uses a separate Arc<Mutex> so the async task doesn't fight Tauri's State lifetimes.
+fn spawn_auto_restart(
+    backend_arc: Arc<Mutex<BackendState>>,
+    resource_dir: Option<PathBuf>,
+) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+
+            let needs_restart = {
+                let guard = match backend_arc.lock() {
+                    Ok(g) => g,
+                    Err(_) => continue,
+                };
+                match &guard.child {
+                    Some(c) => !is_process_alive(c.id()),
+                    None => false,
+                }
+            };
+
+            if needs_restart {
+                eprintln!("Backend process exited, restarting...");
+                match backend_arc.lock() {
+                    Ok(mut guard) => {
+                        guard.child = None;
+                        if let Err(e) = guard.start(resource_dir.as_deref()) {
+                            eprintln!("Auto-restart failed: {e}");
+                        }
+                    }
+                    Err(_) => eprintln!("Auto-restart: mutex poisoned"),
+                }
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let port: u16 = 8080;
-    let mut backend = BackendState::new(port);
+    let backend = BackendState::new(port);
+    let backend_arc = Arc::new(Mutex::new(backend));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(|app_handle, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    if let Some(w) = app_handle.get_webview_window("main") {
+                        if w.is_visible().unwrap_or(true) {
+                            let _ = w.hide();
+                        } else {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    }
+                }
+            })
+            .build())
         .invoke_handler(tauri::generate_handler![open_output_file])
         .setup(move |app| {
             let resource_dir = app.path().resource_dir().ok();
+            let resource_dir_clone = resource_dir.clone();
+            let arc_for_restart = backend_arc.clone();
 
-            if let Err(e) = backend.start(resource_dir.as_deref()) {
-                eprintln!("Backend start error: {e}");
+            // Start backend via the Arc
+            {
+                let mut guard = backend_arc.lock().unwrap();
+                if let Err(e) = guard.start(resource_dir.as_deref()) {
+                    eprintln!("Backend start error: {e}");
+                }
             }
 
             let window = app.get_webview_window("main").ok_or("no main window")?;
 
+            // ── Tray Icon ──────────────────────────────────────────
+            let show_item = MenuItem::with_id(app, "show", "Show CScode", true, None::<&str>)?;
+            let hide_item = MenuItem::with_id(app, "hide", "Hide", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&show_item, &hide_item, &quit_item])?;
+
+            let arc_for_tray = backend_arc.clone();
+            TrayIconBuilder::new()
+                .menu(&tray_menu)
+                .on_menu_event(move |app_handle, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        }
+                        "hide" => {
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                let _ = w.hide();
+                            }
+                        }
+                        "quit" => {
+                            if let Ok(mut guard) = arc_for_tray.lock() {
+                                guard.stop();
+                            }
+                            app_handle.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
+            // ── Global Shortcuts ───────────────────────────────────
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            match app.global_shortcut().register("CmdOrCtrl+Alt+S") {
+                Ok(_) => eprintln!("Registered global shortcut: Cmd+Opt+S"),
+                Err(e) => eprintln!("Failed to register global shortcut: {e}"),
+            }
+
+            // ── Backend health check + navigation ──────────────────
             tauri::async_runtime::spawn(async move {
                 match wait_for_health(port).await {
                     Ok(()) => {
                         let url = url::Url::parse(&format!("http://127.0.0.1:{port}"))
                             .expect("invalid URL");
-                        // Fade out the loading page, then navigate
                         let _ = window.eval("document.body.classList.add('fade-out')");
                         tokio::time::sleep(Duration::from_millis(200)).await;
                         let _ = window.navigate(url);
@@ -368,15 +487,19 @@ pub fn run() {
                 }
             });
 
-            app.manage(Mutex::new(backend));
+            // ── Auto-restart monitor ───────────────────────────────
+            spawn_auto_restart(arc_for_restart, resource_dir_clone);
+
+            // Store the Arc in Tauri's managed state for window events
+            app.manage(backend_arc.clone());
 
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(state) = window.try_state::<Mutex<BackendState>>() {
-                    if let Ok(mut backend) = state.lock() {
-                        backend.stop();
+                if let Some(state) = window.try_state::<Arc<Mutex<BackendState>>>() {
+                    if let Ok(mut guard) = state.lock() {
+                        guard.stop();
                     }
                 }
             }
