@@ -46,5 +46,11 @@ describe('ToastContainer Component', () => {
     expect(mockRemoveToast).toHaveBeenCalledWith('1');
   });
 
-
+  test('close buttons have aria-label for accessibility', () => {
+    render(<ToastContainer />);
+    const closeButtons = screen.getAllByRole('button');
+    closeButtons.forEach((btn) => {
+      expect(btn).toHaveAttribute('aria-label');
+    });
+  });
 });

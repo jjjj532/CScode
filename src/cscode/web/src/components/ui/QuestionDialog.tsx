@@ -123,13 +123,15 @@ export function QuestionDialog() {
         <div className="flex justify-end gap-2 mt-2">
           <button
             onClick={handleSkip}
+            aria-label="Skip"
             className="px-3 py-1.5 text-xs font-medium text-v2-text-secondary hover:text-v2-text-primary transition-colors"
           >
             Skip
           </button>
           <button
             onClick={handleSubmit}
-            className="px-4 py-1.5 text-xs font-medium bg-v2-accent text-white rounded-md hover:opacity-90 transition-opacity"
+            aria-label="Submit"
+            className="px-4 py-1.5 text-xs font-medium bg-v2-accent text-white rounded-md hover:opacity-90 transition-colors"
           >
             Submit
           </button>

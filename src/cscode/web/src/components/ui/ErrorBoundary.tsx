@@ -40,6 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             <button
               onClick={this.handleReset}
+              aria-label="Try Again"
               className="flex items-center gap-2 mx-auto px-4 py-2 bg-v2-accent text-white rounded-lg hover:opacity-90 transition-opacity"
             >
               <RefreshCw size={16} />

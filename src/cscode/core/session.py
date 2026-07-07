@@ -268,6 +268,9 @@ class SessionProjector:
                     # Use a list-compatible approach for the frozen state
                     state.reminders = [*state.reminders, reminder_data]
 
+                case "step.started" | "step.ended":
+                    pass
+
                 case _:
                     logger.warning("Unknown event type in projection: %s", event.type)
 

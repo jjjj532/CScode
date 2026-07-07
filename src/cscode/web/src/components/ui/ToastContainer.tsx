@@ -28,7 +28,7 @@ function ToastItem({ toast }: { toast: ToastItem }) {
     >
       <ToastIcon type={toast.type} />
       <span className="text-v2-text-primary flex-1">{toast.message}</span>
-      <button onClick={() => removeToast(toast.id)} className="text-v2-text-muted hover:text-v2-text-secondary">
+      <button onClick={() => removeToast(toast.id)} aria-label="Dismiss notification" className="text-v2-text-muted hover:text-v2-text-secondary">
         <X size={14} />
       </button>
     </div>

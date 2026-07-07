@@ -170,7 +170,7 @@ export function CommandPalette() {
             className="flex-1 bg-transparent text-sm text-v2-text-primary placeholder-v2-text-muted outline-none"
             autoFocus
           />
-          <button onClick={() => setOpen(false)} className="text-v2-text-muted hover:text-v2-text-secondary">
+          <button onClick={() => setOpen(false)} aria-label="Close command palette" className="text-v2-text-muted hover:text-v2-text-secondary">
             <X size={16} />
           </button>
         </div>

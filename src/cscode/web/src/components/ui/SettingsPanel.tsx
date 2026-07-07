@@ -257,6 +257,7 @@ export function SettingsPanel() {
           <button
             onClick={handleSave}
             disabled={saving}
+            aria-label="Save Settings"
             className="w-full bg-v2-accent text-white py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save Settings'}

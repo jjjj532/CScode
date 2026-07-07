@@ -61,6 +61,7 @@ export function ToolCallDisplay({ name, args, round, max, status, error, output,
       <div className="bg-v2-msg-assistant border border-v2-border-light rounded-v2 min-w-[200px] max-w-xl flex-1">
         <button
           onClick={() => setExpanded(!expanded)}
+          aria-label={expanded ? 'Collapse tool call' : 'Expand tool call'}
           className="flex items-center gap-2 px-3 py-2 w-full text-left hover:bg-v2-bg-deep/50 transition-colors rounded-v2"
         >
           {statusIcon()}

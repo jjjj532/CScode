@@ -167,6 +167,7 @@ export function Sidebar() {
         <div className="mt-auto border-t border-v2-border p-3 flex gap-4">
           <button
             onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
             className="flex items-center gap-1.5 text-xs text-v2-text-muted hover:text-v2-text-secondary transition-colors"
           >
             <Settings size={14} />
@@ -174,6 +175,7 @@ export function Sidebar() {
           </button>
           <button
             onClick={() => window.open('https://opencode.ai/docs', '_blank')}
+            aria-label="Help"
             className="flex items-center gap-1.5 text-xs text-v2-text-muted hover:text-v2-text-secondary transition-colors"
           >
             <HelpCircle size={14} />
