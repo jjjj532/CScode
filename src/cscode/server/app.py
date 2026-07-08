@@ -75,7 +75,7 @@ OUTPUTS_DIR = Path("/tmp/cscode-outputs")
 
 # Event types that are persisted to EventStore for message history.
 PERSIST_EVENT_TYPES = frozenset({
-    "step.started", "text.ended", "step.ended",
+    "step.started", "text.delta", "text.ended", "step.ended",
     "tool.called", "tool.success", "tool.failed",
     "error",
 })
