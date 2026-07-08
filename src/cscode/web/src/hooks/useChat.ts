@@ -136,8 +136,7 @@ export function useChat() {
             }
 
             const isCurrentStream = () => {
-              const activeId = useSessionStore.getState().activeSessionId;
-              return streamControllers[capturedSid] === controller && activeId === capturedSid;
+              return streamControllers[capturedSid] === controller;
             };
 
             // Extract data from both {type, data} format (P0-5 fix) and legacy top-level format
@@ -151,6 +150,7 @@ export function useChat() {
                   updateSessionTitle(capturedSid, d.title || event.title);
                 }
                 break;
+              case 'text.delta':
               case 'step.started':
               case 'text.ended':
               case 'tool.called':

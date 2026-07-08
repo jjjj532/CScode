@@ -166,6 +166,32 @@ export const useSessionStore = create<SessionState>((set) => ({
   applyEvent: (sessionId, event) => set((s) => {
     const d = event.data;
     switch (event.type) {
+      case 'text.delta': {
+        const content = d?.content || '';
+        if (!content) return s;
+        const msgs = s.sessionMessages[sessionId] || [];
+        const lastIdx = msgs.length - 1;
+        // Append delta content to the last assistant message (streaming typewriter effect)
+        if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant') {
+          const updated = [...msgs];
+          updated[lastIdx] = { ...updated[lastIdx], content: updated[lastIdx].content + content };
+          return {
+            sessionThinking: { ...s.sessionThinking, [sessionId]: true },
+            sessionMessages: { ...s.sessionMessages, [sessionId]: updated },
+          };
+        }
+        // No existing assistant message — create one
+        return {
+          sessionThinking: { ...s.sessionThinking, [sessionId]: true },
+          sessionMessages: {
+            ...s.sessionMessages,
+            [sessionId]: [
+              ...msgs,
+              { role: 'assistant' as const, content, created_at: new Date().toISOString() },
+            ],
+          },
+        };
+      }
       case 'step.started': {
         const msgs = s.sessionMessages[sessionId] || [];
         // Only add placeholder if last message isn't already an empty assistant message

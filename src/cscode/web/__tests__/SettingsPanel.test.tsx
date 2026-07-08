@@ -3,20 +3,24 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SettingsPanel } from '../src/components/ui/SettingsPanel';
 
+const mockConfig = Object.freeze({
+  provider: 'openai' as const,
+  model: 'gpt-4o' as const,
+  api_base: null,
+  api_key: '',
+  max_tokens: 4096,
+  temperature: 0.3,
+  top_p: 1,
+  system_prompt: null,
+  mcp_servers: [],
+  plugins: { enabled: [], settings: {} },
+  keybindings: {},
+});
+const mockSetConfig = jest.fn();
+const mockState = { config: mockConfig, setConfig: mockSetConfig };
+
 jest.mock('../src/stores/useConfigStore', () => ({
-  useConfigStore: (selector: any) => selector({
-    config: {
-      provider: 'openai',
-      model: 'gpt-4o',
-      api_base: null,
-      api_key: '',
-      max_tokens: 4096,
-      temperature: 0.3,
-      top_p: 1,
-      system_prompt: null,
-    },
-    setConfig: jest.fn(),
-  }),
+  useConfigStore: (selector: any) => selector(mockState),
 }));
 
 jest.mock('../src/stores/useUIStore', () => ({
@@ -36,6 +40,7 @@ jest.mock('../src/stores/useToastStore', () => ({
 jest.mock('../src/lib/api', () => ({
   api: {
     config: { save: jest.fn() },
+    permissionRules: { list: jest.fn().mockResolvedValue([]) },
   },
 }));
 

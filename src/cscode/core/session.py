@@ -197,12 +197,23 @@ class SessionProjector:
 
                 case "compaction":
                     baseline_seq = event.data.get("baseline_seq", 0)
+                    snapshot = event.data.get("snapshot", "")
+                    before_count = len(messages)
                     filtered = [
                         (m, s) for m, s in zip(messages, msg_seqs)
                         if s >= baseline_seq
                     ]
                     messages = [m for m, _ in filtered]
                     msg_seqs = [s for _, s in filtered]
+                    # Inject snapshot as a system message to preserve compacted context
+                    if snapshot and len(messages) < before_count:
+                        snapshot_msg = Message(
+                            id=None,
+                            role=MessageRole.SYSTEM,
+                            parts=(TextPart(text=snapshot),),
+                        )
+                        messages.insert(0, snapshot_msg)
+                        msg_seqs.insert(0, baseline_seq)
 
                 case "session.workspace.associated":
                     state.workspace_id = str(event.data.get("workspace_id", ""))

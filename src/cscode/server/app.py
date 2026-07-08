@@ -37,11 +37,19 @@ from cscode.core.workspace import WorkspaceStore
 from cscode.llm.types import LLMRequest
 from cscode.lsp.manager import LSPManager
 from cscode.schema.events import (
+    Error,
     Finish,
     LLMEvent,
+    Pending,
+    ReasoningDelta,
+    ReasoningEnded,
+    ReasoningStarted,
     TextDelta,
     TextEnded,
+    TextStarted,
+    ToolCallDelta,
     ToolCallEnded,
+    ToolCallStarted,
     ToolFailure,
     ToolResult,
 )
@@ -80,10 +88,16 @@ def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
     This ensures frontend applyEvent receives event.data.xxx consistently.
     """
     match event:
+        case TextStarted():
+            return {"type": "step.started", "data": {}}
         case TextDelta(text=text):
             return {"type": "text.delta", "data": {"content": text}}
         case TextEnded(full_text=full_text):
             return {"type": "text.ended", "data": {"content": full_text}}
+        case ToolCallStarted(tool_call_id=id, name=name):
+            return {"type": "tool.called", "data": {"tool_call_id": id, "name": name, "args": {}}}
+        case ToolCallDelta(tool_call_id=id, args_text=args_text):
+            return {"type": "tool.call_delta", "data": {"tool_call_id": id, "args_text": args_text}}
         case ToolCallEnded(tool_call_id=id, name=name, args=args):
             return {"type": "tool.called", "data": {"tool_call_id": id, "name": name, "args": args}}
         case ToolResult(tool_call_id=id, result=result, tool_name=tool_name, tool_args=tool_args, metadata=metadata):
@@ -100,16 +114,34 @@ def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
                 "name": tool_name, "args": tool_args,
                 "metadata": metadata,
             }}
+        case Error(error=error):
+            return {"type": "error", "data": {"content": str(error)}}
+        case Pending():
+            return {"type": "status", "data": {"message": "pending"}}
+        case ReasoningStarted():
+            return {"type": "reasoning", "data": {"status": "started"}}
+        case ReasoningDelta(text=text):
+            return {"type": "reasoning", "data": {"delta": text}}
+        case ReasoningEnded():
+            return {"type": "reasoning", "data": {"status": "ended"}}
         case _:
+            logger.warning("_llm_event_to_dict: unhandled event type=%s", type(event).__name__)
             return {"type": "unknown", "data": {}}
 
 
 async def _auto_compact(session_id: str, event_store: EventStore) -> None:
-    """Fire-and-forget event compaction via Compactor."""
+    """Fire-and-forget event compaction via Compactor (runs in background)."""
     global _compactor
     if _compactor is None:
         return
     try:
+        events = await event_store.read(session_id)
+        if not events:
+            return
+        message_count = sum(1 for e in events if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed"))
+        if message_count < 20:
+            logger.debug("_auto_compact: skip session=%s count=%d < 20", session_id, message_count)
+            return
         await _compactor.compact(session_id)
     except Exception:
         logger.exception("auto_compact failed for %s", session_id)

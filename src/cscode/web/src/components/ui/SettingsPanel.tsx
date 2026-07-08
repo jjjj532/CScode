@@ -59,21 +59,18 @@ export function SettingsPanel() {
   const [customProviderName, setCustomProviderName] = useState('');
 
   useEffect(() => {
-    if (config) {
-      const configJson = JSON.stringify(config);
-      const formJson = JSON.stringify(form);
-      if (configJson !== formJson) {
-        setForm({
-          ...{ provider: 'openai', model: 'gpt-4o', api_base: null, api_key: '', max_tokens: 4096, temperature: 0.3, top_p: 1, system_prompt: null, mcp_servers: [], plugins: { enabled: [], settings: {} }, keybindings: {} },
-          ...config,
-        });
-        if (config.provider && !['openai', 'anthropic', 'gemini', 'ollama', 'custom'].includes(config.provider)) {
-          setCustomProviderName(config.provider);
-          setForm((prev) => ({ ...prev, provider: 'custom' }));
-        }
-      }
+    if (!config) return;
+    setForm((prev) => {
+      const prevJson = JSON.stringify(prev);
+      if (prevJson === JSON.stringify(config)) return prev;
+      return {
+        ...{ provider: 'openai', model: 'gpt-4o', api_base: null, api_key: '', max_tokens: 4096, temperature: 0.3, top_p: 1, system_prompt: null, mcp_servers: [], plugins: { enabled: [], settings: {} }, keybindings: {} },
+        ...config,
+      };
+    });
+    if (config.provider && !['openai', 'anthropic', 'gemini', 'ollama', 'custom'].includes(config.provider)) {
+      setCustomProviderName(config.provider);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
   const resolvedProvider = form.provider === 'custom' ? (customProviderName || 'custom') : form.provider;
@@ -89,7 +86,7 @@ export function SettingsPanel() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = { ...form, provider: resolvedProvider };
+      const payload = { ...form, provider: resolvedProvider, theme };
       await api.config.save(payload);
       setConfig(payload);
       setSaved(true);
@@ -122,7 +119,11 @@ export function SettingsPanel() {
             <label className="block text-xs font-medium text-v2-text-secondary mb-1">Provider</label>
             <select
               value={form.provider}
-              onChange={(e) => setForm({ ...form, provider: e.target.value, model: '' })}
+              onChange={(e) => {
+                const newProvider = e.target.value;
+                const newModels = MODELS[newProvider as keyof typeof MODELS] || MODELS.openai;
+                setForm({ ...form, provider: newProvider, model: newModels[0] || '' });
+              }}
               className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
             >
               {PROVIDERS.map((p) => (

@@ -22,7 +22,9 @@ class Compactor:
         if not events:
             return 0
 
+        # baseline_seq = last event seq: read(after_seq=baseline_seq) excludes all compacted events
         baseline_seq = events[-1].seq
+
         message_count = sum(1 for e in events if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed"))
         logger.debug("Compactor.compact: baseline_seq=%d message_count=%d", baseline_seq, message_count)
 

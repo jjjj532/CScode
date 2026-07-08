@@ -38,20 +38,10 @@ export function Sidebar() {
     const store = useSessionStore.getState();
     const prevId = store.activeSessionId;
 
-    // 1. 切换前 abort 旧 session 的流
-    if (prevId && prevId !== id) {
-      abortSession(prevId);
-    }
-
-    const cached = store.sessionMessages[id];
-    const cachedVersion = store.sessionMessageVersion[id] || 0;
-    console.log('[sidebar] sessionMessages[%s] cached=%s length=%d version=%d activeSessionId=%s', id, cached !== undefined, cached?.length ?? 0, cachedVersion, store.activeSessionId);
-    if (cached !== undefined && cached.length > 0) {
-      console.log('[sidebar] <<< cached hit, skip fetch');
-      setActiveSession(id);
-      return;
-    }
+    // P0-6: 不 abort 旧 session 的流 — 让后台 stream 继续被 store 接收
     setActiveSession(id);
+
+    const cachedVersion = store.sessionMessageVersion[id] || 0;
     try {
       console.log('[sidebar] fetching messages for session=%s', id);
       const msgs = await api.session.messages(id);

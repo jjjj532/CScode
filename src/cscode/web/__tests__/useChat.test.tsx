@@ -52,7 +52,7 @@ beforeEach(() => {
   global.fetch = mockFetch;
   // Default: mock POST /api/sessions returns a session
   mockFetch.mockImplementation((url: string) => {
-    if (url === '/api/sessions' || url.includes('/api/sessions')) {
+    if (url === '/api/session' || url.includes('/api/session')) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ id: 'session_mock', title: 'New Session', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
@@ -80,7 +80,7 @@ describe('useChat Hook', () => {
     expect(mockState.addSession).toHaveBeenCalled();
     expect(mockState.setActiveSession).toHaveBeenCalled();
     expect(mockState.setSessionThinking).toHaveBeenCalled();
-    expect(mockState.appendMessage).toHaveBeenCalledWith({ role: 'user', content: 'Hello' }, expect.any(String));
+    expect(mockState.appendMessage).toHaveBeenCalledWith(expect.objectContaining({ role: 'user', content: 'Hello' }), expect.any(String));
     expect(mockFetch).toHaveBeenCalledWith('/api/chat/stream', expect.objectContaining({
       method: 'POST',
       body: expect.stringContaining('"message":"Hello"'),
@@ -110,7 +110,7 @@ describe('useChat Hook', () => {
 
   test('sendMessage handles API errors', async () => {
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes('/api/sessions')) {
+      if (url.includes('/api/session')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'session_err' }) });
       }
       return Promise.resolve({ ok: false, status: 500 });
@@ -142,7 +142,7 @@ describe('useChat Hook', () => {
       }
     }
     mockFetch.mockImplementation((url: string) => {
-      if (url === '/api/sessions' || url.includes('/api/sessions')) {
+      if (url === '/api/session' || url.includes('/api/session')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'session_tool', title: 'Test' }) });
       }
       return Promise.resolve({ ok: true, body: new MockToolStream() });
@@ -163,7 +163,7 @@ describe('useChat Hook', () => {
     AbortController.prototype.abort = abortSpy;
     let resolveFetch: (v: any) => void;
     mockFetch.mockImplementation((url: string) => {
-      if (url.includes('/api/sessions')) {
+      if (url.includes('/api/session')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'session_mock' }) });
       }
       return new Promise((resolve) => { resolveFetch = resolve; });
