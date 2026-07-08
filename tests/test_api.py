@@ -151,10 +151,11 @@ def test_persist_event_types_include_error():
     assert "error" in PERSIST_EVENT_TYPES, "error events should be persisted"
 
 
-def test_persist_event_types_include_text_delta():
-    """P0-3: PERSIST_EVENT_TYPES includes 'text.delta' for streaming persistence."""
+def test_persist_event_types_excludes_text_delta():
+    """P1-5: text.delta is NOT persisted — streaming deltas are real-time via SSE.
+    text.ended (final complete text) is persisted for session history replay."""
     from cscode.server.app import PERSIST_EVENT_TYPES
-    assert "text.delta" in PERSIST_EVENT_TYPES, "text.delta events must be persisted for session history"
+    assert "text.delta" not in PERSIST_EVENT_TYPES, "text.delta excluded to avoid DB bloat (P1-5)"
 
 
 # ---------------------------------------------------------------------------

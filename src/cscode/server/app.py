@@ -74,8 +74,10 @@ api_router = APIRouter(prefix="/api")
 OUTPUTS_DIR = Path("/tmp/cscode-outputs")
 
 # Event types that are persisted to EventStore for message history.
+# text.delta is intentionally excluded: streaming deltas are real-time only via SSE.
+# text.ended (final complete text) is persisted for session history replay.
 PERSIST_EVENT_TYPES = frozenset({
-    "step.started", "text.delta", "text.ended", "step.ended",
+    "step.started", "text.ended", "step.ended",
     "tool.called", "tool.success", "tool.failed",
     "error",
 })
