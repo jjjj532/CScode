@@ -20,6 +20,68 @@ from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+_TOKEN_EXPIRY_SECONDS = 3600
+
+
+@dataclass
+class IntegrationToken:
+    """A lightweight WS auth token (UUID-based, in-memory)."""
+    token: str
+    created_at: float
+    expires_at: float
+    revoked: bool = False
+
+
+class IntegrationTokenStore:
+    """In-memory token store for WebSocket authentication.
+
+    Tokens expire after TOKEN_EXPIRY_SECONDS (1 hour) and can be revoked.
+    This is a simplified version of a JWT system — no external deps needed.
+    """
+
+    def __init__(self) -> None:
+        self._tokens: dict[str, IntegrationToken] = {}
+
+    async def create(self, api_key: str) -> IntegrationToken:
+        now = time.time()
+        token = IntegrationToken(
+            token=str(uuid.uuid4()),
+            created_at=now,
+            expires_at=now + _TOKEN_EXPIRY_SECONDS,
+        )
+        self._tokens[token.token] = token
+        return token
+
+    async def validate(self, token: str) -> bool:
+        entry = self._tokens.get(token)
+        if entry is None:
+            return False
+        if entry.revoked:
+            return False
+        if time.time() > entry.expires_at:
+            self._tokens.pop(token, None)
+            return False
+        return True
+
+    async def revoke(self, token: str) -> bool:
+        entry = self._tokens.get(token)
+        if entry is None:
+            return False
+        entry.revoked = True
+        return True
+
+    async def cleanup_expired(self) -> int:
+        now = time.time()
+        expired = [t for t, e in self._tokens.items() if now > e.expires_at]
+        for t in expired:
+            self._tokens.pop(t, None)
+        return len(expired)
+
+    def get_stats(self) -> dict[str, int]:
+        now = time.time()
+        active = sum(1 for e in self._tokens.values() if not e.revoked and now <= e.expires_at)
+        return {"total_issued": len(self._tokens), "active": active}
+
 
 @dataclass
 class WSClient:
