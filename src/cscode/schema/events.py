@@ -217,3 +217,21 @@ def assert_never(value: object) -> None:
     """
     msg = f"Unhandled variant: {type(value).__name__} ({value!r})"
     raise RuntimeError(msg)
+
+
+# ─── Persistence Event (Event Sourcing) ──────────────────────────────
+
+
+@dataclass
+class PersistenceEvent:
+    """An event-sourcing persistence event stored in the event store.
+
+    Unlike LLMEvent (streaming provider events), PersistenceEvent records
+    state changes to aggregates (sessions, workspaces) for replay and audit.
+    """
+    aggregate_id: str = ""
+    seq: int = 0
+    type: str = ""
+    data: dict[str, object] = field(default_factory=dict)
+    created_at: float = 0.0
+    id: int = 0

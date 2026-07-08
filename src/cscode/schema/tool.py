@@ -5,7 +5,7 @@ Mirrors OpenCode's ToolDefinition and ToolChoice types.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 
@@ -26,6 +26,15 @@ class ToolDefinition:
 
     input_schema: dict[str, object]
     """JSON Schema describing the expected input parameters."""
+
+
+@dataclass
+class ToolResult:
+    """Result from executing a tool."""
+    success: bool
+    data: str
+    error: str | None = None
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 ToolChoice = Literal["auto", "required", "none"] | str

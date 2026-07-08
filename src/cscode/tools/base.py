@@ -2,20 +2,12 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Any
 
+from cscode.schema.tool import ToolResult  # noqa: F401 — re-exported for backward compat
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class ToolResult:
-    success: bool
-    data: str
-    error: str | None = None
-    metadata: dict[str, str] = field(default_factory=dict)
 
 
 class BaseTool(ABC):

@@ -3,23 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
+from cscode.schema.events import PersistenceEvent as Event  # noqa: F401 — type moved to schema
 from cscode.storage.db import Database
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class Event:
-    aggregate_id: str = ""
-    seq: int = 0
-    type: str = ""
-    data: dict[str, Any] = field(default_factory=dict)
-    created_at: float = 0.0
-    id: int = 0
 
 
 class EventStore:
