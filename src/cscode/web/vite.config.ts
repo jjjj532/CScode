@@ -15,5 +15,19 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-lucide': ['lucide-react'],
+          'vendor-xterm': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-web-links'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm', 'rehype-highlight'],
+          'vendor-highlight': ['highlight.js'],
+          'vendor-state': ['zustand'],
+          'vendor-tauri': ['@tauri-apps/api', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
   },
 })
