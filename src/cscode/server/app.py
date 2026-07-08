@@ -61,7 +61,9 @@ from cscode.schema.messages import (
     MessageRole,
 )
 from cscode.server.compactor import Compactor
-from cscode.server.integration import WebSocketManager
+from cscode.server.integration import IntegrationTokenStore, WebSocketManager
+from cscode.server.routes import sessions_router
+from cscode.tools2.pty import PTYSessionManager, PTYInput, PTYAction
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
 from cscode.storage.db import Database
@@ -189,7 +191,9 @@ class _CallableProcessor:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry, _workspace_store
+    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry, _workspace_store, _external_dir_store, _ws_manager, _token_store, _pty_manager
+
+    from cscode.server.state import state as app_state
 
     # Diagnostics log — stderr + file
     from cscode.utils.logging import setup_logging
@@ -212,24 +216,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     db_path = os.environ.get("CSCODE_DB_PATH")
     _db = Database(db_path=db_path)
+    app_state.db = _db
     await _db.init()
 
     # New architecture: EventStore + SessionCoordinator
     _event_store = EventStore(_db)
+    app_state.event_store = _event_store
     _coordinator = SessionCoordinator()
+    app_state.coordinator = _coordinator
     _projector = Projector(_db)
+    app_state.projector = _projector
     _compactor = Compactor(_db, _event_store, _projector)
+    app_state.compactor = _compactor
     _tracker = TaskTracker(_db)
+    app_state.tracker = _tracker
     _question_registry = QuestionRegistry()
+    app_state.question_registry = _question_registry
 
     # Shared tool registry (AgentV2 instances will reuse this)
     _tool_registry = create_tool_registry()
+    app_state.tool_registry = _tool_registry
 
     # Workspace store (P2-3)
     _workspace_store = WorkspaceStore(_db) if _db else None
+    app_state.workspace_store = _workspace_store
 
     # External directory registry (P2-16)
     _external_dir_store = ExternalDirectoryStore()
+    app_state.external_dir_store = _external_dir_store
+
+    _ws_manager = WebSocketManager(event_store=_event_store)
+    app_state.ws_manager = _ws_manager
+    await _ws_manager.start_event_bridge()
+    _token_store = IntegrationTokenStore()
+    app_state.token_store = _token_store
+    _pty_manager = PTYSessionManager()
+    app_state.pty_manager = _pty_manager
 
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUTS_DIR / "evidence").mkdir(parents=True, exist_ok=True)
@@ -242,6 +264,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    if _ws_manager is not None:
+        await _ws_manager.stop_event_bridge()
     if _db is not None:
         await _db.close()
     logger.info("Lifespan shutdown complete")
@@ -256,6 +280,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Route modules (split from app.py for maintainability)
+app.include_router(sessions_router)
 
 
 @app.middleware("http")
@@ -773,6 +800,49 @@ async def session_event_stream(session_id: str, after_seq: int = 0) -> Streaming
 # ── P2-2: WebSocket endpoint ──────────────────────────────────────
 
 _ws_manager: WebSocketManager | None = None
+_token_store: IntegrationTokenStore | None = None
+_pty_manager: PTYSessionManager | None = None
+
+
+@api_router.post("/integration/token")
+async def create_integration_token(body: dict[str, str]) -> dict[str, object]:
+    """Issue a temporary WebSocket auth token.
+
+    Accepts an API key and returns a short-lived UUID token for WS auth.
+    """
+    global _token_store
+    if _token_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    api_key = body.get("api_key", "")
+    if not api_key:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    token = await _token_store.create(api_key)
+    return {"token": token.token, "expires_at": int(token.expires_at)}
+
+
+@api_router.post("/pty")
+async def pty_endpoint(body: PTYInput) -> dict[str, object]:
+    """POST /api/pty — PTY session management.
+
+    Actions: create, exec, read, close, list.
+    """
+    global _pty_manager
+    if _pty_manager is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    from cscode.tools2.pty import PTYTool
+    tool = PTYTool(manager=_pty_manager)
+    result = await tool.execute(body)
+
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+
+    data = result.data
+    if data is None:
+        return {"success": True}
+    if isinstance(data, list):
+        return {"sessions": [s.model_dump() for s in data]}
+    return data.model_dump()  # type: ignore[union-attr]
 
 
 @api_router.websocket("/ws")
@@ -785,11 +855,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     See openspec/specs/cscode-integration-system.md for full protocol spec.
     """
-    global _ws_manager, _event_store
+    global _ws_manager
     manager = _ws_manager
-    if manager is None:
-        manager = WebSocketManager(event_store=_event_store)
-        _ws_manager = manager
+    assert manager is not None, "_ws_manager should be initialised in lifespan"
 
     client = await manager.connect(websocket)
     try:
@@ -1112,49 +1180,6 @@ async def _handle_chat(
     return ChatResponse(response=response, session_id=session_id)
 
 
-@api_router.get("/sessions")
-async def list_sessions(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
-    """P2-8: List all sessions with metadata and pagination.
-
-    Args:
-        limit: Maximum sessions to return (default 50).
-        offset: Number of sessions to skip (default 0).
-    """
-    global _event_store, _projector
-    if _event_store is None or _projector is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    if _db is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    cursor = await _db.conn.execute(
-        "SELECT aggregate_id FROM event_sequences ORDER BY aggregate_id LIMIT ? OFFSET ?",
-        (limit, offset),
-    )
-    rows = await cursor.fetchall()
-
-    sessions = []
-    for row in rows:
-        aggregate_id = row["aggregate_id"]
-        try:
-            session_v2 = await SessionV2.load(_event_store, aggregate_id)
-            state = session_v2.state
-            sessions.append({
-                "id": str(state.session_id) if state.session_id else aggregate_id,
-                "title": state.title,
-                "provider": state.provider,
-                "model": state.model,
-                "status": state.status,
-                "message_count": len(state.messages),
-                "event_count": state.seq,
-                "created_at": state.created_at,
-                "updated_at": state.updated_at,
-            })
-        except Exception:
-            continue
-
-    return sessions
-
-
 @api_router.get("/config")
 async def get_config() -> dict[str, Any]:
     global _db
@@ -1182,68 +1207,6 @@ async def save_config(config: ConfigRequest) -> dict[str, str]:
     from cscode.core.config import ConfigStore
     store = ConfigStore(_db)
     await store.save(config.model_dump())
-
-    return {"status": "ok"}
-
-
-@api_router.post("/sessions")
-async def create_session(request: SessionCreateRequest) -> dict[str, Any]:
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    from cscode.core.config import load_config
-    config = load_config()
-
-    session_v2 = await SessionV2.create(_event_store, model=config.model, provider=config.provider, title=request.title)
-
-    return {"id": str(session_v2.session_id), "title": session_v2.state.title}
-
-
-@api_router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str) -> dict[str, str]:
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    await session_v2.delete()
-
-    return {"status": "ok"}
-
-
-@api_router.post("/sessions/{session_id}/stop")
-async def stop_session(session_id: str) -> dict[str, str]:
-    global _active_agent_tasks, _question_registry, _session_queues
-
-    # 1. Cancel pending questions for this session
-    if _question_registry is not None:
-        await _question_registry.cancel_session(session_id)
-
-    # 2. Send stop signal to SSE event stream
-    queue = _session_queues.get(session_id)
-    if queue is not None:
-        await queue.put({"type": "step.ended", "data": {}, "session_id": session_id})
-
-    # 3. Cancel the agent task
-    task = _active_agent_tasks.get(session_id)
-    if task and not task.done():
-        task.cancel()
-        try:
-            await asyncio.wait_for(task, timeout=5.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            pass
-    return {"status": "ok"}
-
-
-@api_router.patch("/sessions/{session_id}")
-async def update_session(session_id: str, title: str = "") -> dict[str, str]:
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    await session_v2.update_metadata(title=title if title else None)
 
     return {"status": "ok"}
 
@@ -2518,7 +2481,7 @@ def _register_session_aliases() -> None:
     alias_path relative to the router prefix (strip /api/ before re-adding
     via api_router.add_api_route).
     """
-    for route in list(api_router.routes):
+    for route in list(api_router.routes) + list(sessions_router.routes):
         path: str | None = getattr(route, "path", None)
         methods: set[str] | None = getattr(route, "methods", None)
         endpoint = getattr(route, "endpoint", None)
