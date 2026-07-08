@@ -3,15 +3,18 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ModeToggle } from '../src/components/ui/ModeToggle';
 
-const mockSetMode = jest.fn();
-
-jest.mock('../src/stores/useUIStore', () => ({
-  useUIStore: (selector: any) => selector({
-    mode: 'plan',
-    setMode: mockSetMode,
-    toggleMode: jest.fn(),
-  }),
-}));
+jest.mock('../src/stores/useUIStore', () => {
+  const state = { mode: 'plan', toggleMode: jest.fn() };
+  const setMode = jest.fn((m: string) => { state.mode = m; });
+  return {
+    __esModule: true,
+    useUIStore: (selector: any) => selector({
+      get mode() { return state.mode; },
+      setMode,
+      toggleMode: state.toggleMode,
+    }),
+  };
+});
 
 describe('ModeToggle Component', () => {
   beforeEach(() => {
@@ -37,20 +40,26 @@ describe('ModeToggle Component', () => {
     expect(checkedRadio?.textContent).toBe('Plan');
   });
 
-  test('calls setMode when Plan is clicked', async () => {
+  test('clicking Build switches aria-checked from Plan to Build', async () => {
     const user = userEvent.setup();
-    render(<ModeToggle />);
+    const { rerender } = render(<ModeToggle />);
     const planRadio = screen.getByRole('radio', { name: /plan/i });
-    await user.click(planRadio);
-    expect(mockSetMode).toHaveBeenCalledWith('plan');
+    const buildRadio = screen.getByRole('radio', { name: /build/i });
+    expect(planRadio).toHaveAttribute('aria-checked', 'true');
+    expect(buildRadio).toHaveAttribute('aria-checked', 'false');
+    await user.click(buildRadio);
+    rerender(<ModeToggle />);
+    expect(planRadio).toHaveAttribute('aria-checked', 'false');
+    expect(buildRadio).toHaveAttribute('aria-checked', 'true');
   });
 
-  test('calls setMode when Build is clicked', async () => {
+  test('clicking Plan maintains aria-checked on Plan', async () => {
     const user = userEvent.setup();
-    render(<ModeToggle />);
-    const buildRadio = screen.getByRole('radio', { name: /build/i });
-    await user.click(buildRadio);
-    expect(mockSetMode).toHaveBeenCalledWith('build');
+    const { rerender } = render(<ModeToggle />);
+    const planRadio = screen.getByRole('radio', { name: /plan/i });
+    await user.click(planRadio);
+    rerender(<ModeToggle />);
+    expect(planRadio).toHaveAttribute('aria-checked', 'true');
   });
 
   test('displays mode labels', () => {

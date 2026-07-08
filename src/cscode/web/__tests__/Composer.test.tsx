@@ -124,4 +124,25 @@ describe('Composer Component', () => {
     await user.keyboard('{Enter}');
     expect(mockSendMessage).toHaveBeenCalled();
   });
+
+  test('fireEvent.change properly syncs React state', () => {
+    render(<Composer />);
+    const input = screen.getByPlaceholderText(/Ask anything/i);
+    const sendButton = screen.getAllByRole('button')[1] as HTMLButtonElement;
+    fireEvent.change(input, { target: { value: 'Hello from fireEvent' } });
+    expect((input as HTMLTextAreaElement).value).toBe('Hello from fireEvent');
+    expect(sendButton).not.toBeDisabled();
+  });
+
+  test('direct DOM value assignment does NOT sync React state', () => {
+    render(<Composer />);
+    const input = screen.getByPlaceholderText(/Ask anything/i) as HTMLTextAreaElement;
+    const sendButton = screen.getAllByRole('button')[1] as HTMLButtonElement;
+    input.value = 'direct DOM set';
+    fireEvent(input, new Event('input', { bubbles: true }));
+    expect((input as HTMLTextAreaElement).value).toBe('direct DOM set');
+    // React controlled component — only onChange (change event) syncs state,
+    // not raw DOM mutation + input event. This is expected React behavior.
+    expect(sendButton).toBeDisabled();
+  });
 });
