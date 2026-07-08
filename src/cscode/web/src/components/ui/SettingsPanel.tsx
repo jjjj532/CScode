@@ -5,6 +5,9 @@ import { useConfigStore, type Config, type McpServerConfig, type PluginConfig } 
 import { useToastStore } from '../../stores/useToastStore';
 import { themes } from '../../themes';
 import { api } from '../../lib/api';
+import { SyncPanel } from '../SyncPanel';
+import { ShareDialog } from '../ShareDialog';
+import { CredentialPanel } from '../CredentialPanel';
 
 const PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
@@ -485,7 +488,7 @@ function PermissionRulesSection() {
     }
   };
 
-  return (
+  return (<>
     <div>
       <label className="flex items-center gap-1.5 text-xs font-medium text-v2-text-secondary mb-1">
         <Shield size={12} />
@@ -519,5 +522,17 @@ function PermissionRulesSection() {
         </ul>
       )}
     </div>
-  );
+
+    <div className="px-5 py-3 border-t border-v2-border">
+      <CredentialPanel />
+    </div>
+
+    <div className="px-5 py-3 border-t border-v2-border">
+      <ShareDialog />
+    </div>
+
+    <div className="px-5 py-3 border-t border-v2-border">
+      <SyncPanel />
+    </div>
+  </>);
 }
