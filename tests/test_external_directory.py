@@ -2,14 +2,19 @@
 
 Tests cover:
 1. ExternalDirectoryStore: add/list/remove/check
-2. API endpoints: GET /directories/external, POST, DELETE
+2. API endpoints: GET /directories/external, POST, DELETE (standalone router)
 3. Path approval checking (exact match, sub-path under approved dir)
 4. Error cases: duplicate path, missing path param, bad id
+5. Real app integration: verifies _external_dir_store global initialisation (P0-9)
 """
 
 from __future__ import annotations
 
 import httpx
+import os
+import tempfile
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from httpx._transports.asgi import ASGITransport
@@ -220,3 +225,62 @@ class TestExternalDirectoryAPI:
             resp = await c.get("/api/directories/external/check", params={"path": "/Users/test/b"})
         assert resp.status_code == 200
         assert resp.json()["approved"] is False
+
+
+# ---------------------------------------------------------------------------
+# P0-9 integration test: verifies _external_dir_store is properly initialised
+# in the real app lifespan (not masked by local-variable shadowing).
+# ---------------------------------------------------------------------------
+_test_db_path_p0_9 = Path(tempfile.mkdtemp(prefix="cscode_external_dir_p0_9_")) / "test.db"
+
+
+@pytest.fixture(scope="module")
+def _real_app_client():
+    """Set up the real FastAPI app with lifespan, yield a TestClient."""
+    os.environ["CSCODE_DB_PATH"] = str(_test_db_path_p0_9)
+    from cscode.server.app import app as _real_app
+
+    from fastapi.testclient import TestClient
+
+    with TestClient(_real_app) as c:
+        yield c
+
+    if _test_db_path_p0_9.exists():
+        _test_db_path_p0_9.unlink()
+
+
+class TestExternalDirectoryRealApp:
+    """Tests against the real FastAPI app (not a standalone router).
+    
+    Verifies P0-9: the _external_dir_store global variable is correctly
+    declared in lifespan's ``global`` statement.
+    """
+
+    def test_list_external_dirs_returns_200_not_503(self, _real_app_client):
+        resp = _real_app_client.get("/api/directories/external")
+        assert resp.status_code == 200, (
+            f"Expected 200, got {resp.status_code}: {resp.text}. "
+            "This likely means _external_dir_store was not declared in "
+            "lifespan()'s global statement."
+        )
+
+    def test_add_and_list_via_real_app(self, _real_app_client):
+        add_resp = _real_app_client.post(
+            "/api/directories/external",
+            json={"path": "/tmp/test-p0-9"},
+        )
+        assert add_resp.status_code == 200, add_resp.text
+
+        list_resp = _real_app_client.get("/api/directories/external")
+        assert list_resp.status_code == 200
+        dirs = list_resp.json()["directories"]
+        paths = [d["path"] for d in dirs]
+        assert "/tmp/test-p0-9" in paths
+
+    def test_check_endpoint_via_real_app(self, _real_app_client):
+        resp = _real_app_client.get(
+            "/api/directories/external/check",
+            params={"path": "/tmp/test-p0-9/sub"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["approved"] is True
