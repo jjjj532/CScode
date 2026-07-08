@@ -4,6 +4,7 @@ import importlib
 import sys
 from pathlib import Path
 
+from cscode.plugins.sdk import PluginSDK
 from cscode.tools.base import BaseTool
 from cscode.utils.logging import get_logger
 
@@ -28,9 +29,30 @@ class PluginLoader:
         try:
             module = importlib.import_module(plugin_name)
             importlib.reload(module)
+
+            # Collect from SDK instances first, fall back to __tools__
+            all_tools: list[BaseTool] = []
+            seen_names: set[str] = set()
+
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if isinstance(attr, PluginSDK):
+                    for tool in attr.get_tool_instances():
+                        if tool.name not in seen_names:
+                            all_tools.append(tool)
+                            seen_names.add(tool.name)
+
             tools = getattr(module, "__tools__", [])
-            logger.info("PluginLoader.load_plugin: loaded plugin=%s tools=%d", plugin_name, len(tools))
-            return list(tools)
+            for tool in tools:
+                if isinstance(tool, type) and issubclass(tool, BaseTool) and tool.name not in seen_names:
+                    all_tools.append(tool())
+                    seen_names.add(tool.name)
+                elif isinstance(tool, BaseTool) and tool.name not in seen_names:
+                    all_tools.append(tool)
+                    seen_names.add(tool.name)
+
+            logger.info("PluginLoader.load_plugin: loaded plugin=%s tools=%d", plugin_name, len(all_tools))
+            return all_tools
         except Exception:
             logger.exception("PluginLoader.load_plugin: failed plugin=%s", plugin_name)
             return []
