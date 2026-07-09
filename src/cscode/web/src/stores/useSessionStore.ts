@@ -352,14 +352,26 @@ export const useSessionStore = create<SessionState>((set) => ({
     const filtered = messages.filter(
       (m) => m.role !== 'assistant' || (m.content && m.content.trim())
     );
-    console.log('[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d', sessionId, prev?.length || 0, messages.length, filtered.length);
-    if (filtered.length !== messages.length) {
-      console.log('[store] setMessages filtered %d empty assistant messages for session=%s', messages.length - filtered.length, sessionId);
+    const local = prev || [];
+    // Merge: if server returned fewer messages than local has, the extra local
+    // messages are in-flight streaming content not yet finalized on server.
+    // Keep them appended after server messages so streaming state is preserved.
+    let merged = filtered;
+    if (local.length > filtered.length) {
+      const extra = local.slice(filtered.length);
+      merged = [...filtered, ...extra];
+      console.log('[store] setMessages MERGED %d in-flight messages for session=%s', extra.length, sessionId);
     }
+    console.log('[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d merged=%d', sessionId, prev?.length || 0, messages.length, filtered.length, merged.length);
+    const newVersion = (s.sessionMessageVersion[sessionId] || 0) + 1;
     return {
       sessionMessages: {
         ...s.sessionMessages,
-        [sessionId]: filtered,
+        [sessionId]: merged,
+      },
+      sessionMessageVersion: {
+        ...s.sessionMessageVersion,
+        [sessionId]: newVersion,
       },
     };
   }),

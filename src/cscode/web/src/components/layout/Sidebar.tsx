@@ -70,6 +70,11 @@ export function Sidebar() {
           console.log('[sidebar] VERSION CHANGED during failed fetch (was=%d now=%d): not clearing messages for session=%s', cachedVersion, currentVersion, id);
           return;
         }
+        // Don't clear messages if the session is still streaming (loading)
+        if (currentStore.sessionLoading[id]) {
+          console.log('[sidebar] fetch failed but session is loading: keeping existing messages for session=%s', id);
+          return;
+        }
         setMessages([], id);
       }
     }
