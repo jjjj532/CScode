@@ -32,6 +32,7 @@ from cscode.core.compression import ContextCompressor
 from cscode.core.coordinator import SessionCoordinator
 from cscode.core.external_directory import ExternalDirectoryStore
 from cscode.core.session import SessionLockManager, SessionProjector, SessionV2
+from cscode.core.sharing import ShareStore
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
 from cscode.llm.types import LLMRequest
@@ -191,7 +192,7 @@ class _CallableProcessor:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry, _workspace_store, _external_dir_store, _ws_manager, _token_store, _pty_manager
+    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry, _workspace_store, _external_dir_store, _ws_manager, _token_store, _pty_manager, _share_store
 
     from cscode.server.state import state as app_state
 
@@ -240,6 +241,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Workspace store (P2-3)
     _workspace_store = WorkspaceStore(_db) if _db else None
     app_state.workspace_store = _workspace_store
+
+    # Share store (P1-2)
+    _share_store = ShareStore(_db) if _db else None
+    app_state.share_store = _share_store
 
     # External directory registry (P2-16)
     _external_dir_store = ExternalDirectoryStore()
@@ -310,6 +315,7 @@ _tracker: TaskTracker | None = None
 _question_registry: QuestionRegistry | None = None
 _tool_registry: Any = None
 _workspace_store: WorkspaceStore | None = None
+_share_store: ShareStore | None = None
 _external_dir_store: ExternalDirectoryStore | None = None
 _active_agent_tasks: dict[str, asyncio.Task[Any]] = {}
 _session_queues: dict[str, asyncio.Queue[dict[str, object]]] = {}
@@ -1238,10 +1244,13 @@ async def export_session(session_id: str) -> Response:
             for msg in state.messages
         ],
     }
+    from urllib.parse import quote
+    safe_filename = state.title.replace(" ", "_")
+    encoded_filename = quote(safe_filename, safe="", encoding="utf-8")
     return Response(
         content=json.dumps(data, indent=2, ensure_ascii=False),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={state.title.replace(' ', '_')}.json"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}.json"},
     )
 
 
@@ -1278,16 +1287,15 @@ def _format_dt(dt: object) -> str | None:
     return str(dt)
 
 
-@api_router.get("/api/share")
+@api_router.get("/share")
 async def list_shares(session_id: str | None = None) -> list[dict[str, object]]:
-    from cscode.core.sharing import ShareStore
-    from cscode.storage.db import Database
-    db = Database()
-    store = ShareStore(db)
+    global _share_store
+    if _share_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
     if session_id:
-        shares = await store.list_by_session(session_id)
+        shares = await _share_store.list_by_session(session_id)
     else:
-        shares = await store.list()
+        shares = await _share_store.list()
     return [
         {
             "id": s.id,
@@ -1301,27 +1309,25 @@ async def list_shares(session_id: str | None = None) -> list[dict[str, object]]:
     ]
 
 
-@api_router.post("/api/share", status_code=201)
+@api_router.post("/share", status_code=201)
 async def create_share(request: Request) -> dict[str, str]:
-    from cscode.core.sharing import ShareStore
-    from cscode.storage.db import Database
+    global _share_store
+    if _share_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
     body = await request.json()
-    db = Database()
-    store = ShareStore(db)
-    share = await store.create(
+    share = await _share_store.create(
         session_id=body.get("session_id", ""),
         title=body.get("title", ""),
     )
     return {"id": share.id}
 
 
-@api_router.get("/api/share/{share_id}")
+@api_router.get("/share/{share_id}")
 async def get_share(share_id: str) -> dict[str, object]:
-    from cscode.core.sharing import ShareStore
-    from cscode.storage.db import Database
-    db = Database()
-    store = ShareStore(db)
-    share = await store.get(share_id)
+    global _share_store
+    if _share_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    share = await _share_store.get(share_id)
     if share is None:
         raise HTTPException(status_code=404, detail="Share not found")
     return {
@@ -1334,13 +1340,12 @@ async def get_share(share_id: str) -> dict[str, object]:
     }
 
 
-@api_router.delete("/api/share/{share_id}", status_code=204)
+@api_router.delete("/share/{share_id}", status_code=204)
 async def delete_share(share_id: str) -> None:
-    from cscode.core.sharing import ShareStore
-    from cscode.storage.db import Database
-    db = Database()
-    store = ShareStore(db)
-    result = await store.delete(share_id)
+    global _share_store
+    if _share_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    result = await _share_store.delete(share_id)
     if not result:
         raise HTTPException(status_code=404, detail="Share not found")
 

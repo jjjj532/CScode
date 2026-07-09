@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useToastStore } from '../stores/useToastStore';
 
 interface ShareEntry {
   id: string;
@@ -24,15 +25,16 @@ export function ShareDialog() {
   const [loading, setLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState('');
   const [message, setMessage] = useState('');
+  const addToast = useToastStore((s) => s.addToast);
 
   const fetchShares = useCallback(async () => {
     try {
       const data = await shareRequest<{ shares: ShareEntry[] }>('/api/share');
       setShares(data.shares || []);
-    } catch {
-      // backend may not have /api/share list endpoint
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : 'Failed to fetch shares', 'error');
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     fetchShares();

@@ -630,3 +630,99 @@ class TestWorkspaceAPI:
         finally:
             if db_path.exists():
                 db_path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# P1-1 / P1-2: Share API (double prefix + db init)
+# ---------------------------------------------------------------------------
+
+def test_share_list():
+    """P1-1: GET /api/share returns 200 after fixing double-prefix bug."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            resp = client.get("/api/share")
+            # Before fix: 404 (double prefix /api/api/share)
+            # After fix: 200
+            assert resp.status_code == 200
+            assert isinstance(resp.json(), list)
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_share_create():
+    """P1-2: POST /api/share creates a share (no AttributeError from uninit db)."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            # Create a session first
+            sess_resp = client.post("/api/sessions", json={"title": "ShareTest"})
+            assert sess_resp.status_code == 200, f"Session create failed: {sess_resp.text}"
+            sid = sess_resp.json()["id"]
+
+            # Create share
+            resp = client.post("/api/share", json={"session_id": sid, "title": "My Share"})
+            # Before fix: 404 (double prefix) or 500 (AttributeError)
+            # After fix: 201 or 200
+            assert resp.status_code in (200, 201), f"Share create failed: {resp.status_code} {resp.text}"
+            data = resp.json()
+            assert "id" in data
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_share_get():
+    """P1-2: GET /api/share/{id} returns share details."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            sess_resp = client.post("/api/sessions", json={"title": "GetTest"})
+            assert sess_resp.status_code == 200
+            sid = sess_resp.json()["id"]
+
+            create_resp = client.post("/api/share", json={"session_id": sid})
+            assert create_resp.status_code in (200, 201)
+            share_id = create_resp.json()["id"]
+
+            resp = client.get(f"/api/share/{share_id}")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["id"] == share_id
+            assert data["session_id"] == sid
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_share_delete():
+    """P1-2: DELETE /api/share/{id} deletes a share."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            sess_resp = client.post("/api/sessions", json={"title": "DelTest"})
+            assert sess_resp.status_code == 200
+            sid = sess_resp.json()["id"]
+
+            create_resp = client.post("/api/share", json={"session_id": sid})
+            assert create_resp.status_code in (200, 201)
+            share_id = create_resp.json()["id"]
+
+            resp = client.delete(f"/api/share/{share_id}")
+            assert resp.status_code == 204
+
+            # Verify deleted
+            get_resp = client.get(f"/api/share/{share_id}")
+            assert get_resp.status_code == 404
+    finally:
+        if db_path.exists():
+            db_path.unlink()

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useToastStore } from '../stores/useToastStore';
 
 interface CredentialEntry {
   id: string;
@@ -27,15 +28,16 @@ export function CredentialPanel() {
   const [provider, setProvider] = useState('openai');
   const [keyValue, setKeyValue] = useState('');
   const [message, setMessage] = useState('');
+  const addToast = useToastStore((s) => s.addToast);
 
   const fetchCredentials = useCallback(async () => {
     try {
       const data = await credRequest<{ credentials: CredentialEntry[] }>('/api/credentials');
       setCredentials(data.credentials || []);
-    } catch {
-      // endpoint may use different response shape
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : 'Failed to fetch credentials', 'error');
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     fetchCredentials();

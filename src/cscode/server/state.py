@@ -6,6 +6,7 @@ from typing import Any
 
 from cscode.core.coordinator import SessionCoordinator
 from cscode.core.external_directory import ExternalDirectoryStore
+from cscode.core.sharing import ShareStore
 from cscode.core.session import SessionLockManager, SessionProjector
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
@@ -30,6 +31,7 @@ class AppState:
     question_registry: QuestionRegistry | None = None
     tool_registry: Any = None
     workspace_store: WorkspaceStore | None = None
+    share_store: ShareStore | None = None
     external_dir_store: ExternalDirectoryStore | None = None
     ws_manager: WebSocketManager | None = None
     token_store: IntegrationTokenStore | None = None
