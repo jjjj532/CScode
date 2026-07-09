@@ -1417,9 +1417,20 @@ async def get_session_messages(session_id: str) -> list[dict[str, object]]:
     session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
     messages = SessionProjector.build_context(session_v2.state)
     return [
-        {"role": msg.role, "content": msg.content, "id": str(msg.id) if msg.id else None}
-        for msg in messages
+        {
+            "role": msg.role,
+            "content": msg.content,
+            "id": str(msg.id) if msg.id is not None else _make_msg_id(msg.role, msg.content, i),
+        }
+        for i, msg in enumerate(messages)
     ]
+
+
+def _make_msg_id(role: str, content: str, index: int) -> str:
+    """Generate a stable synthetic message ID from role + content hash."""
+    import hashlib
+    raw = f"{role}:{content}:{index}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 @api_router.get("/sessions/{session_id}/context")
