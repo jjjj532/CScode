@@ -165,6 +165,10 @@ export const useSessionStore = create<SessionState>((set) => ({
   })),
   applyEvent: (sessionId, event) => set((s) => {
     const d = event.data;
+    const bumpVersion = () => {
+      const newVer = (s.sessionMessageVersion[sessionId] || 0) + 1;
+      return { sessionMessageVersion: { ...s.sessionMessageVersion, [sessionId]: newVer } };
+    };
     switch (event.type) {
       case 'text.delta': {
         const content = d?.content || '';
@@ -176,12 +180,14 @@ export const useSessionStore = create<SessionState>((set) => ({
           const updated = [...msgs];
           updated[lastIdx] = { ...updated[lastIdx], content: updated[lastIdx].content + content };
           return {
+            ...bumpVersion(),
             sessionThinking: { ...s.sessionThinking, [sessionId]: true },
             sessionMessages: { ...s.sessionMessages, [sessionId]: updated },
           };
         }
         // No existing assistant message — create one
         return {
+          ...bumpVersion(),
           sessionThinking: { ...s.sessionThinking, [sessionId]: true },
           sessionMessages: {
             ...s.sessionMessages,
@@ -198,11 +204,13 @@ export const useSessionStore = create<SessionState>((set) => ({
         const last = msgs[msgs.length - 1];
         if (last?.role === 'assistant' && !last.content?.trim()) {
           return {
+            ...bumpVersion(),
             sessionThinking: { ...s.sessionThinking, [sessionId]: true },
             sessionToolCalls: { ...s.sessionToolCalls, [sessionId]: [] },
           };
         }
         return {
+          ...bumpVersion(),
           sessionThinking: { ...s.sessionThinking, [sessionId]: true },
           sessionToolCalls: { ...s.sessionToolCalls, [sessionId]: [] },
           sessionMessages: {
@@ -224,12 +232,14 @@ export const useSessionStore = create<SessionState>((set) => ({
           const updated = [...msgs];
           updated[lastIdx] = { ...updated[lastIdx], content };
           return {
+            ...bumpVersion(),
             sessionThinking: { ...s.sessionThinking, [sessionId]: false },
             sessionMessages: { ...s.sessionMessages, [sessionId]: updated },
           };
         }
         // Fallback: append new message
         return {
+          ...bumpVersion(),
           sessionThinking: { ...s.sessionThinking, [sessionId]: false },
           sessionMessages: {
             ...s.sessionMessages,
@@ -295,6 +305,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           const round = d?.round || '?';
           const summaryMsg = `**步骤 ${round} 执行摘要：**\n${summary}`;
           return {
+            ...bumpVersion(),
             sessionThinking: { ...s.sessionThinking, [sessionId]: false },
             sessionMessages: {
               ...s.sessionMessages,
@@ -305,7 +316,7 @@ export const useSessionStore = create<SessionState>((set) => ({
             },
           };
         }
-        return { sessionThinking: { ...s.sessionThinking, [sessionId]: false } };
+        return { ...bumpVersion(), sessionThinking: { ...s.sessionThinking, [sessionId]: false } };
       }
       default:
         return s;
