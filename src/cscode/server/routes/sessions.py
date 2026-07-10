@@ -36,6 +36,8 @@ async def list_sessions(limit: int = 50, offset: int = 0) -> list[dict[str, Any]
         try:
             session_v2 = await SessionV2.load(state.event_store, aggregate_id)
             s = session_v2.state
+            if s.status == "deleted":
+                continue
             sessions.append({
                 "id": str(s.session_id) if s.session_id else aggregate_id,
                 "title": s.title,

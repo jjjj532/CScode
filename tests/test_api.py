@@ -726,3 +726,201 @@ def test_share_delete():
     finally:
         if db_path.exists():
             db_path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# P0: Non-streaming chat persists assistant responses
+# ---------------------------------------------------------------------------
+
+
+def test_messages_table_populated_after_chat(monkeypatch):
+    """P0: Messages table must be populated via Projector after non-streaming chat."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server import app as server_app
+        monkeypatch.setattr(
+            server_app, "create_agent_v2",
+            lambda config, tool_registry=None: _make_mock_agent("Hello from projector test"),
+        )
+        with TestClient(server_app.app) as client:
+            sess = client.post("/api/sessions", json={"title": "ProjectorTest"}).json()
+            sid = sess["id"]
+
+            client.post("/api/chat", json={
+                "message": "Hi",
+                "session_id": sid,
+            })
+
+            from cscode.storage.db import Database
+            db = Database(db_path=db_path)
+            import anyio
+            async def check_messages():
+                await db.init()
+                cursor = await db.conn.execute(
+                    "SELECT role, content, event_seq FROM messages WHERE session_id = ? ORDER BY event_seq",
+                    (sid,),
+                )
+                rows = await cursor.fetchall()
+                await db.close()
+                roles = [r["role"] for r in rows]
+                assert "user" in roles, f"Expected user message in messages table, got {roles}"
+                assert "assistant" in roles, f"Expected assistant message in messages table, got {roles}"
+            anyio.run(check_messages)
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_config_does_not_expose_raw_api_key():
+    """P0: GET /api/config must not expose raw api_key."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        from cscode.core.config import ConfigStore, load_config
+        import anyio
+        from cscode.storage.db import Database
+
+        async def save_key():
+            db = Database(db_path=db_path)
+            await db.init()
+            store = ConfigStore(db)
+            cfg = load_config()
+            cfg_dict = cfg.to_dict()
+            cfg_dict["api_key"] = "sk-real-secret-key-12345"
+            await store.save(cfg_dict)
+            await db.close()
+
+        anyio.run(save_key)
+
+        with TestClient(app) as client:
+            resp = client.get("/api/config")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "api_key" not in data, f"api_key should not be exposed, got: {data.get('api_key')}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# P1: Deleted sessions must be filtered from GET /api/sessions
+# ---------------------------------------------------------------------------
+
+
+def test_list_sessions_filters_deleted():
+    """P1: GET /api/sessions must not include deleted sessions."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            s1 = client.post("/api/sessions", json={"title": "KeepMe"}).json()
+            s2 = client.post("/api/sessions", json={"title": "DeleteMe"}).json()
+
+            del_resp = client.delete(f"/api/sessions/{s2['id']}")
+            assert del_resp.status_code == 200
+
+            # List sessions — s2 should be filtered out
+            listed = client.get("/api/sessions").json()
+            ids = [s["id"] for s in listed]
+            assert s1["id"] in ids, f"Kept session should still appear: {ids}"
+            assert s2["id"] not in ids, f"Deleted session should NOT appear: {ids}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+# ---------------------------------------------------------------------------
+# P1: Malformed JSON → 400, invalid session_id → 404
+# ---------------------------------------------------------------------------
+
+
+def test_chat_malformed_json_returns_400():
+    """P1: POST /api/chat with malformed JSON must return 400, not 422."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            resp = client.post("/api/chat", content=b"not json at all", headers={"content-type": "application/json"})
+            assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.text[:200]}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_chat_invalid_session_id_returns_404():
+    """P1: POST /api/chat with non-existent session_id must return 404."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            resp = client.post("/api/chat", json={
+                "message": "Hi", "session_id": "non-existent-id-12345",
+            })
+            assert resp.status_code == 404, f"Expected 404, got {resp.status_code}: {resp.text[:200]}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def _make_mock_agent(response_text: str = "Mock response"):
+    """Create a mock agent whose run_with_messages fires on_event and returns text."""
+    from cscode.schema.events import TextEnded
+
+    class _MockAgent:
+        async def run_with_messages(self, messages, on_event=None):
+            if on_event is not None:
+                await on_event(TextEnded(full_text=response_text))
+            return response_text
+
+    return _MockAgent()
+
+
+def test_chat_persists_assistant_response(monkeypatch):
+    """P0: POST /api/chat must persist assistant response in event store."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server import app as server_app
+        monkeypatch.setattr(
+            server_app, "create_agent_v2",
+            lambda config, tool_registry=None: _make_mock_agent("Hello from mock"),
+        )
+        with TestClient(server_app.app) as client:
+            sess = client.post("/api/sessions", json={"title": "PersistTest"}).json()
+            sid = sess["id"]
+
+            chat_resp = client.post("/api/chat", json={
+                "message": "Say hello",
+                "session_id": sid,
+            })
+            assert chat_resp.status_code == 200
+            data = chat_resp.json()
+            assert data["session_id"] == sid
+
+            msgs = client.get(f"/api/sessions/{sid}/messages").json()
+            assert len(msgs) == 2, f"Expected 2 messages (user+assistant), got {len(msgs)}: {msgs}"
+            assert msgs[0]["role"] == "user"
+            assert msgs[1]["role"] == "assistant"
+            assert "Hello from mock" in msgs[1]["content"]
+
+            from cscode.storage.event_store import EventStore
+            from cscode.storage.db import Database
+            db = Database(db_path=db_path)
+            import anyio
+            async def check_events():
+                await db.init()
+                store = EventStore(db)
+                events = await store.read(sid)
+                await db.close()
+                types = [e.type for e in events]
+                assert "prompt.admitted" in types, f"Missing prompt.admitted in {types}"
+                assert "text.ended" in types, f"Missing text.ended (assistant response) in {types}"
+            anyio.run(check_events)
+    finally:
+        if db_path.exists():
+            db_path.unlink()

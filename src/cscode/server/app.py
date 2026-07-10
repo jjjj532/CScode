@@ -86,6 +86,22 @@ PERSIST_EVENT_TYPES = frozenset({
 })
 
 
+async def _project_events(
+    session_id: str,
+    events: list[dict[str, object]],
+) -> None:
+    """Append events to EventStore and notify the Projector (messages table).
+
+    Guards against uninitialized _event_store / _projector.
+    """
+    if _event_store is None:
+        return
+    appended = await _event_store.append(session_id, events)
+    if _projector is not None:
+        for evt in appended:
+            await _projector.on_event(evt)
+
+
 def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
     """Convert LLMEvent to dict for SSE streaming.
 
@@ -445,7 +461,11 @@ async def chat(request: Request) -> ChatResponse:
                 content = await f.read()
                 files.append((f.filename or "unknown", content))
     else:
-        body = await request.json()
+        import json as _json
+        try:
+            body = await request.json()
+        except _json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON body")
         message = body.get("message", "")
         session_id = body.get("session_id", None)
         files_data = body.get("files", [])
@@ -557,7 +577,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
             user_text = message.strip() if message else "请分析附件内容"
 
             # Append prompt.admitted event
-            await _event_store.append(str(session_v2.session_id), [
+            await _project_events(str(session_v2.session_id), [
 {"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}
             ])
 
@@ -571,13 +591,12 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 sse_event = _llm_event_to_dict(event)
                 sse_event["session_id"] = str(session_v2.session_id)
                 await queue.put(sse_event)
-                if _event_store is not None:
-                    evt_type = sse_event.get("type", "")
-                    if isinstance(evt_type, str) and evt_type in PERSIST_EVENT_TYPES:
-                        evt_data = sse_event.get("data", {})
-                        await _event_store.append(str(session_v2.session_id), [
-                            {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
-                        ])
+                evt_type = sse_event.get("type", "")
+                if isinstance(evt_type, str) and evt_type in PERSIST_EVENT_TYPES:
+                    evt_data = sse_event.get("data", {})
+                    await _project_events(str(session_v2.session_id), [
+                        {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
+                    ])
                 # Notify TaskTracker for tool events with task_id
                 if _tracker is not None and sse_event.get("type") in ("tool.success", "tool.failed"):
                     await _tracker.handle_event(str(session_v2.session_id), sse_event)
@@ -585,18 +604,16 @@ async def chat_stream(request: Request) -> StreamingResponse:
             async def _emit_step_started() -> None:
                 step_event: dict[str, object] = {"type": "step.started", "data": {}, "session_id": str(session_v2.session_id)}
                 await queue.put(step_event)
-                if _event_store is not None:
-                    await _event_store.append(str(session_v2.session_id), [
-                        {"type": "step.started", "data": {}}
-                    ])
+                await _project_events(str(session_v2.session_id), [
+                    {"type": "step.started", "data": {}}
+                ])
 
             async def _emit_step_ended() -> None:
                 step_event: dict[str, object] = {"type": "step.ended", "data": {}, "session_id": str(session_v2.session_id)}
                 await queue.put(step_event)
-                if _event_store is not None:
-                    await _event_store.append(str(session_v2.session_id), [
-                        {"type": "step.ended", "data": {}}
-                    ])
+                await _project_events(str(session_v2.session_id), [
+                    {"type": "step.ended", "data": {}}
+                ])
 
             before = time.time()
 
@@ -1077,6 +1094,13 @@ async def _handle_chat(
 
     session_id = session_id or str(uuid.uuid4())
 
+    # If session_id was explicitly provided, verify it exists
+    if session_id:
+        from cscode.schema.ids import SessionID as _SessionID
+        existing_events = await _event_store.read(_SessionID(session_id))
+        if not existing_events:
+            raise HTTPException(status_code=404, detail="Session not found")
+
     try:
         # Load or create session
         config_data = None
@@ -1126,7 +1150,7 @@ async def _handle_chat(
             messages = _compressor.compress(messages)
 
         # Append prompt.admitted event
-        await _event_store.append(str(session_v2.session_id), [
+        await _project_events(str(session_v2.session_id), [
             {"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}
         ])
 
@@ -1145,9 +1169,19 @@ async def _handle_chat(
 
         agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
 
+        # Persist LLM events to EventStore (matching streaming path behaviour)
+        async def _on_event(event: LLMEvent) -> None:
+            sse_event = _llm_event_to_dict(event)
+            evt_type = sse_event.get("type", "")
+            if isinstance(evt_type, str) and evt_type in PERSIST_EVENT_TYPES:
+                evt_data = sse_event.get("data", {})
+                await _project_events(str(session_v2.session_id), [
+                    {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
+                ])
+
         # Run agent with full message history
         try:
-            response = await agent.run_with_messages(messages, on_event=None)
+            response = await agent.run_with_messages(messages, on_event=_on_event)
         except Exception as e:
             logger.error("agent_runner error: %s", e)
             raise
@@ -1194,14 +1228,18 @@ async def get_config() -> dict[str, Any]:
         store = ConfigStore(_db)
         saved_config = await store.get()
         if saved_config:
+            saved_config.pop("api_key", None)
             return saved_config
 
     from cscode.core.config import load_config
     cfg = load_config()
     # Some PyInstaller builds may return dict instead of Config
     if isinstance(cfg, dict):
+        cfg.pop("api_key", None)
         return cfg
-    return cfg.to_dict()
+    d = cfg.to_dict()
+    d.pop("api_key", None)
+    return d
 
 
 @api_router.post("/config")
@@ -1268,11 +1306,11 @@ async def import_session(request: Request) -> dict[str, str]:
     # Replay messages as events
     for msg in body.get("messages", []):
         if msg.get("role") == "user":
-            await _event_store.append(str(session_v2.session_id), [
+            await _project_events(str(session_v2.session_id), [
                 {"type": "prompt.admitted", "data": {"prompt": msg.get("content", "")}}
             ])
         elif msg.get("role") == "assistant":
-            await _event_store.append(str(session_v2.session_id), [
+            await _project_events(str(session_v2.session_id), [
                 {"type": "text.ended", "data": {"content": msg.get("content", "")}}
             ])
 
@@ -2450,7 +2488,7 @@ async def push_sync_events(body: dict[str, object]) -> dict[str, int]:
         if not isinstance(evt_data, dict):
             continue
         try:
-            await _event_store.append(
+            await _project_events(
                 evt_data["aggregate_id"],
                 [{"type": evt_data.get("type", ""), "data": evt_data.get("data", {})}],
             )
