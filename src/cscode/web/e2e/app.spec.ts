@@ -374,10 +374,8 @@ test.describe('Performance', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     
-    // Filter out known non-critical errors
+    // Filter out non-critical errors
     const criticalErrors = errors.filter(err => 
-      !err.includes('favicon') && 
-      !err.includes('404') &&
       !err.includes('DevTools')
     );
     
