@@ -15,6 +15,7 @@ import logging
 import os
 import sys
 import time
+import traceback
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -63,12 +64,12 @@ from cscode.schema.messages import (
 )
 from cscode.server.compactor import Compactor
 from cscode.server.integration import IntegrationTokenStore, WebSocketManager
-from cscode.server.routes import sessions_router
-from cscode.tools2.pty import PTYSessionManager, PTYInput, PTYAction
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
+from cscode.server.routes import sessions_router
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
+from cscode.tools2.pty import PTYInput, PTYSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +80,17 @@ OUTPUTS_DIR = Path("/tmp/cscode-outputs")
 # Event types that are persisted to EventStore for message history.
 # text.delta is intentionally excluded: streaming deltas are real-time only via SSE.
 # text.ended (final complete text) is persisted for session history replay.
-PERSIST_EVENT_TYPES = frozenset({
-    "step.started", "text.ended", "step.ended",
-    "tool.called", "tool.success", "tool.failed",
-    "error",
-})
+PERSIST_EVENT_TYPES = frozenset(
+    {
+        "step.started",
+        "text.ended",
+        "step.ended",
+        "tool.called",
+        "tool.success",
+        "tool.failed",
+        "error",
+    }
+)
 
 
 async def _project_events(
@@ -121,22 +128,49 @@ def _llm_event_to_dict(event: LLMEvent) -> dict[str, object]:
             return {"type": "tool.call_delta", "data": {"tool_call_id": id, "args_text": args_text}}
         case ToolCallEnded(tool_call_id=id, name=name, args=args):
             return {"type": "tool.called", "data": {"tool_call_id": id, "name": name, "args": args}}
-        case ToolResult(tool_call_id=id, result=result, tool_name=tool_name, tool_args=tool_args, metadata=metadata):
-            return {"type": "tool.success", "data": {
-                "tool_call_id": id, "result": result,
-                "name": tool_name, "args": tool_args,
-                "metadata": metadata,
-            }}
+        case ToolResult(
+            tool_call_id=id,
+            result=result,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            metadata=metadata,
+        ):
+            return {
+                "type": "tool.success",
+                "data": {
+                    "tool_call_id": id,
+                    "result": result,
+                    "name": tool_name,
+                    "args": tool_args,
+                    "metadata": metadata,
+                },
+            }
         case Finish(finish_reason=finish_reason):
             return {"type": "complete", "data": {"finish_reason": finish_reason}}
-        case ToolFailure(tool_call_id=id, error=error, tool_name=tool_name, tool_args=tool_args, metadata=metadata):
-            return {"type": "tool.failed", "data": {
-                "tool_call_id": id, "error": error,
-                "name": tool_name, "args": tool_args,
-                "metadata": metadata,
-            }}
+        case ToolFailure(
+            tool_call_id=id,
+            error=error,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            metadata=metadata,
+        ):
+            return {
+                "type": "tool.failed",
+                "data": {
+                    "tool_call_id": id,
+                    "error": error,
+                    "name": tool_name,
+                    "args": tool_args,
+                    "metadata": metadata,
+                },
+            }
         case Error(error=error):
-            return {"type": "error", "data": {"content": str(error)}}
+            # Include full structured error detail: [REASON] module.method — message
+            if isinstance(error, Exception):
+                detail = f"{type(error).__name__}: {error}"
+            else:
+                detail = str(error)
+            return {"type": "error", "data": {"content": detail}}
         case Pending():
             return {"type": "status", "data": {"message": "pending"}}
         case ReasoningStarted():
@@ -159,7 +193,11 @@ async def _auto_compact(session_id: str, event_store: EventStore) -> None:
         events = await event_store.read(session_id)
         if not events:
             return
-        message_count = sum(1 for e in events if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed"))
+        message_count = sum(
+            1
+            for e in events
+            if e.type in ("prompt.admitted", "text.ended", "tool.success", "tool.failed")
+        )
         if message_count < 20:
             logger.debug("_auto_compact: skip session=%s count=%d < 20", session_id, message_count)
             return
@@ -198,6 +236,7 @@ def _build_system_prompt(file_context: str = "") -> NewMessage:
 
 class _CallableProcessor:
     """Adapts a callable agent runner to core/coordinator's processor interface."""
+
     def __init__(self, handler: Any) -> None:
         self._handler = handler
 
@@ -208,12 +247,27 @@ class _CallableProcessor:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    global _db, _event_store, _coordinator, _projector, _compactor, _tracker, _question_registry, _tool_registry, _workspace_store, _external_dir_store, _ws_manager, _token_store, _pty_manager, _share_store
+    global \
+        _db, \
+        _event_store, \
+        _coordinator, \
+        _projector, \
+        _compactor, \
+        _tracker, \
+        _question_registry, \
+        _tool_registry, \
+        _workspace_store, \
+        _external_dir_store, \
+        _ws_manager, \
+        _token_store, \
+        _pty_manager, \
+        _share_store
 
     from cscode.server.state import state as app_state
 
     # Diagnostics log — stderr + file
     from cscode.utils.logging import setup_logging
+
     setup_logging("DEBUG")
 
     fh = logging.FileHandler("/tmp/cscode-diag.log", mode="w")
@@ -228,7 +282,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         python_dir = os.path.join(resource_dir, "python")
         if os.path.isdir(python_dir):
             existing = os.environ.get("PYTHONPATH", "")
-            os.environ["PYTHONPATH"] = f"{python_dir}{os.pathsep}{existing}" if existing else python_dir
+            os.environ["PYTHONPATH"] = (
+                f"{python_dir}{os.pathsep}{existing}" if existing else python_dir
+            )
             logger.debug("Set PYTHONPATH for subprocesses: %s", python_dir)
 
     db_path = os.environ.get("CSCODE_DB_PATH")
@@ -390,6 +446,7 @@ class SessionCreateRequest(BaseModel):
 @api_router.get("/health")
 async def health() -> dict[str, str]:
     from cscode import __version__
+
     return {"status": "ok", "version": __version__}
 
 
@@ -414,7 +471,9 @@ async def _get_or_create_session(
         if config_data:
             provider = config_data.get("provider", "openai")
             model = config_data.get("model", "gpt-4o")
-        session_v2 = await SessionV2.create(event_store, model=model, provider=provider, title="New Chat", agent="auto")
+        session_v2 = await SessionV2.create(
+            event_store, model=model, provider=provider, title="New Chat", agent="auto"
+        )
         is_new = True
 
     return session_v2, is_new
@@ -462,6 +521,7 @@ async def chat(request: Request) -> ChatResponse:
                 files.append((f.filename or "unknown", content))
     else:
         import json as _json
+
         try:
             body = await request.json()
         except _json.JSONDecodeError:
@@ -472,6 +532,7 @@ async def chat(request: Request) -> ChatResponse:
         for f in files_data:
             if isinstance(f, dict):
                 import base64
+
                 try:
                     file_bytes = base64.b64decode(f.get("content", ""))
                 except Exception:
@@ -508,6 +569,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
         for f in files_data:
             if isinstance(f, dict):
                 import base64
+
                 try:
                     file_bytes = base64.b64decode(f.get("content", ""))
                 except Exception:
@@ -531,6 +593,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
             config_data = None
             if _db is not None:
                 from cscode.core.config import ConfigStore
+
                 store = ConfigStore(_db)
                 saved_config_dict = await store.get()
                 if saved_config_dict:
@@ -552,6 +615,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
             attached_filenames: list[str] = []
             if files:
                 from cscode.utils.file_parser import parse_file
+
                 parts = []
                 total_len = 0
                 for name, content in files:
@@ -561,7 +625,10 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         parts.append(f"[FILE: {name}]\n[skipped: context limit reached]")
                         continue
                     if len(text) > remaining:
-                        text = text[:remaining] + f"\n[truncated: file too long, showing {remaining} of {len(text)} characters]"
+                        text = (
+                            text[:remaining]
+                            + f"\n[truncated: file too long, showing {remaining} of {len(text)} characters]"
+                        )
                     total_len += len(text)
                     parts.append(f"[FILE: {name}]\n{text}")
                     attached_filenames.append(name)
@@ -577,9 +644,15 @@ async def chat_stream(request: Request) -> StreamingResponse:
             user_text = message.strip() if message else "请分析附件内容"
 
             # Append prompt.admitted event
-            await _project_events(str(session_v2.session_id), [
-{"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}
-            ])
+            await _project_events(
+                str(session_v2.session_id),
+                [
+                    {
+                        "type": "prompt.admitted",
+                        "data": {"prompt": message, "files": attached_filenames},
+                    }
+                ],
+            )
 
             queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 
@@ -594,32 +667,50 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 evt_type = sse_event.get("type", "")
                 if isinstance(evt_type, str) and evt_type in PERSIST_EVENT_TYPES:
                     evt_data = sse_event.get("data", {})
-                    await _project_events(str(session_v2.session_id), [
-                        {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
-                    ])
+                    await _project_events(
+                        str(session_v2.session_id),
+                        [
+                            {
+                                "type": evt_type,
+                                "data": dict(evt_data) if isinstance(evt_data, dict) else {},
+                            }
+                        ],
+                    )
                 # Notify TaskTracker for tool events with task_id
-                if _tracker is not None and sse_event.get("type") in ("tool.success", "tool.failed"):
+                if _tracker is not None and sse_event.get("type") in (
+                    "tool.success",
+                    "tool.failed",
+                ):
                     await _tracker.handle_event(str(session_v2.session_id), sse_event)
 
             async def _emit_step_started() -> None:
-                step_event: dict[str, object] = {"type": "step.started", "data": {}, "session_id": str(session_v2.session_id)}
+                step_event: dict[str, object] = {
+                    "type": "step.started",
+                    "data": {},
+                    "session_id": str(session_v2.session_id),
+                }
                 await queue.put(step_event)
-                await _project_events(str(session_v2.session_id), [
-                    {"type": "step.started", "data": {}}
-                ])
+                await _project_events(
+                    str(session_v2.session_id), [{"type": "step.started", "data": {}}]
+                )
 
             async def _emit_step_ended() -> None:
-                step_event: dict[str, object] = {"type": "step.ended", "data": {}, "session_id": str(session_v2.session_id)}
+                step_event: dict[str, object] = {
+                    "type": "step.ended",
+                    "data": {},
+                    "session_id": str(session_v2.session_id),
+                }
                 await queue.put(step_event)
-                await _project_events(str(session_v2.session_id), [
-                    {"type": "step.ended", "data": {}}
-                ])
+                await _project_events(
+                    str(session_v2.session_id), [{"type": "step.ended", "data": {}}]
+                )
 
             before = time.time()
 
             # Create agent for this request
             if _db is not None:
                 from cscode.core.config import Config, ConfigStore, load_config
+
                 store = ConfigStore(_db)
                 saved_config_raw = await store.get()
                 if saved_config_raw is not None:
@@ -628,20 +719,22 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     saved_config = load_config()
             else:
                 from cscode.core.config import load_config
+
                 saved_config = load_config()
 
             agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
             agent._max_tool_rounds = 20
 
             async def agent_runner() -> str:
-                logger.info("[DIAG] agent_runner: starting run_with_messages session=%s", session_v2.session_id)
+                logger.info(
+                    "[DIAG] agent_runner: starting run_with_messages session=%s",
+                    session_v2.session_id,
+                )
                 t0 = time.time()
                 try:
                     # Build context messages
                     new_messages = await _build_context_messages(
-                        session_v2,
-                        user_text,
-                        file_context
+                        session_v2, user_text, file_context
                     )
 
                     result = await agent.run_with_messages(
@@ -650,12 +743,18 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     )
                     return result
                 finally:
-                    logger.info("[DIAG] agent_runner: completed session=%s in %.1fs", session_v2.session_id, time.time() - t0)
+                    logger.info(
+                        "[DIAG] agent_runner: completed session=%s in %.1fs",
+                        session_v2.session_id,
+                        time.time() - t0,
+                    )
 
             # Use Coordinator for per-session serialization
             async def run_with_coordinator() -> str:
                 if _coordinator is not None:
-                    return await _coordinator.run(str(session_v2.session_id), _CallableProcessor(agent_runner))
+                    return await _coordinator.run(
+                        str(session_v2.session_id), _CallableProcessor(agent_runner)
+                    )
                 else:
                     return await agent_runner()
 
@@ -670,6 +769,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     pass
 
             _agent_event_queue: asyncio.Queue[dict[str, object]] = queue
+
             async def stepped_agent_runner() -> str:
                 await _emit_step_started()
                 try:
@@ -687,7 +787,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             while True:
                 if await request.is_disconnected():
-                    logger.info("Client disconnected for session %s, cancelling task", session_v2.session_id)
+                    logger.info(
+                        "Client disconnected for session %s, cancelling task", session_v2.session_id
+                    )
                     if _question_registry is not None:
                         await _question_registry.cancel_session(str(session_v2.session_id))
                     agent_task.cancel()
@@ -708,9 +810,12 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     if not _current_title or _current_title in ("New Session", "New Chat"):
                         generated_title = None
                         try:
-                            title_sys = NewMessage.system("You give very short session titles. Reply with ONLY 3-6 words.")
+                            title_sys = NewMessage.system(
+                                "You give very short session titles. Reply with ONLY 3-6 words."
+                            )
                             if _db is not None:
                                 from cscode.core.config import Config, ConfigStore, load_config
+
                                 store = ConfigStore(_db)
                                 saved_config_raw = await store.get()
                                 if saved_config_raw is not None:
@@ -719,37 +824,57 @@ async def chat_stream(request: Request) -> StreamingResponse:
                                     saved_config = load_config()
                             else:
                                 from cscode.core.config import load_config
+
                                 saved_config = load_config()
-                            title_agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
+                            title_agent = create_agent_v2(
+                                saved_config, tool_registry=_tool_registry
+                            )
                             title_r = await title_agent.llm_client.generate(
                                 LLMRequest(
                                     model=title_agent.llm_client.route.model,
                                     messages=(title_sys, NewMessage.user(message or "")),
                                 )
                             )
-                            title_text = title_r.content.strip().strip('"\'.,!?')
+                            title_text = title_r.content.strip().strip("\"'.,!?")
                             if title_text:
                                 generated_title = title_text
                         except Exception:
                             pass
                         if not generated_title:
-                            generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                            generated_title = (
+                                (message[:47] + "...")
+                                if len(message) > 50
+                                else (message or "New Chat")
+                            )
                         await session_v2.update_metadata(title=generated_title)
-                        yield _e({'type': 'session:title', 'data': {'title': generated_title}})
+                        yield _e({"type": "session:title", "data": {"title": generated_title}})
 
                     try:
                         response = agent_task.result()
                         for f in OUTPUTS_DIR.iterdir():
                             if f.is_file() and f.stat().st_mtime >= before:
-                                yield _e({'type': 'file_created', 'data': {'filename': f.name}})
+                                yield _e({"type": "file_created", "data": {"filename": f.name}})
                         if not response:
-                            logger.warning("[DIAG] Empty response from agent for session=%s", session_v2.session_id)
-                            yield _e({'type': 'error', 'data': {'content': 'LLM returned empty response - API returned no content'}})
+                            logger.warning(
+                                "[DIAG] Empty response from agent for session=%s",
+                                session_v2.session_id,
+                            )
+                            yield _e(
+                                {
+                                    "type": "error",
+                                    "data": {
+                                        "content": "LLM returned empty response - API returned no content"
+                                    },
+                                }
+                            )
                         else:
-                            yield _e({'type': 'complete', 'data': {'content': response}})
+                            yield _e({"type": "complete", "data": {"content": response}})
                     except Exception as e:
-                        logger.warning("[DIAG] agent task error session=%s error=%s", session_v2.session_id, e)
-                        yield _e({'type': 'error', 'data': {'content': str(e)}})
+                        logger.warning(
+                            "[DIAG] agent task error session=%s error=%s", session_v2.session_id, e
+                        )
+                        detail = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                        yield _e({"type": "error", "data": {"content": detail}})
 
                     asyncio.create_task(_auto_compact(str(session_v2.session_id), _event_store))
                     break
@@ -761,16 +886,21 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 except asyncio.TimeoutError:
                     now = time.time()
                     if now - last_event_time > 10:
-                        logger.info("[DIAG] keepalive session=%s last_event=%.1fs ago", session_v2.session_id, now - last_event_time)
+                        logger.info(
+                            "[DIAG] keepalive session=%s last_event=%.1fs ago",
+                            session_v2.session_id,
+                            now - last_event_time,
+                        )
                         yield ": keepalive\n\n"
                         last_event_time = now
                     if now - last_status_time > 60:
-                        yield _e({'type': 'status', 'data': {'message': 'Agent is working...'}})
+                        yield _e({"type": "status", "data": {"message": "Agent is working..."}})
                         last_status_time = now
                     continue
 
         except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'data': {'content': str(e)}, 'session_id': str(session_v2.session_id) if session_v2 else 'unknown'})}\n\n"
+            detail = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+            yield f"data: {json.dumps({'type': 'error', 'data': {'content': detail}, 'session_id': str(session_v2.session_id) if session_v2 else 'unknown'})}\n\n"
 
         finally:
             if session_v2 is not None:
@@ -780,7 +910,10 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     del _active_agent_tasks[str(session_v2.session_id)]
                 _session_queues.pop(str(session_v2.session_id), None)
                 if not agent_task.done():
-                    logger.info("[DIAG] Generator exiting, cancelling agent task for session %s", session_v2.session_id)
+                    logger.info(
+                        "[DIAG] Generator exiting, cancelling agent task for session %s",
+                        session_v2.session_id,
+                    )
                     agent_task.cancel()
                     try:
                         await asyncio.wait_for(agent_task, timeout=5.0)
@@ -800,6 +933,7 @@ async def event_stream(session_id: str, after_seq: int = 0) -> StreamingResponse
         assert _event_store is not None
         import asyncio
         import json
+
         try:
             async for event in _event_store.subscribe(session_id, after_seq):
                 yield f"event: {event.type}\ndata: {json.dumps(event.data)}\n\n"
@@ -854,6 +988,7 @@ async def pty_endpoint(body: PTYInput) -> dict[str, object]:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
     from cscode.tools2.pty import PTYTool
+
     tool = PTYTool(manager=_pty_manager)
     result = await tool.execute(body)
 
@@ -1022,7 +1157,8 @@ async def list_workspace_sessions(workspace_id: str) -> list[dict[str, object]]:
 
 @api_router.post("/sessions/{session_id}/move-workspace")
 async def move_session_workspace(
-    session_id: str, body: dict[str, str],
+    session_id: str,
+    body: dict[str, str],
 ) -> dict[str, str]:
     """P2-4: Move a session to another workspace."""
     global _event_store
@@ -1042,6 +1178,7 @@ async def move_session_workspace(
 async def list_worktrees() -> list[dict[str, object]]:
     """P2-4: List all git worktrees."""
     from cscode.core.control_plane import WorktreeManager
+
     try:
         worktrees = WorktreeManager.list_worktrees()
         return [
@@ -1062,6 +1199,7 @@ async def list_worktrees() -> list[dict[str, object]]:
 async def create_worktree(body: dict[str, str]) -> dict[str, object]:
     """P2-4: Create a new git worktree."""
     from cscode.core.control_plane import WorktreeManager
+
     path = body.get("path", "")
     branch = body.get("branch", "")
     if not path:
@@ -1076,6 +1214,7 @@ async def create_worktree(body: dict[str, str]) -> dict[str, object]:
 async def remove_worktree(body: dict[str, str]) -> dict[str, str]:
     """P2-4: Remove (prune) a git worktree."""
     from cscode.core.control_plane import WorktreeManager
+
     path = body.get("path", "")
     if not path:
         raise HTTPException(status_code=400, detail="path is required")
@@ -1097,6 +1236,7 @@ async def _handle_chat(
     # If session_id was explicitly provided, verify it exists
     if session_id:
         from cscode.schema.ids import SessionID as _SessionID
+
         existing_events = await _event_store.read(_SessionID(session_id))
         if not existing_events:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1106,6 +1246,7 @@ async def _handle_chat(
         config_data = None
         if _db is not None:
             from cscode.core.config import ConfigStore
+
             store = ConfigStore(_db)
             saved_config_dict = await store.get()
             if saved_config_dict:
@@ -1119,6 +1260,7 @@ async def _handle_chat(
         attached_filenames: list[str] = []
         if files:
             from cscode.utils.file_parser import parse_file
+
             parts = []
             total_len = 0
             for name, content in files:
@@ -1128,7 +1270,10 @@ async def _handle_chat(
                     parts.append(f"[FILE: {name}]\n[skipped: context limit reached]")
                     continue
                 if len(text) > remaining:
-                    text = text[:remaining] + f"\n[truncated: file too long, showing {remaining} of {len(text)} characters]"
+                    text = (
+                        text[:remaining]
+                        + f"\n[truncated: file too long, showing {remaining} of {len(text)} characters]"
+                    )
                 total_len += len(text)
                 parts.append(f"[FILE: {name}]\n{text}")
                 attached_filenames.append(name)
@@ -1150,13 +1295,15 @@ async def _handle_chat(
             messages = _compressor.compress(messages)
 
         # Append prompt.admitted event
-        await _project_events(str(session_v2.session_id), [
-            {"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}
-        ])
+        await _project_events(
+            str(session_v2.session_id),
+            [{"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}],
+        )
 
         # Create agent for this request
         if _db is not None:
             from cscode.core.config import Config, ConfigStore, load_config
+
             store = ConfigStore(_db)
             saved_config_raw = await store.get()
             if saved_config_raw is not None:
@@ -1165,6 +1312,7 @@ async def _handle_chat(
                 saved_config = load_config()
         else:
             from cscode.core.config import load_config
+
             saved_config = load_config()
 
         agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
@@ -1175,9 +1323,15 @@ async def _handle_chat(
             evt_type = sse_event.get("type", "")
             if isinstance(evt_type, str) and evt_type in PERSIST_EVENT_TYPES:
                 evt_data = sse_event.get("data", {})
-                await _project_events(str(session_v2.session_id), [
-                    {"type": evt_type, "data": dict(evt_data) if isinstance(evt_data, dict) else {}}
-                ])
+                await _project_events(
+                    str(session_v2.session_id),
+                    [
+                        {
+                            "type": evt_type,
+                            "data": dict(evt_data) if isinstance(evt_data, dict) else {},
+                        }
+                    ],
+                )
 
         # Run agent with full message history
         try:
@@ -1191,7 +1345,9 @@ async def _handle_chat(
         if not _current_title or _current_title in ("New Session", "New Chat"):
             generated_title = None
             try:
-                title_sys = NewMessage.system("You give very short session titles. Reply with ONLY 3-6 words.")
+                title_sys = NewMessage.system(
+                    "You give very short session titles. Reply with ONLY 3-6 words."
+                )
                 title_agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
                 title_r = await title_agent.llm_client.generate(
                     LLMRequest(
@@ -1199,13 +1355,15 @@ async def _handle_chat(
                         messages=(title_sys, NewMessage.user(message or "")),
                     )
                 )
-                title_text = title_r.content.strip().strip('"\'.,!?')
+                title_text = title_r.content.strip().strip("\"'.,!?")
                 if title_text:
                     generated_title = title_text
             except Exception:
                 pass
             if not generated_title:
-                generated_title = (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                generated_title = (
+                    (message[:47] + "...") if len(message) > 50 else (message or "New Chat")
+                )
             await session_v2.update_metadata(title=generated_title)
 
         # Auto-compact if threshold exceeded (fire-and-forget)
@@ -1225,6 +1383,7 @@ async def get_config() -> dict[str, Any]:
     global _db
     if _db is not None:
         from cscode.core.config import ConfigStore
+
         store = ConfigStore(_db)
         saved_config = await store.get()
         if saved_config:
@@ -1232,6 +1391,7 @@ async def get_config() -> dict[str, Any]:
             return saved_config
 
     from cscode.core.config import load_config
+
     cfg = load_config()
     # Some PyInstaller builds may return dict instead of Config
     if isinstance(cfg, dict):
@@ -1249,6 +1409,7 @@ async def save_config(config: ConfigRequest) -> dict[str, str]:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
     from cscode.core.config import ConfigStore
+
     store = ConfigStore(_db)
     await store.save(config.model_dump())
 
@@ -1267,6 +1428,7 @@ async def export_session(session_id: str) -> Response:
     state = SessionProjector.project(events)
 
     import json
+
     data = {
         "session_id": str(state.session_id),
         "title": state.title,
@@ -1283,6 +1445,7 @@ async def export_session(session_id: str) -> Response:
         ],
     }
     from urllib.parse import quote
+
     safe_filename = state.title.replace(" ", "_")
     encoded_filename = quote(safe_filename, safe="", encoding="utf-8")
     return Response(
@@ -1301,18 +1464,25 @@ async def import_session(request: Request) -> dict[str, str]:
     body = await request.json()
 
     # Create new session with imported data
-    session_v2 = await SessionV2.create(_event_store, model=body.get("model", "gpt-4o"), provider=body.get("provider", "openai"), title=body.get("title", "Imported Session"))
+    session_v2 = await SessionV2.create(
+        _event_store,
+        model=body.get("model", "gpt-4o"),
+        provider=body.get("provider", "openai"),
+        title=body.get("title", "Imported Session"),
+    )
 
     # Replay messages as events
     for msg in body.get("messages", []):
         if msg.get("role") == "user":
-            await _project_events(str(session_v2.session_id), [
-                {"type": "prompt.admitted", "data": {"prompt": msg.get("content", "")}}
-            ])
+            await _project_events(
+                str(session_v2.session_id),
+                [{"type": "prompt.admitted", "data": {"prompt": msg.get("content", "")}}],
+            )
         elif msg.get("role") == "assistant":
-            await _project_events(str(session_v2.session_id), [
-                {"type": "text.ended", "data": {"content": msg.get("content", "")}}
-            ])
+            await _project_events(
+                str(session_v2.session_id),
+                [{"type": "text.ended", "data": {"content": msg.get("content", "")}}],
+            )
 
     return {"id": str(session_v2.session_id), "title": session_v2.state.title}
 
@@ -1399,11 +1569,14 @@ async def get_lsp_diagnostics(file_path: str) -> dict[str, object]:
         _lsp_manager = LSPManager()
     try:
         from cscode.tools2.lsp import LSPInput, LSPTool
+
         tool = LSPTool(_lsp_manager)
-        result = await tool.execute(LSPInput(
-            command="diagnostics",
-            file_path=file_path,
-        ))
+        result = await tool.execute(
+            LSPInput(
+                command="diagnostics",
+                file_path=file_path,
+            )
+        )
         if not result.success:
             return {"results": [], "error": result.error}
         diagnostics = result.data.results if result.data else []
@@ -1472,6 +1645,7 @@ async def get_session_messages(session_id: str) -> list[dict[str, object]]:
 def _make_msg_id(role: str, content: str, index: int) -> str:
     """Generate a stable synthetic message ID from role + content hash."""
     import hashlib
+
     raw = f"{role}:{content}:{index}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
@@ -1485,10 +1659,7 @@ async def get_session_context(session_id: str) -> list[dict[str, object]]:
 
     session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
     messages = SessionProjector.build_context(session_v2.state)
-    return [
-        {"role": msg.role, "content": msg.content}
-        for msg in messages
-    ]
+    return [{"role": msg.role, "content": msg.content} for msg in messages]
 
 
 @api_router.get("/sessions/{session_id}/summary")
@@ -1500,6 +1671,7 @@ async def get_session_summary(session_id: str) -> dict[str, object]:
 
     session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
     from cscode.core.session_summary import SessionSummary
+
     return SessionSummary(session_v2).generate()
 
 
@@ -1534,7 +1706,8 @@ async def switch_agent(session_id: str, body: dict[str, object]) -> dict[str, st
 
 @api_router.post("/sessions/{session_id}/workspace")
 async def associate_session_workspace(
-    session_id: str, body: dict[str, str],
+    session_id: str,
+    body: dict[str, str],
 ) -> dict[str, str]:
     """P2-3: Associate a session with a workspace."""
     global _event_store
@@ -1633,9 +1806,7 @@ async def get_session_run_state(session_id: str) -> dict[str, str]:
 
 
 @api_router.put("/sessions/{session_id}/run-state")
-async def set_session_run_state(
-    session_id: str, body: dict[str, str]
-) -> dict[str, str]:
+async def set_session_run_state(session_id: str, body: dict[str, str]) -> dict[str, str]:
     """P2-9: Set the run state of a session.
 
     Valid status values: running, stopped, errored, completed.
@@ -1686,10 +1857,26 @@ async def get_config_reference() -> list[dict[str, str]]:
 
 @api_router.get("/tools/application")
 async def list_application_tools() -> dict[str, list[str]]:
-    """P2-11: List all application-level tools (safe, read-only tools)."""
+    """List all application-level tools (safe, read-only tools)."""
     from cscode.core.application_tools import get_application_tools
 
     return {"tools": get_application_tools()}
+
+
+@api_router.get("/tools")
+async def list_all_tools() -> dict[str, list[str]]:
+    """Alias for /tools/application — list all available tools."""
+    from cscode.core.application_tools import get_application_tools
+
+    return {"tools": get_application_tools()}
+
+
+@api_router.get("/version")
+async def get_version() -> dict[str, str]:
+    """Return the application version."""
+    from cscode import __version__
+
+    return {"version": __version__, "app": "CScode"}
 
 
 @api_router.get("/sessions/{session_id}/overflow")
@@ -1828,7 +2015,9 @@ async def list_questions(session_id: str) -> list[dict[str, object]]:
 
 
 @api_router.post("/sessions/{session_id}/questions/{request_id}/reply")
-async def reply_question(session_id: str, request_id: str, body: dict[str, object]) -> dict[str, str]:
+async def reply_question(
+    session_id: str, request_id: str, body: dict[str, object]
+) -> dict[str, str]:
     """P0-2: Reply to a pending question."""
     global _question_registry
     if _question_registry is None:
@@ -1906,6 +2095,7 @@ async def delete_permission_rule(rule_id: str) -> dict[str, str]:
 async def search_files(q: str = "") -> list[str]:
     try:
         from cscode.tools.glob import GlobTool
+
         tool = GlobTool()
         result = await tool.execute({"pattern": q if q else "**/*"})
         if result.success and result.data:
@@ -1949,6 +2139,7 @@ class FileReadRequest(BaseModel):
 async def read_file(req: FileReadRequest) -> dict[str, object]:
     """Read a file's contents from the workspace."""
     import os
+
     try:
         path = os.path.abspath(os.path.expanduser(req.path))
         if not os.path.isfile(path):
@@ -1967,6 +2158,7 @@ async def list_directory(path: str = ".") -> dict[str, object]:
     """List contents of a directory."""
     import os
     import stat as stat_module
+
     try:
         dir_path = os.path.abspath(os.path.expanduser(path))
         if not os.path.isdir(dir_path):
@@ -1977,12 +2169,18 @@ async def list_directory(path: str = ".") -> dict[str, object]:
             try:
                 st = os.stat(full)
                 mode = st.st_mode
-                entries.append({
-                    "name": name,
-                    "type": "dir" if stat_module.S_ISDIR(mode) else "file" if stat_module.S_ISREG(mode) else "other",
-                    "size": st.st_size,
-                    "mtime": st.st_mtime,
-                })
+                entries.append(
+                    {
+                        "name": name,
+                        "type": "dir"
+                        if stat_module.S_ISDIR(mode)
+                        else "file"
+                        if stat_module.S_ISREG(mode)
+                        else "other",
+                        "size": st.st_size,
+                        "mtime": st.st_mtime,
+                    }
+                )
             except OSError:
                 entries.append({"name": name, "type": "unknown", "size": 0, "mtime": 0})
         return {"path": dir_path, "entries": entries, "count": len(entries)}
@@ -2004,6 +2202,7 @@ async def get_inbox(session_id: str) -> dict[str, object]:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _event_store is not None
     from cscode.core.session_input import InputInbox
+
     inbox = InputInbox(_event_store, session_id)
     await inbox.reload()
     return {
@@ -2022,6 +2221,7 @@ async def enqueue_input(session_id: str, request: Request) -> dict[str, object]:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _event_store is not None
     from cscode.core.session_input import InputInbox
+
     body = await request.json()
     inbox = InputInbox(_event_store, session_id)
     try:
@@ -2041,6 +2241,7 @@ async def cancel_input(session_id: str, input_id: str) -> dict[str, bool]:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _event_store is not None
     from cscode.core.session_input import InputInbox
+
     inbox = InputInbox(_event_store, session_id)
     await inbox.reload()
     cancelled = await inbox.cancel(input_id)
@@ -2054,6 +2255,7 @@ async def clear_inbox(session_id: str) -> None:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _event_store is not None
     from cscode.core.session_input import InputInbox
+
     inbox = InputInbox(_event_store, session_id)
     await inbox.reload()
     await inbox.clear()
@@ -2073,7 +2275,10 @@ async def get_verification_report(session_id: str) -> dict[str, object]:
     """
     global _tracker
     if _tracker is None:
-        return {"summary": {"executed": 0, "failed": 0, "unverified": 0, "skipped": 0}, "details": []}
+        return {
+            "summary": {"executed": 0, "failed": 0, "unverified": 0, "skipped": 0},
+            "details": [],
+        }
     report = await _tracker.get_execution_report(session_id)
 
     # Compute SKIPPED: expected tasks not in the projection table
@@ -2087,10 +2292,18 @@ async def get_verification_report(session_id: str) -> dict[str, object]:
         recorded_ids = {d["task_id"] for d in report["details"]}
         skipped = expected_ids - recorded_ids
         report["summary"]["skipped"] = len(skipped)
-        report["details"].extend([
-            {"task_id": tid, "status": "SKIPPED", "evidence": {}, "result_summary": "", "timestamp": None}
-            for tid in skipped
-        ])
+        report["details"].extend(
+            [
+                {
+                    "task_id": tid,
+                    "status": "SKIPPED",
+                    "evidence": {},
+                    "result_summary": "",
+                    "timestamp": None,
+                }
+                for tid in skipped
+            ]
+        )
     return report
 
 
@@ -2107,6 +2320,7 @@ async def get_provider_status(provider: str = "") -> dict[str, object]:
     Otherwise checks all known providers.
     """
     from cscode.providers.status import ProviderStatusChecker
+
     checker = ProviderStatusChecker()
 
     if provider:
@@ -2114,6 +2328,7 @@ async def get_provider_status(provider: str = "") -> dict[str, object]:
         return {"provider": provider, "status": result.status.value, "message": result.message}
 
     from cscode.providers.status import _DEFAULT_BASE_URLS
+
     results: dict[str, dict[str, str]] = {}
     for p in _DEFAULT_BASE_URLS:
         result = checker.check(p)
@@ -2136,6 +2351,7 @@ async def list_credentials(
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _db is not None
     from cscode.core.credential import CredentialStore
+
     store = CredentialStore(_db)
     creds = await store.list(provider=provider, cred_type=cred_type)
     return [
@@ -2161,6 +2377,7 @@ async def create_credential(request: Request) -> dict[str, str]:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _db is not None
     from cscode.core.credential import CredentialStore
+
     body = await request.json()
     store = CredentialStore(_db)
     cred = await store.create(
@@ -2180,6 +2397,7 @@ async def get_credential(cred_id: str) -> dict[str, object]:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _db is not None
     from cscode.core.credential import CredentialStore
+
     store = CredentialStore(_db)
     cred = await store.get(cred_id)
     if cred is None:
@@ -2204,6 +2422,7 @@ async def update_credential(cred_id: str, request: Request) -> dict[str, object]
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _db is not None
     from cscode.core.credential import CredentialStore
+
     body = await request.json()
     store = CredentialStore(_db)
     cred = await store.update(
@@ -2224,6 +2443,7 @@ async def delete_credential(cred_id: str) -> None:
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _db is not None
     from cscode.core.credential import CredentialStore
+
     store = CredentialStore(_db)
     deleted = await store.delete(cred_id)
     if not deleted:
@@ -2237,6 +2457,7 @@ async def rotate_credential(cred_id: str, request: Request) -> dict[str, object]
         raise HTTPException(status_code=503, detail="Server not initialized")
     assert _db is not None
     from cscode.core.credential import CredentialStore
+
     body = await request.json()
     store = CredentialStore(_db)
     try:
@@ -2267,6 +2488,7 @@ def _get_catalog() -> object:
         ModelEntry,
         ProviderEntry,
     )
+
     cat = Catalog()
     # Pre-populate known providers
     providers_data = [
@@ -2297,23 +2519,43 @@ def _get_catalog() -> object:
     for pid, pname, api_type in providers_data:
         cat.register_provider(ProviderEntry(id=pid, name=pname, api_type=api_type))
     for mid, mname, mprovider, caps, ctx in models_data:
-        cat.register_model(ModelEntry(id=mid, name=mname, provider=mprovider, capabilities=caps, context_length=ctx))
-    cat.register_agent(AgentEntry(id="default", name="Default Agent", description="General-purpose coding assistant", tools=["read", "grep", "edit", "bash"]))
+        cat.register_model(
+            ModelEntry(
+                id=mid, name=mname, provider=mprovider, capabilities=caps, context_length=ctx
+            )
+        )
+    cat.register_agent(
+        AgentEntry(
+            id="default",
+            name="Default Agent",
+            description="General-purpose coding assistant",
+            tools=["read", "grep", "edit", "bash"],
+        )
+    )
     _catalog = cat
     return cat
 
 
 @api_router.get("/catalog/models")
-async def list_catalog_models(provider: str | None = None, search: str = "") -> list[dict[str, object]]:
+async def list_catalog_models(
+    provider: str | None = None, search: str = ""
+) -> list[dict[str, object]]:
     """List models in the catalog, optionally filtered by provider or search."""
     from cscode.core.catalog import Catalog
+
     cat: Catalog = _get_catalog()  # type: ignore[assignment]
     if search:
         results = cat.search_models(search)
     else:
         results = cat.list_models(provider=provider)
     return [
-        {"id": m.id, "name": m.name, "provider": m.provider, "capabilities": m.capabilities, "context_length": m.context_length}
+        {
+            "id": m.id,
+            "name": m.name,
+            "provider": m.provider,
+            "capabilities": m.capabilities,
+            "context_length": m.context_length,
+        }
         for m in results
     ]
 
@@ -2322,6 +2564,7 @@ async def list_catalog_models(provider: str | None = None, search: str = "") -> 
 async def list_catalog_providers() -> list[dict[str, object]]:
     """List all providers in the catalog."""
     from cscode.core.catalog import Catalog
+
     cat: Catalog = _get_catalog()  # type: ignore[assignment]
     return [
         {"id": p.id, "name": p.name, "api_type": p.api_type, "models": p.models}
@@ -2333,6 +2576,7 @@ async def list_catalog_providers() -> list[dict[str, object]]:
 async def list_catalog_agents() -> list[dict[str, object]]:
     """List all agents in the catalog."""
     from cscode.core.catalog import Catalog
+
     cat: Catalog = _get_catalog()  # type: ignore[assignment]
     return [
         {"id": a.id, "name": a.name, "description": a.description, "tools": a.tools}
@@ -2352,6 +2596,7 @@ def _get_job_queue() -> object:
     if _job_queue is not None:
         return _job_queue
     from cscode.core.background_job import BackgroundJobQueue
+
     q = BackgroundJobQueue()
     _job_queue = q
     return q
@@ -2362,6 +2607,7 @@ async def enqueue_job(request: Request) -> dict[str, str]:
     """Enqueue a new background job."""
     body = await request.json()
     from cscode.core.background_job import BackgroundJobQueue
+
     q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
     job = await q.enqueue(
         job_type=body.get("job_type", ""),
@@ -2378,6 +2624,7 @@ async def list_jobs(
 ) -> list[dict[str, object]]:
     """List background jobs with optional filters."""
     from cscode.core.background_job import BackgroundJobQueue, JobStatus
+
     q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
     status_enum = JobStatus(status) if status else None
     jobs = await q.list_jobs(status=status_enum, job_type=job_type, limit=limit)
@@ -2388,6 +2635,7 @@ async def list_jobs(
 async def get_job(job_id: str) -> dict[str, object]:
     """Get the status and details of a background job."""
     from cscode.core.background_job import BackgroundJobQueue
+
     q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
     job = await q.get_job(job_id)
     if job is None:
@@ -2399,6 +2647,7 @@ async def get_job(job_id: str) -> dict[str, object]:
 async def cancel_job(job_id: str) -> dict[str, bool]:
     """Cancel a pending or running job."""
     from cscode.core.background_job import BackgroundJobQueue
+
     q: BackgroundJobQueue = _get_job_queue()  # type: ignore[assignment]
     cancelled = await q.cancel_job(job_id)
     return {"cancelled": cancelled}
@@ -2413,6 +2662,7 @@ async def cancel_job(job_id: str) -> dict[str, bool]:
 async def create_attachment(request: Request) -> dict[str, object]:
     """Create an Attachment from a file path. Reads the file and returns metadata."""
     from cscode.core.attachment import Attachment
+
     body = await request.json()
     file_path = body.get("path", "")
     if not file_path:
@@ -2437,6 +2687,7 @@ async def create_attachment(request: Request) -> dict[str, object]:
 async def get_locale() -> dict[str, str]:
     """Get the current system locale."""
     from cscode.core.i18n import I18n
+
     locale = I18n.detect_locale()
     return {"locale": locale}
 
@@ -2445,6 +2696,7 @@ async def get_locale() -> dict[str, str]:
 async def set_locale(request: Request) -> dict[str, str]:
     """Set the locale (en or zh)."""
     from cscode.core.i18n import get_i18n
+
     body = await request.json()
     locale = body.get("locale", "en")
     get_i18n().set_locale(locale)
@@ -2528,6 +2780,7 @@ print(f"Saved to {output_path}")
 # P2-1: Register /api/session/... (singular) aliases for all /api/sessions/...
 # ---------------------------------------------------------------------------
 
+
 def _register_session_aliases() -> None:
     """Add singular-path aliases for every /sessions/ route.
 
@@ -2565,8 +2818,8 @@ app.include_router(api_router)
 # Static files for web UI — support both development and PyInstaller bundle paths
 
 _web_dist_candidates = [
-    Path(__file__).parent.parent / "web" / "dist",          # dev: src/cscode/web/dist/
-    Path(__file__).parent.parent.parent / "web" / "dist",   # dev alt: src/web/dist/
+    Path(__file__).parent.parent / "web" / "dist",  # dev: src/cscode/web/dist/
+    Path(__file__).parent.parent.parent / "web" / "dist",  # dev alt: src/web/dist/
 ]
 # PyInstaller: sys._MEIPASS points to the temp extraction root
 _mei_path: str | None = getattr(sys, "_MEIPASS", None)
@@ -2586,4 +2839,6 @@ for p in _web_dist_candidates:
 if web_dist is not None:
     app.mount("/", StaticFiles(directory=str(web_dist), html=True), name="static")
 else:
-    logger.warning("No static frontend dist found; tried: %s", [str(p) for p in _web_dist_candidates])
+    logger.warning(
+        "No static frontend dist found; tried: %s", [str(p) for p in _web_dist_candidates]
+    )
