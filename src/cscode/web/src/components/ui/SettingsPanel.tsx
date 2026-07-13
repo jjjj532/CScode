@@ -183,7 +183,7 @@ export function SettingsPanel() {
           </div>
 
           {/* API Key */}
-          <div>
+          <form onSubmit={(e) => e.preventDefault()}>
             <label className="block text-xs font-medium text-v2-text-secondary mb-1">API Key</label>
             <input
               type="password"
@@ -191,7 +191,7 @@ export function SettingsPanel() {
               onChange={(e) => setForm({ ...form, api_key: e.target.value })}
               className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
             />
-          </div>
+          </form>
 
           {/* Temperature */}
           <div>

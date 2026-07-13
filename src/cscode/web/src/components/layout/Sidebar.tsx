@@ -41,6 +41,14 @@ export function Sidebar() {
     // P0-6: 不 abort 旧 session 的流 — 让后台 stream 继续被 store 接收
     setActiveSession(id);
 
+    // Reset stuck thinking state: if the previous stream for this session ended
+    // but thinking wasn't properly cleaned up (e.g., page close during streaming,
+    // or controller replacement race), clear it now.
+    if (store.sessionThinking[id] && !store.sessionLoading[id]) {
+      console.log('[sidebar] RESETTING stuck thinking state for session=%s', id);
+      store.setSessionThinking(id, false);
+    }
+
     const cachedVersion = store.sessionMessageVersion[id] || 0;
     try {
       console.log('[sidebar] fetching messages for session=%s', id);
@@ -50,10 +58,14 @@ export function Sidebar() {
       if (emptyAssistants > 0) console.log('[sidebar] SERVER RETURNED %d EMPTY ASSISTANT MESSAGES!', emptyAssistants);
       const currentStore = useSessionStore.getState();
       if (currentStore.activeSessionId === id) {
-        // Version guard: if local appendMessage happened during fetch, discard stale data
+        // Version guard: if version changed during fetch, streaming events arrived
+        // while we were loading server data. Instead of discarding server data
+        // entirely (which loses historical messages), MERGE: server data as base
+        // + any extra local messages from streaming that aren't persisted yet.
         const currentVersion = currentStore.sessionMessageVersion[id] || 0;
         if (currentVersion > cachedVersion) {
-          console.log('[sidebar] VERSION CHANGED during fetch (was=%d now=%d): discarding stale server data for session=%s', cachedVersion, currentVersion, id);
+          console.log('[sidebar] VERSION CHANGED during fetch (was=%d now=%d): merging server+local for session=%s', cachedVersion, currentVersion, id);
+          setMessages(msgs, id, true);  // mergeLocal=true preserves in-flight messages
           return;
         }
         setMessages(msgs, id);
@@ -62,20 +74,14 @@ export function Sidebar() {
         console.log('[sidebar] discard fetch: activeSession changed during fetch (now=%s, wanted=%s)', currentStore.activeSessionId, id);
       }
     } catch {
-      console.log('[sidebar] fetch failed for session=%s', id);
+      console.log('[sidebar] fetch failed for session=%s, keeping existing messages', id);
+      // Never clear messages on fetch failure — keep existing local data.
       const currentStore = useSessionStore.getState();
       if (currentStore.activeSessionId === id) {
         const currentVersion = currentStore.sessionMessageVersion[id] || 0;
-        if (currentVersion > cachedVersion) {
-          console.log('[sidebar] VERSION CHANGED during failed fetch (was=%d now=%d): not clearing messages for session=%s', cachedVersion, currentVersion, id);
-          return;
+        if (currentVersion > cachedVersion || currentStore.sessionLoading[id]) {
+          console.log('[sidebar] VERSION CHANGED or still loading (was=%d now=%d): version guard would have caught this', cachedVersion, currentVersion);
         }
-        // Don't clear messages if the session is still streaming (loading)
-        if (currentStore.sessionLoading[id]) {
-          console.log('[sidebar] fetch failed but session is loading: keeping existing messages for session=%s', id);
-          return;
-        }
-        setMessages([], id);
       }
     }
     console.log('[sidebar] <<< select session id=%s done', id);

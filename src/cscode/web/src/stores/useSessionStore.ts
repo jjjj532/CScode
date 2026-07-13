@@ -125,7 +125,7 @@ interface SessionState {
   sessionLastSeq: Record<string, number>;
   pendingQuestions: Record<string, QuestionItem[]>;
   setSessions: (sessions: Session[]) => void;
-  setMessages: (messages: Message[], sessionId: string) => void;
+  setMessages: (messages: Message[], sessionId: string, mergeLocal?: boolean) => void;
   applyEvent: (sessionId: string, event: { type: string; data?: any }) => void;
   setSessionLastSeq: (sessionId: string, seq: number) => void;
   appendMessage: (message: Message, sessionId: string) => void;
@@ -251,6 +251,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         const argsStr = d?.args ? (typeof d.args === 'object' ? JSON.stringify(d.args) : String(d.args)) : '';
         const name = d?.name || '';
         const result: Partial<SessionState> = {
+          ...bumpVersion(),
           sessionThinking: { ...s.sessionThinking, [sessionId]: false },
           sessionToolCalls: {
             ...s.sessionToolCalls,
@@ -282,6 +283,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
       case 'tool.success':
         return {
+          ...bumpVersion(),
           sessionToolCalls: {
             ...s.sessionToolCalls,
             [sessionId]: (s.sessionToolCalls[sessionId] || []).map((tc) =>
@@ -291,6 +293,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         };
       case 'tool.failed':
         return {
+          ...bumpVersion(),
           sessionToolCalls: {
             ...s.sessionToolCalls,
             [sessionId]: (s.sessionToolCalls[sessionId] || []).map((tc) =>
@@ -347,27 +350,33 @@ export const useSessionStore = create<SessionState>((set) => ({
       },
     };
   }),
-  setMessages: (messages, sessionId) => set((s) => {
+  setMessages: (messages, sessionId, mergeLocal = false) => set((s) => {
     const prev = s.sessionMessages[sessionId];
     const filtered = messages.filter(
       (m) => m.role !== 'assistant' || (m.content && m.content.trim())
     );
-    const local = prev || [];
-    // Merge: if server returned fewer messages than local has, the extra local
-    // messages are in-flight streaming content not yet finalized on server.
-    // Keep them appended after server messages so streaming state is preserved.
-    let merged = filtered;
-    if (local.length > filtered.length) {
-      const extra = local.slice(filtered.length);
-      merged = [...filtered, ...extra];
-      console.log('[store] setMessages MERGED %d in-flight messages for session=%s', extra.length, sessionId);
+    let result = filtered;
+    // Always preserve local messages when server returns nothing or less
+    // This handles: streaming finished but server hasn't persisted yet,
+    // or server fetch returning empty for a session that has local messages.
+    if (prev && prev.length > 0) {
+      if (filtered.length === 0) {
+        // Server returned nothing — keep all local messages
+        result = prev;
+        console.log('[store] setMessages PRESERVED %d local messages (server empty) for session=%s', prev.length, sessionId);
+      } else if (mergeLocal && prev.length > filtered.length) {
+        // Server has partial data, append extra local in-flight messages
+        const extraLocal = prev.slice(filtered.length);
+        result = [...filtered, ...extraLocal];
+        console.log('[store] setMessages MERGED %d in-flight messages for session=%s', extraLocal.length, sessionId);
+      }
     }
-    console.log('[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d merged=%d', sessionId, prev?.length || 0, messages.length, filtered.length, merged.length);
+    console.log('[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d', sessionId, prev?.length || 0, messages.length, filtered.length, result.length);
     const newVersion = (s.sessionMessageVersion[sessionId] || 0) + 1;
     return {
       sessionMessages: {
         ...s.sessionMessages,
-        [sessionId]: merged,
+        [sessionId]: result,
       },
       sessionMessageVersion: {
         ...s.sessionMessageVersion,
@@ -470,3 +479,8 @@ export const useSessionStore = create<SessionState>((set) => ({
     };
   }),
 }));
+
+// Expose store state to window for debugging and test accessibility
+if (typeof window !== 'undefined') {
+  (window as any).__STORE_STATE__ = useSessionStore;
+}

@@ -4,6 +4,8 @@ import { useToastStore } from '../stores/useToastStore';
 import { api } from '../lib/api';
 
 const streamControllers: Record<string, AbortController> = {};
+// Prevent concurrent streams for the same session
+const activeStreams = new Set<string>();
 
 export function abortSession(sessionId: string) {
   const ctrl = streamControllers[sessionId];
@@ -11,10 +13,15 @@ export function abortSession(sessionId: string) {
     console.log('[chat] abortSession: aborting stream for session=%s', sessionId);
     ctrl.abort();
     delete streamControllers[sessionId];
+    activeStreams.delete(sessionId);
     // Reset session state immediately so it doesn't show "Thinking..." when user returns
     useSessionStore.getState().setSessionThinking(sessionId, false);
     useSessionStore.getState().setLoading(sessionId, false);
   }
+}
+
+export function isSessionStreaming(sessionId: string): boolean {
+  return activeStreams.has(sessionId);
 }
 
 interface FilePayload {
@@ -74,11 +81,17 @@ export function useChat() {
       }
     }
 
+    if (activeStreams.has(sid)) {
+      useToastStore.getState().addToast('Session is already generating a response', 'warning');
+      return undefined;
+    }
+
     abortSession(sid);
 
     const capturedSid = sid;
     const controller = new AbortController();
     streamControllers[capturedSid] = controller;
+    activeStreams.add(capturedSid);
 
     setSessionThinking(sid, false);
     console.log('[chat] sendMessage: appending user message sid=%s content_preview=%s', sid, JSON.stringify(displayContent.slice(0, 60)));
@@ -222,11 +235,13 @@ export function useChat() {
     } finally {
       if (streamControllers[capturedSid] === controller) {
         delete streamControllers[capturedSid];
+        activeStreams.delete(capturedSid);
         if (!intentionalAbort) {
           setSessionThinking(capturedSid, false);
           setLoading(capturedSid, false);
         }
       } else {
+        activeStreams.delete(capturedSid);
         console.log('[chat] stream finally: controller superseded for session=%s (another stream started)', capturedSid);
       }
     }
