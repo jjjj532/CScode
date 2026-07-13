@@ -78,7 +78,7 @@ export function CredentialPanel() {
     <div style={{ padding: '16px 0' }}>
       <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Credentials</h3>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <select value={provider} onChange={(e) => setProvider(e.target.value)}
           style={{
             border: '1px solid #d1d5db',
@@ -94,6 +94,7 @@ export function CredentialPanel() {
           onChange={(e) => setKeyValue(e.target.value)}
           placeholder="API key"
           type="password"
+          autoComplete="off"
           style={{
             flex: 1,
             border: '1px solid #d1d5db',
@@ -115,7 +116,7 @@ export function CredentialPanel() {
           }}>
           Add
         </button>
-      </div>
+      </form>
 
       {message && (
         <div style={{ fontSize: 13, marginBottom: 8, color: message.includes('Error') || message.includes('fail') ? '#ef4444' : '#22c55e' }}>
