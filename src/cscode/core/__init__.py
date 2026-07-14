@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from cscode.core.agent import AgentMode, AgentTab, TabManager
 from cscode.core.attachment import Attachment
 from cscode.core.background_job import BackgroundJobQueue, JobStatus, JobStore
 from cscode.core.catalog import AgentEntry, Catalog, ModelEntry, ProviderEntry

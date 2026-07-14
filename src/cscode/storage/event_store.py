@@ -9,6 +9,11 @@ from cscode.schema.events import PersistenceEvent as Event  # noqa: F401 — typ
 from cscode.storage.db import Database
 from cscode.utils.logging import get_logger
 
+__all__ = [
+    "Event",
+    "EventStore",
+]
+
 logger = get_logger(__name__)
 
 

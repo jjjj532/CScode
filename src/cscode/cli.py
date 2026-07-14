@@ -12,12 +12,16 @@ if True:  # TYPE_CHECKING
     from cscode.app.agent import AgentV2
 
 
-def _create_agent() -> AgentV2:
-    """Create AgentV2 from config (default backend)."""
+def _create_agent(mode: str | None = None) -> AgentV2:
+    """Create AgentV2 from config (default backend).
+
+    Args:
+        mode: Optional agent mode (build, plan, subagent).
+    """
     from cscode.app import create_agent_v2
 
     config = load_config()
-    return create_agent_v2(config)
+    return create_agent_v2(config, mode=mode)
 
 
 @click.group(invoke_without_command=True)
@@ -35,9 +39,16 @@ def cli(ctx: click.Context) -> None:
 
 @cli.command()
 @click.option("-p", "--prompt", help="Single prompt to run (non-interactive)")
-def chat(prompt: str | None) -> None:
+@click.option(
+    "--mode",
+    type=click.Choice(["build", "plan", "subagent"], case_sensitive=False),
+    default="build",
+    help="Agent mode (build, plan, subagent)",
+)
+def chat(prompt: str | None, mode: str) -> None:
     """Start an interactive chat session."""
-    agent = _create_agent()
+
+    agent = _create_agent(mode=mode)
 
     if prompt:
         result = asyncio.run(agent.run(prompt))
@@ -63,6 +74,51 @@ def chat(prompt: str | None) -> None:
         result = asyncio.run(agent.run(user_input))
         click.echo(result)
         click.echo("")
+
+
+@cli.group()
+def agent() -> None:
+    """Manage agent tabs and modes."""
+
+
+@agent.command("list")
+def agent_list() -> None:
+    """List active agent tabs."""
+    from cscode.core.agent.tab import TabManager
+
+    mgr = TabManager()
+    tabs = mgr.list_tabs()
+    if not tabs:
+        click.echo("No active tabs.")
+        return
+    active_tab = mgr.get_active()
+    for tab in tabs:
+        active = " (active)" if active_tab is not None and active_tab.id == tab.id else ""
+        click.echo(f"  {tab.id}: {tab.title} [{tab.mode.value}]{active}")
+
+
+@agent.command()
+@click.argument("tab_id")
+def switch(tab_id: str) -> None:
+    """Switch to a different agent tab."""
+    from cscode.core.agent.tab import TabManager
+
+    mgr = TabManager()
+    tab = mgr.switch_tab(tab_id)
+    if tab is None:
+        click.echo(f"Tab '{tab_id}' not found.")
+        raise SystemExit(1)
+    click.echo(f"Switched to tab: {tab.title} [{tab.mode.value}]")
+
+
+@agent.command("mode")
+@click.argument("new_mode", type=click.Choice(["build", "plan", "subagent"]))
+def agent_mode(new_mode: str) -> None:
+    """Set the active agent mode."""
+    from cscode.core.agent.base import AgentMode
+
+    mode = AgentMode(new_mode)
+    click.echo(f"Agent mode set to: {mode.value}")
 
 
 @cli.command()

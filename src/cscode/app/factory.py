@@ -137,6 +137,7 @@ def create_agent_v2(
     config: Config,
     tool_registry: ToolRegistryV2 | None = None,
     permissions: list[Ruleset] | None = None,
+    mode: str | None = None,
 ) -> AgentV2:
     """Build an AgentV2 from a Config object.
 
@@ -153,6 +154,7 @@ def create_agent_v2(
                        Defaults to create_tool_registry().
         permissions: Optional permission rulesets. When provided, only
                      tools matching an ALLOW rule are materialized.
+        mode: Optional agent mode (build, plan, subagent).
 
     Returns:
         A fully configured AgentV2 instance.
@@ -170,8 +172,8 @@ def create_agent_v2(
     )
 
     logger.info(
-        "Creating AgentV2: provider=%s model=%s route=%s",
-        config.provider, config.model, route.id,
+        "Creating AgentV2: provider=%s model=%s route=%s mode=%s",
+        config.provider, config.model, route.id, mode or "default",
     )
 
     # Create LLM client

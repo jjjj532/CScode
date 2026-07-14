@@ -9,6 +9,7 @@ Tests verify:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -279,6 +280,146 @@ class TestSessionCoordinator:
         await coord.interrupt("test")
         assert coord.get_state("test") == SessionState.IDLE
 
+    # ── SessionCoordinator Enhancements (T2.2) ──────────────────────
+
+    async def test_max_concurrent_limits_simultaneous_runs(self) -> None:
+        """max_concurrent=1 allows only one session to drain at a time."""
+        coord = SessionCoordinator(max_concurrent=1)
+        started: list[str] = []
+        barrier = asyncio.Event()
+
+        async def slow_processor(session_id: str) -> str:
+            started.append(session_id)
+            await barrier.wait()
+            return "done"
+
+        # Start session "a" — enters DRAINING, acquires semaphore
+        task_a = asyncio.create_task(
+            coord.run("a", _ProcAdapter(slow_processor))
+        )
+        await asyncio.sleep(0.05)
+
+        assert coord.get_state("a") == SessionState.DRAINING
+        assert len(started) == 1
+
+        # Start session "b" — blocked on global semaphore, stays IDLE
+        task_b = asyncio.create_task(
+            coord.run("b", _ProcAdapter(slow_processor))
+        )
+        await asyncio.sleep(0.05)
+
+        assert coord.get_state("b") == SessionState.IDLE
+        assert len(started) == 1  # only "a" is running
+
+        # Release barrier — "a" finishes, semaphore frees, "b" proceeds
+        barrier.set()
+        await asyncio.gather(task_a, task_b)
+
+        assert len(started) == 2  # both ran
+
+    async def test_max_concurrent_default_no_limit(self) -> None:
+        """Default max_concurrent=0 means unlimited."""
+        coord = SessionCoordinator()  # default: no limit
+        barrier = asyncio.Event()
+
+        async def waiter(session_id: str) -> str:
+            await barrier.wait()
+            return "ok"
+
+        task_a = asyncio.create_task(coord.run("a", _ProcAdapter(waiter)))
+        task_b = asyncio.create_task(coord.run("b", _ProcAdapter(waiter)))
+        await asyncio.sleep(0.05)
+
+        # Both should be draining (no limit)
+        assert coord.get_state("a") == SessionState.DRAINING
+        assert coord.get_state("b") == SessionState.DRAINING
+
+        barrier.set()
+        await asyncio.gather(task_a, task_b)
+
+    async def test_get_status_returns_all_sessions(self) -> None:
+        """get_status() returns state for all tracked sessions."""
+        coord = SessionCoordinator()
+
+        # No sessions tracked yet
+        assert coord.get_status() == {}
+
+        # Run a session to track it
+        async def fast(session_id: str) -> str:
+            return "ok"
+
+        await coord.run("s1", _ProcAdapter(fast))
+        status = coord.get_status()
+        assert "s1" in status
+        assert status["s1"] == "idle"  # back to IDLE after run
+
+        # Queue another
+        barrier = asyncio.Event()
+        async def slow(session_id: str) -> str:
+            await barrier.wait()
+            return "ok"
+
+        task = asyncio.create_task(coord.run("s2", _ProcAdapter(slow)))
+        await asyncio.sleep(0.05)
+        status = coord.get_status()
+        assert "s2" in status
+        assert status["s2"] == "draining"
+
+        barrier.set()
+        await task
+
+    async def test_wait_for_completion_resolves_after_run(self) -> None:
+        """wait_for_completion() resolves after the session finishes."""
+        coord = SessionCoordinator()
+        barrier = asyncio.Event()
+
+        async def slow(session_id: str) -> str:
+            await barrier.wait()
+            return "done"
+
+        # Start processing in background
+        task = asyncio.create_task(coord.run("w1", _ProcAdapter(slow)))
+
+        # Wait for it to start draining
+        await asyncio.sleep(0.05)
+        assert coord.get_state("w1") == SessionState.DRAINING
+
+        # Start wait_for_completion — should NOT resolve until released
+        wait_task = asyncio.create_task(coord.wait_for_completion("w1"))
+        await asyncio.sleep(0.05)
+        assert not wait_task.done()
+
+        # Release barrier — now wait should resolve
+        barrier.set()
+        result = await wait_task
+        assert result is True
+
+        await task
+
+    async def test_wait_for_completion_idle_session(self) -> None:
+        """wait_for_completion() on idle session resolves immediately."""
+        coord = SessionCoordinator()
+        result = await coord.wait_for_completion("nonexistent")
+        assert result is True
+
+    async def test_wait_for_completion_timeout(self) -> None:
+        """wait_for_completion() respects timeout parameter."""
+        coord = SessionCoordinator()
+        barrier = asyncio.Event()
+
+        async def slow(session_id: str) -> str:
+            await barrier.wait()
+            return "done"
+
+        task = asyncio.create_task(coord.run("t1", _ProcAdapter(slow)))
+        await asyncio.sleep(0.05)
+
+        result = await coord.wait_for_completion("t1", timeout=0.1)
+        assert result is False  # timed out, didn't complete
+
+        barrier.set()
+        await task
+
 
 class _ProcAdapter:
     """Adapter to wrap a simple async function as a processor."""
@@ -547,3 +688,76 @@ class TestSessionRunnerContract:
         result = await runner.run(session, "Hi")
 
         assert "API error" in result or "error" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_run_with_execution_text_only(self, event_store: EventStore) -> None:
+        """run_with_execution produces same result as run() with SessionExecution lifecycle."""
+        session = await SessionV2.create(event_store, "gpt-4o", "openai")
+        mock_llm = _MockLLMClient()
+        mock_llm.set_sequence(
+            [
+                TextStarted(),
+                TextDelta(text="Hello from exec!"),
+                TextEnded(full_text="Hello from exec!"),
+                Finish(finish_reason="stop", usage=None),
+            ]
+        )
+        runner = self._make_runner(llm_client=mock_llm)
+
+        result = await runner.run_with_execution(session, "Hi")
+
+        assert result == "Hello from exec!"
+        # SessionExecution handles mark_run_start + prompt + mark_run_complete
+        assert session.state.run_status == "completed"
+
+    @pytest.mark.asyncio
+    async def test_run_with_execution_cancel_event(self, event_store: EventStore) -> None:
+        """cancel_event stops execution before it completes."""
+        session = await SessionV2.create(event_store, "gpt-4o", "openai")
+        cancel = asyncio.Event()
+        mock_llm = _MockLLMClient()
+        mock_llm.set_sequence(
+            [
+                TextStarted(),
+                TextDelta(text="Partial"),
+                TextEnded(full_text="Partial"),
+                Finish(finish_reason="stop", usage=None),
+            ]
+        )
+        # Signal cancel before execution starts
+        cancel.set()
+        runner = self._make_runner(llm_client=mock_llm)
+
+        result = await runner.run_with_execution(
+            session, "Hi", cancel_event=cancel,
+        )
+
+        # Execution was interrupted before processing events
+        assert session.state.run_status == "stopped"
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_run_with_execution_on_event(self, event_store: EventStore) -> None:
+        """on_event callback is invoked during run_with_execution."""
+        session = await SessionV2.create(event_store, "gpt-4o", "openai")
+        mock_llm = _MockLLMClient()
+        mock_llm.set_sequence(
+            [
+                TextStarted(),
+                TextDelta(text="With callback"),
+                TextEnded(full_text="With callback"),
+                Finish(finish_reason="stop", usage=None),
+            ]
+        )
+        runner = self._make_runner(llm_client=mock_llm)
+        received: list[LLMEvent] = []
+
+        def collect(event: LLMEvent) -> None:
+            received.append(event)
+
+        result = await runner.run_with_execution(session, "Hi", on_event=collect)
+
+        assert result == "With callback"
+        assert any(isinstance(e, TextDelta) for e in received)
+        assert any(isinstance(e, Finish) for e in received)
+        assert session.state.run_status == "completed"

@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-07-13T09:47:41.494299",
+  "tool_ui_analysis": {
+    "toolElements": {},
+    "messageCount": 0,
+    "messageAnalysis": []
+  },
+  "has_version_in_response": false,
+  "has_tool_ui_elements": false,
+  "console_logs": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-13T09:47:07.855600"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783907229794913000 0 0 0 0",
+      "time": "2026-07-13T09:47:09.844387"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783907229794913000 \"请读取 /Users/mac/AI/CScode/src/cscode/__init__.py 文件，告诉我里面的版本号\"",
+      "time": "2026-07-13T09:47:10.707303"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"请读取 /Users/mac/AI/CScode/src/cscode/__in\" 1783907229794913000 1 2",
+      "time": "2026-07-13T09:47:10.709301"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783907229794913000 1 1 [\"\\\"请读取 /Users/mac/AI/CScode/src/c\\\"\"]",
+      "time": "2026-07-13T09:47:10.719963"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839072:1 1783907229794913000",
+      "time": "2026-07-13T09:47:10.720773"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783907229794913000 2 1 [\"\\\"请读取 /Users/mac/AI/CScode/src/c\\\"\"]",
+      "time": "2026-07-13T09:47:10.777533"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839072:2 1783907229794913000",
+      "time": "2026-07-13T09:47:10.778200"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"Error: LLMError: [Transport] — LLMClient\" 1783907229794913000 3 4",
+      "time": "2026-07-13T09:47:18.842139"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783907229794913000 3 1 [\"\\\"请读取 /Users/mac/AI/CScode/src/c\\\"\"]",
+      "time": "2026-07-13T09:47:18.855369"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839072:3 1783907229794913000",
+      "time": "2026-07-13T09:47:18.855792"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"LLM error: Request failed: All connectio\" 1783907229794913000 4 6",
+      "time": "2026-07-13T09:47:27.388529"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783907229794913000 4 1 [\"\\\"请读取 /Users/mac/AI/CScode/src/c\\\"\"]",
+      "time": "2026-07-13T09:47:27.394805"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839072:4 1783907229794913000",
+      "time": "2026-07-13T09:47:27.395187"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783907229794913000",
+      "time": "2026-07-13T09:47:27.396783"
+    }
+  ]
+}

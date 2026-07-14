@@ -1,0 +1,2913 @@
+{
+  "timestamp": "2026-07-09T17:33:48.699038",
+  "test_results": [
+    {
+      "test_name": "创建新Session",
+      "passed": true,
+      "detail": "成功创建并显示在侧边栏",
+      "timestamp": "2026-07-09T17:32:35.845010",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/01-new-session-created.png"
+    },
+    {
+      "test_name": "Session切换",
+      "passed": false,
+      "detail": "Session数量不足，无法测试切换",
+      "timestamp": "2026-07-09T17:32:37.545378",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/02-session-switch-failed.png"
+    },
+    {
+      "test_name": "发送普通消息",
+      "passed": false,
+      "detail": "未收到AI响应",
+      "timestamp": "2026-07-09T17:32:44.248817",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/04-message-no-response.png"
+    },
+    {
+      "test_name": "流式响应显示",
+      "passed": true,
+      "detail": "内容正在流式增加",
+      "timestamp": "2026-07-09T17:32:47.835959",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/05-streaming-response.png"
+    },
+    {
+      "test_name": "中断响应",
+      "passed": false,
+      "detail": "未找到停止按钮",
+      "timestamp": "2026-07-09T17:32:50.333734",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/06-no-stop-btn.png"
+    },
+    {
+      "test_name": "创建并发Session",
+      "passed": true,
+      "detail": "成功创建2个并发Session: [None, None]",
+      "timestamp": "2026-07-09T17:32:58.699183",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/07-concurrent-sessions.png"
+    },
+    {
+      "test_name": "并行LLM请求",
+      "passed": true,
+      "detail": "当前Session None 包含响应内容",
+      "timestamp": "2026-07-09T17:33:09.362730",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/08-parallel-requests.png"
+    },
+    {
+      "test_name": "切换Session保留进度",
+      "passed": false,
+      "detail": "Session数量不足",
+      "timestamp": "2026-07-09T17:33:10.500570",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/09-not-enough-sessions.png"
+    },
+    {
+      "test_name": "打开设置",
+      "passed": true,
+      "detail": "设置对话框已显示",
+      "timestamp": "2026-07-09T17:33:14.405845",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/10-settings-open.png"
+    },
+    {
+      "test_name": "Provider选择",
+      "passed": false,
+      "detail": "未找到Provider选择器",
+      "timestamp": "2026-07-09T17:33:16.577069",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/11-provider-not-found.png"
+    },
+    {
+      "test_name": "Session列表API",
+      "passed": true,
+      "detail": "状态码: 200",
+      "timestamp": "2026-07-09T17:33:17.052846",
+      "screenshot": null
+    },
+    {
+      "test_name": "Config API",
+      "passed": true,
+      "detail": "状态码: 200",
+      "timestamp": "2026-07-09T17:33:17.059486",
+      "screenshot": null
+    },
+    {
+      "test_name": "Health Check",
+      "passed": true,
+      "detail": "状态码: 200",
+      "timestamp": "2026-07-09T17:33:17.067379",
+      "screenshot": null
+    },
+    {
+      "test_name": "文件读取工具",
+      "passed": false,
+      "detail": "未检测到工具调用显示",
+      "timestamp": "2026-07-09T17:33:28.239699",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/12-tool-read.png"
+    },
+    {
+      "test_name": "Shell执行工具",
+      "passed": false,
+      "detail": "未检测到Shell输出",
+      "timestamp": "2026-07-09T17:33:39.400459",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/13-tool-shell.png"
+    },
+    {
+      "test_name": "超长消息",
+      "passed": true,
+      "detail": "系统正常处理超长消息",
+      "timestamp": "2026-07-09T17:33:45.582709",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/14-long-message.png"
+    },
+    {
+      "test_name": "空消息",
+      "passed": true,
+      "detail": "空消息正确处理（不发送）",
+      "timestamp": "2026-07-09T17:33:48.093354",
+      "screenshot": "/Users/mac/AI/CScode/dogfood-output/comprehensive-gui-test/15-empty-message.png"
+    }
+  ],
+  "console_logs": [
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.329114"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.375566"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.376777"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.388142"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.388633"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.425097"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.425693"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.462898"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.463489"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.492589"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.493352"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.530041"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.530498"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.560765"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.561341"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.595155"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.595562"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.631840"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.632390"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.665177"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.665743"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.699042"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.699747"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.733418"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.734027"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.778578"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.779193"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783589570370585000",
+      "time": "2026-07-09T17:33:38.792011"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.807244"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.808256"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.843150"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.843659"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.875896"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.876468"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.905681"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.906261"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.939687"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.940293"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:38.975159"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:38.975749"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.009927"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.010332"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.047266"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.047641"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.086584"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.087095"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.112217"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.112757"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.149483"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.149927"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.186295"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.186830"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.226123"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.226486"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.388233"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.391759"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.392693"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.393220"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.393906"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.394397"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.395201"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.396536"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.431105"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.431741"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.466796"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.467351"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.496095"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.496646"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.533142"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.533763"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.592342"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.592685"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.598762"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.599076"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.632628"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.633209"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.665324"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.665665"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.700529"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.701116"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.736501"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.736976"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.778456"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.778911"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.811544"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.812160"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.843924"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.844571"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.878250"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.878791"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.911995"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.912456"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.944070"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.944417"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:39.985170"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:39.985592"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.016508"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.016836"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.047487"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.048074"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.083825"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.084325"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.118509"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.119027"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.155442"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.156022"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.186631"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.186972"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.227795"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.228354"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.261373"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.261911"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.326202"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.326649"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.333137"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.333629"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.361966"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.362497"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.397156"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.397593"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.444032"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.444392"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.484747"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.485305"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.511345"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.511669"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.568221"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.568723"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.591386"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.591785"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.631871"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.632271"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.659260"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.659882"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.688966"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.689391"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.724882"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.725520"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.762086"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.762662"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.794041"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.794368"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.828132"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.828483"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.859623"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.860075"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.884982"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.885314"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.917282"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.917624"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:40.954785"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:40.955194"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.007303"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.007753"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.035574"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.036252"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.066484"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.066918"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.097088"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.097687"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.131027"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.131415"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.158707"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.159256"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.195804"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.196270"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.231025"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.231567"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.270777"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.271193"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.294737"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.295268"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.330631"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.331117"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.362192"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.362560"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.404598"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.405185"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.437244"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.437756"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.477610"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.478124"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.500005"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.500374"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.535460"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.536056"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.587408"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.587757"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.606110"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.606710"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.642558"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.643087"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.675164"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.675512"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.710838"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.711324"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.745640"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.746103"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.785605"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.786116"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.820379"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.820883"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.857351"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.861299"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.884375"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.884951"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.933228"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.933681"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.958557"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.958937"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:41.992020"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:41.992549"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.024545"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.025073"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.056437"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.057066"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.104632"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.105165"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.131877"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.132381"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.159488"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.160059"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.196045"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.196472"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.225926"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.226405"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.265526"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.265846"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.297031"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.297359"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.338906"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.339703"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.367873"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.368467"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.409601"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.410561"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.447748"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.448419"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.469077"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.469648"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.507921"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.508406"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.540857"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.541665"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.574820"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.575140"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.607673"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.608169"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.643069"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.643737"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.677367"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.677841"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.714885"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.715276"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.754360"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.754703"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.791133"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.791630"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.815627"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.816166"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.852205"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.852751"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.883721"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.884206"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.921506"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.922053"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.959387"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.959924"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:42.994442"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:42.994870"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:43.025626"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:43.026087"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:43.074629"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:43.075110"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:43.158620"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:43.159034"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.101782"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.102098"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.106950"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.107433"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.165794"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.166205"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.170758"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.171079"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.176051"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.176441"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.202873"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.203435"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.204226"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.204840"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.210633"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.211191"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.212053"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.212548"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.221689"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.222245"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.251413"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.251951"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.281680"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.282159"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.316649"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.317114"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.345226"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.345721"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.378895"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.379210"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.404350"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.404685"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.435394"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.435928"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.482771"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.483311"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.524162"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.524642"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.540047"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.540591"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.559077"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.559595"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.594241"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.594828"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.630189"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.630775"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.661794"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.662264"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.696032"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.696566"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.728413"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.728831"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.750676"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.751187"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.781193"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.781948"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.805373"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.805917"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.833650"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.834164"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.863739"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.864306"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.894789"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.895244"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.926013"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.926557"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.955085"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.955676"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:44.994679"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:44.995301"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.015104"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.015702"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.048695"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.049064"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.077594"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.078085"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.113943"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.114462"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.143989"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.144583"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.170988"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.171413"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.202251"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.202820"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.234364"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.234890"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.263840"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.264505"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.297217"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.297793"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.327025"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.327657"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.358107"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.358731"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.385607"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.386188"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.417151"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.417710"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.445950"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.446473"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.568619"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.569287"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.570183"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.570839"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.571753"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.572355"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.603028"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.603644"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.668917"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.669554"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:45.694538"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:45.695272"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.558930"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.559579"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.562369"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.562962"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.619350"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.619982"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.628210"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.628823"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.631714"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.632277"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.638116"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.638763"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.647216"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.648078"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.652752"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.653397"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.659332"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.659970"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.686003"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.686668"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.711153"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.711920"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.735062"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.735421"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.757788"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.758175"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.788584"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.789160"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.818054"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.818401"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.849372"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.849957"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.876618"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.877188"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.911252"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.911822"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.941172"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.941868"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:46.975910"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:46.976485"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.004073"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.004697"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.034537"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.035037"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.067588"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.068148"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.097552"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.098145"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.128054"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.128562"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.156484"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.157101"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.186586"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.187038"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.227637"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.228180"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.246336"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.246860"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.277272"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.277838"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.311746"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.312327"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.341108"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.341567"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.368697"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.369285"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.398005"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.398550"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.429074"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.429513"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.459633"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.460138"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.496604"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.496978"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.532394"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.532996"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.556724"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.557394"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.582938"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.583505"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.613150"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.613480"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.646708"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.647302"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.700591"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.701190"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.731525"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.732214"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.756227"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.757064"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.775115"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.775665"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.801174"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.801751"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.827563"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.828086"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.879170"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.880080"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.895843"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.897887"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.970493"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.970882"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:47.976218"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:47.976572"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:48.078853"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:48.079612"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:48.080589"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:48.081384"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:48.082632"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:48.083400"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783589571829363000 2 1 [\"\\\"请用中文详细解释JavaScript编程语言\\\"\"]",
+      "time": "2026-07-09T17:33:48.087360"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17835895:0, 17835895:0, 17835895:2, 17835895:2, 17835895:2 1783589571829363000",
+      "time": "2026-07-09T17:33:48.087886"
+    }
+  ],
+  "network_requests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/",
+      "time": "2026-07-09T17:32:30.812278"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/",
+      "time": "2026-07-09T17:32:30.841898"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/index-DgHobNkB.js",
+      "time": "2026-07-09T17:32:30.859848"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/vendor-state-CSPFb_DM.js",
+      "time": "2026-07-09T17:32:30.860394"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/vendor-markdown-BHQTHdLH.js",
+      "time": "2026-07-09T17:32:30.860868"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/vendor-react-DEIeDt67.js",
+      "time": "2026-07-09T17:32:30.861269"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/vendor-lucide-C7hGFjky.js",
+      "time": "2026-07-09T17:32:30.861651"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/vendor-highlight-Bgp6tUna.js",
+      "time": "2026-07-09T17:32:30.872857"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/vendor-xterm-3VOAfa_q.js",
+      "time": "2026-07-09T17:32:30.875596"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/assets/index-D17TG4kR.css",
+      "time": "2026-07-09T17:32:30.876556"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/index-D17TG4kR.css",
+      "time": "2026-07-09T17:32:30.905814"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/vendor-state-CSPFb_DM.js",
+      "time": "2026-07-09T17:32:30.912329"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/index-DgHobNkB.js",
+      "time": "2026-07-09T17:32:30.913619"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/vendor-lucide-C7hGFjky.js",
+      "time": "2026-07-09T17:32:30.920192"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/vendor-markdown-BHQTHdLH.js",
+      "time": "2026-07-09T17:32:30.921556"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/vendor-react-DEIeDt67.js",
+      "time": "2026-07-09T17:32:30.923066"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/vendor-xterm-3VOAfa_q.js",
+      "time": "2026-07-09T17:32:30.940093"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/assets/vendor-highlight-Bgp6tUna.js",
+      "time": "2026-07-09T17:32:30.946581"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-09T17:32:31.226565"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:31.226801"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-09T17:32:31.227013"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-09T17:32:31.227267"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-09T17:32:31.230164"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-09T17:32:31.231641"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:31.721551"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-09T17:32:31.722202"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:34.225799"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:34.234367"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:36.172504"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:36.200181"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:37.580267"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:37.630170"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-09T17:32:38.833816"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-09T17:32:38.841822"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:50.367977"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:50.416046"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-09T17:32:51.597491"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-09T17:32:51.607985"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:51.827030"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-09T17:32:51.878435"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-09T17:32:53.050273"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-09T17:32:53.083666"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/credentials",
+      "time": "2026-07-09T17:33:11.260558"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/share",
+      "time": "2026-07-09T17:33:11.261042"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sync/events",
+      "time": "2026-07-09T17:33:11.261351"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/permission-rules",
+      "time": "2026-07-09T17:33:11.261653"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/permission-rules",
+      "time": "2026-07-09T17:33:11.319064"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/credentials",
+      "time": "2026-07-09T17:33:11.319747"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:8000/api/share",
+      "time": "2026-07-09T17:33:11.320195"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sync/events",
+      "time": "2026-07-09T17:33:11.320976"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-09T17:33:16.596610"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-09T17:33:17.052636"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-09T17:33:17.055394"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-09T17:33:17.059274"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-09T17:33:17.065491"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-09T17:33:17.067165"
+    }
+  ],
+  "summary": {
+    "total": 17,
+    "passed": 10,
+    "failed": 7
+  }
+}

@@ -14,9 +14,11 @@ The loop:
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
+from cscode.core.execution import SessionExecution
 from cscode.core.session import SessionV2
 from cscode.llm.client import LLMClient
 from cscode.llm.tool_runtime import ToolRuntime
@@ -193,6 +195,110 @@ class SessionRunner:
             session.session_id, tool_round, len(full_content),
         )
         return full_content
+
+    async def run_with_execution(
+        self,
+        session: SessionV2,
+        user_input: str,
+        on_event: Callable[[LLMEvent], Any] | None = None,
+        generation_options: GenerationOptions | None = None,
+        cancel_event: asyncio.Event | None = None,
+    ) -> str:
+        """Run with standardized SessionExecution lifecycle management.
+
+        Wraps the LLM+tool loop in SessionExecution which handles:
+        durable admit (prompt → event store), run_status transitions,
+        and graceful interrupt handling.
+
+        Unlike run(), the loop runs as an event stream consumed by
+        SessionExecution.execute() — the caller receives accumulated
+        text via the return value and raw LLMEvents via on_event.
+
+        Args:
+            session: The session to process within.
+            user_input: The user's prompt text.
+            on_event: Optional callback for streaming LLMEvents.
+            generation_options: Optional generation parameters.
+            cancel_event: Optional event that signals interruption.
+                          Passed to SessionExecution.
+
+        Returns:
+            The final assistant response text.
+        """
+        execution = SessionExecution(cancel_event=cancel_event)
+
+        async def agent_runner() -> AsyncIterator[LLMEvent]:
+            # Note: session.prompt() is called by SessionExecution.execute()
+            # during the ADMIT phase — do NOT call it here.
+            messages = list(session.state.messages)
+            if self._system_prompt and not any(
+                m.role == MessageRole.SYSTEM for m in messages
+            ):
+                messages.insert(0, Message.system(self._system_prompt))
+
+            model = ModelID(session.state.model)
+            options = generation_options or GenerationOptions()
+            tool_round = 0
+
+            while tool_round < self._max_tool_rounds:
+                request = LLMRequest(
+                    model=model, messages=tuple(messages), options=options,
+                )
+                content = ""
+                tool_calls: list[ToolCallPart] = []
+
+                async for event in self._llm_client.stream(request):
+                    yield event
+                    match event:
+                        case TextDelta(text=t):
+                            content += t
+                        case ToolCallEnded(tool_call_id=tcid, name=n, args=a):
+                            tool_calls.append(
+                                ToolCallPart(
+                                    tool_call_id=ToolCallID(tcid), name=n, args=a,
+                                )
+                            )
+                        case Finish():
+                            break
+                        case LLMEventError():
+                            return
+
+                if content:
+                    await session.add_text(content)
+                    messages.append(
+                        Message(
+                            role=MessageRole.ASSISTANT,
+                            parts=(TextPart(text=content),),
+                        )
+                    )
+
+                if not tool_calls:
+                    break
+
+                for tc in tool_calls:
+                    tid = ToolCallID(tc.tool_call_id)
+                    async for tool_event in self._tool_runtime.dispatch(
+                        tid, tc.name, tc.args,
+                    ):
+                        yield tool_event
+                        result = (
+                            getattr(tool_event, "result", None)
+                            or getattr(tool_event, "error", "")
+                        )
+                        tool_msg = Message.from_tool_result(
+                            tool_call_id=tid,
+                            name=tc.name,
+                            result=str(result),
+                            is_error=(
+                                hasattr(tool_event, "error")
+                                and bool(getattr(tool_event, "error", ""))
+                            ),
+                        )
+                        messages.append(tool_msg)
+
+                tool_round += 1
+
+        return await execution.execute(session, user_input, agent_runner, on_event)
 
     async def run_stream(
         self,

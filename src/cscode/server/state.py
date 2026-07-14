@@ -7,7 +7,6 @@ from typing import Any
 from cscode.core.coordinator import SessionCoordinator
 from cscode.core.external_directory import ExternalDirectoryStore
 from cscode.core.sharing import ShareStore
-from cscode.core.session import SessionLockManager, SessionProjector
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
 from cscode.lsp.manager import LSPManager

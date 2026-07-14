@@ -18,7 +18,7 @@ Events marked with * may produce zero or more deltas.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from cscode.schema.errors import LLMError
 from cscode.schema.ids import ToolCallID
@@ -232,6 +232,6 @@ class PersistenceEvent:
     aggregate_id: str = ""
     seq: int = 0
     type: str = ""
-    data: dict[str, object] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     created_at: float = 0.0
     id: int = 0

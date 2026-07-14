@@ -1,0 +1,336 @@
+{
+  "timestamp": "2026-07-13T09:02:17.964159",
+  "test_results": [
+    {
+      "test_name": "Session A content preserved",
+      "passed": true,
+      "detail": "Python count: 2 -> 3",
+      "timestamp": "2026-07-13T09:02:07.793223",
+      "screenshot": null
+    },
+    {
+      "test_name": "Session B content preserved",
+      "passed": true,
+      "detail": "JS count: 2 -> 2",
+      "timestamp": "2026-07-13T09:02:12.377876",
+      "screenshot": null
+    },
+    {
+      "test_name": "No message leakage (A->B)",
+      "passed": true,
+      "detail": "Python mentions in B: 1 (user msg may include)",
+      "timestamp": "2026-07-13T09:02:12.378290",
+      "screenshot": null
+    },
+    {
+      "test_name": "No message leakage (B->A)",
+      "passed": true,
+      "detail": "JavaScript mentions in A: 1",
+      "timestamp": "2026-07-13T09:02:14.545239",
+      "screenshot": null
+    },
+    {
+      "test_name": "No wrong session events",
+      "passed": true,
+      "detail": "Wrong session events: 0",
+      "timestamp": "2026-07-13T09:02:16.607902",
+      "screenshot": null
+    },
+    {
+      "test_name": "DROPPED events (expected if any)",
+      "passed": true,
+      "detail": "DROPPED events: 0 (defensive filter)",
+      "timestamp": "2026-07-13T09:02:16.607943",
+      "screenshot": null
+    },
+    {
+      "test_name": "Stream superseded events",
+      "passed": true,
+      "detail": "Superseded streams: 0",
+      "timestamp": "2026-07-13T09:02:16.607968",
+      "screenshot": null
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "console_logs": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-13T09:01:39.206879"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783904501109307000 0 0 0 0",
+      "time": "2026-07-13T09:01:41.124799"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783904501109307000 \"Please explain Python programming language in detail. Mentio\"",
+      "time": "2026-07-13T09:01:42.083629"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"Please explain Python programming langua\" 1783904501109307000 1 2",
+      "time": "2026-07-13T09:01:42.089746"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904501109307000 1 1 [\"\\\"Please explain Python programm\\\"\"]",
+      "time": "2026-07-13T09:01:42.113889"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:1 1783904501109307000",
+      "time": "2026-07-13T09:01:42.114555"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904501109307000 2 1 [\"\\\"Please explain Python programm\\\"\"]",
+      "time": "2026-07-13T09:01:42.176880"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:2 1783904501109307000",
+      "time": "2026-07-13T09:01:42.177423"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783904504230478000 0 0 0 0",
+      "time": "2026-07-13T09:01:44.242462"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783904504230478000 \"Please explain JavaScript programming language in detail. Me\"",
+      "time": "2026-07-13T09:01:45.157169"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"Please explain JavaScript programming la\" 1783904504230478000 1 2",
+      "time": "2026-07-13T09:01:45.158256"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904504230478000 1 1 [\"\\\"Please explain JavaScript prog\\\"\"]",
+      "time": "2026-07-13T09:01:45.160801"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:2, 17839045:1 1783904504230478000",
+      "time": "2026-07-13T09:01:45.161369"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904504230478000 2 1 [\"\\\"Please explain JavaScript prog\\\"\"]",
+      "time": "2026-07-13T09:01:45.201623"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:2, 17839045:2 1783904504230478000",
+      "time": "2026-07-13T09:01:45.202354"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"Error: LLMError: [Transport] — LLMClient\" 1783904501109307000 3 4",
+      "time": "2026-07-13T09:01:50.197975"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904504230478000 2 1 [\"\\\"Please explain JavaScript prog\\\"\"]",
+      "time": "2026-07-13T09:01:50.199126"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:3, 17839045:2 1783904504230478000",
+      "time": "2026-07-13T09:01:50.199903"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"Error: LLMError: [Transport] — LLMClient\" 1783904504230478000 3 4",
+      "time": "2026-07-13T09:01:53.246563"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904504230478000 3 1 [\"\\\"Please explain JavaScript prog\\\"\"]",
+      "time": "2026-07-13T09:01:53.264495"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:3, 17839045:3 1783904504230478000",
+      "time": "2026-07-13T09:01:53.265058"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"LLM error: Request failed: All connectio\" 1783904501109307000 4 6",
+      "time": "2026-07-13T09:01:58.807454"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904504230478000 3 1 [\"\\\"Please explain JavaScript prog\\\"\"]",
+      "time": "2026-07-13T09:01:58.810396"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:4, 17839045:3 1783904504230478000",
+      "time": "2026-07-13T09:01:58.810977"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783904501109307000",
+      "time": "2026-07-13T09:01:58.812879"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"LLM error: Request failed: All connectio\" 1783904504230478000 4 6",
+      "time": "2026-07-13T09:02:01.863340"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783904504230478000 4 1 [\"\\\"Please explain JavaScript prog\\\"\"]",
+      "time": "2026-07-13T09:02:01.867073"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:4, 17839045:4 1783904504230478000",
+      "time": "2026-07-13T09:02:01.867733"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783904504230478000",
+      "time": "2026-07-13T09:02:01.890156"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] >>> select session id=%s 1783490900903273000",
+      "time": "2026-07-13T09:02:04.401970"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] fetching messages for session=%s 1783490900903273000",
+      "time": "2026-07-13T09:02:04.402631"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] fetched %d messages from server for session=%s 2 1783490900903273000",
+      "time": "2026-07-13T09:02:04.523679"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783490900903273000 0 2 2 2",
+      "time": "2026-07-13T09:02:04.524574"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] setMessages done for session=%s 1783490900903273000",
+      "time": "2026-07-13T09:02:04.524979"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] <<< select session id=%s done 1783490900903273000",
+      "time": "2026-07-13T09:02:04.525329"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783490900903273000 2 1 [\"\\\"请详细解释什么是Python的异步编程，包括async/aw\\\"\"]",
+      "time": "2026-07-13T09:02:04.537625"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:4, 17839045:4, 17834909:2 1783490900903273000",
+      "time": "2026-07-13T09:02:04.538080"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] >>> select session id=%s 1783490900969780000",
+      "time": "2026-07-13T09:02:08.072810"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] fetching messages for session=%s 1783490900969780000",
+      "time": "2026-07-13T09:02:08.073379"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] fetched %d messages from server for session=%s 1 1783490900969780000",
+      "time": "2026-07-13T09:02:08.187282"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783490900969780000 0 1 1 1",
+      "time": "2026-07-13T09:02:08.188274"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] setMessages done for session=%s 1783490900969780000",
+      "time": "2026-07-13T09:02:08.188685"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] <<< select session id=%s done 1783490900969780000",
+      "time": "2026-07-13T09:02:08.189047"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783490900969780000 1 1 [\"\\\"请详细解释什么是JavaScript的Promise，包括P\\\"\"]",
+      "time": "2026-07-13T09:02:08.189719"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:4, 17839045:4, 17834909:2, 17834909:1 1783490900969780000",
+      "time": "2026-07-13T09:02:08.190166"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] >>> select session id=%s 1783490900903273000",
+      "time": "2026-07-13T09:02:12.477763"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] fetching messages for session=%s 1783490900903273000",
+      "time": "2026-07-13T09:02:12.479028"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783490900903273000 2 1 [\"\\\"请详细解释什么是Python的异步编程，包括async/aw\\\"\"]",
+      "time": "2026-07-13T09:02:12.483976"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:4, 17839045:4, 17834909:2, 17834909:1 1783490900903273000",
+      "time": "2026-07-13T09:02:12.484892"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] fetched %d messages from server for session=%s 2 1783490900903273000",
+      "time": "2026-07-13T09:02:12.615390"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783490900903273000 2 2 2 2",
+      "time": "2026-07-13T09:02:12.616689"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] setMessages done for session=%s 1783490900903273000",
+      "time": "2026-07-13T09:02:12.617336"
+    },
+    {
+      "type": "log",
+      "text": "[sidebar] <<< select session id=%s done 1783490900903273000",
+      "time": "2026-07-13T09:02:12.617831"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783490900903273000 2 1 [\"\\\"请详细解释什么是Python的异步编程，包括async/aw\\\"\"]",
+      "time": "2026-07-13T09:02:12.618858"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17839045:4, 17839045:4, 17834909:2, 17834909:1 1783490900903273000",
+      "time": "2026-07-13T09:02:12.619625"
+    }
+  ]
+}

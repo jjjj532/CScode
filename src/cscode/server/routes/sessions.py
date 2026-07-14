@@ -5,8 +5,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from cscode.core.session import SessionV2
 from cscode.schema.ids import SessionID
-from cscode.core.session import SessionProjector, SessionV2
 from cscode.server.state import state
 from cscode.utils.logging import get_logger
 
@@ -17,6 +17,11 @@ router = APIRouter(prefix="/api")
 
 class CreateSessionRequest(BaseModel):
     title: str = "New Session"
+
+
+class RunStateRequest(BaseModel):
+    status: str
+    error: str = ""
 
 
 @router.get("/sessions")
@@ -103,3 +108,43 @@ async def update_session(session_id: str, title: str = "") -> dict[str, str]:
     session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
     await session_v2.update_metadata(title=title if title else None)
     return {"status": "ok"}
+
+
+@router.get("/sessions/{session_id}/run-state")
+async def get_run_state(session_id: str) -> dict[str, str]:
+    if state.event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "status": session_v2.state.run_status,
+        "error": session_v2.state.run_error,
+    }
+
+
+VALID_RUN_STATUSES = frozenset({"running", "stopped", "errored", "completed"})
+
+
+@router.put("/sessions/{session_id}/run-state")
+async def set_run_state(session_id: str, body: RunStateRequest) -> dict[str, str]:
+    if state.event_store is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
+    if session_v2.state.seq == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if body.status not in VALID_RUN_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {body.status}")
+    method_map = {
+        "running": session_v2.mark_run_start,
+        "stopped": session_v2.mark_run_stop,
+        "errored": lambda: session_v2.mark_run_error(error=body.error),
+        "completed": session_v2.mark_run_complete,
+    }
+    fn = method_map[body.status]
+    await fn()
+    reloaded = await SessionV2.load(state.event_store, SessionID(session_id))
+    return {
+        "status": reloaded.state.run_status,
+        "error": reloaded.state.run_error,
+    }

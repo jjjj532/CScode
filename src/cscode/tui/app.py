@@ -6,6 +6,8 @@ from textual.containers import Container
 from textual.widgets import Footer, Header, Input, RichLog
 
 from cscode.app.factory import create_agent_v2
+from cscode.core.agent.base import AgentMode, AgentTab
+from cscode.core.agent.tab import TabManager
 from cscode.core.config import load_config
 from cscode.core.tui_sessions import TuiSessionManager
 from cscode.tui.themes import apply_theme
@@ -43,6 +45,7 @@ class CScodeTUI(App[None]):
         config.system_prompt = "You are CScode, an AI-powered coding assistant."
         self._agent = create_agent_v2(config)
         self._session_manager = TuiSessionManager()
+        self._tab_manager = TabManager()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -83,12 +86,12 @@ class CScodeTUI(App[None]):
 
         if parts[0] in ("/sessions", "/s"):
             sessions = self._session_manager.list()
-            active = self._session_manager.get_active()
+            active_session = self._session_manager.get_active()
             if not sessions:
                 output.write("[dim]No sessions.[/dim]")
             else:
                 for s in sessions:
-                    marker = " [bold cyan]*[/bold cyan]" if active and active.id == s.id else ""
+                    marker = " [bold cyan]*[/bold cyan]" if active_session and active_session.id == s.id else ""
                     output.write(f"[dim]{s.id[:8]}[/dim] - {s.title}{marker}")
             return True
 
@@ -111,6 +114,44 @@ class CScodeTUI(App[None]):
                 output.write(f"[green]Session terminated:[/] {target_id}")
             else:
                 output.write(f"[red]Session not found:[/] {target_id}")
+            return True
+
+        if parts[0] == "/tab":
+            cmd = parts[1] if len(parts) > 1 else "list"
+            if cmd == "list":
+                tabs = self._tab_manager.list_tabs()
+                active_tab: AgentTab | None = self._tab_manager.get_active()
+                if not tabs:
+                    output.write("[dim]No tabs.[/dim]")
+                else:
+                    for t in tabs:
+                        marker = " [bold cyan]*[/]" if active_tab and t.id == active_tab.id else ""
+                        output.write(f"[dim]{t.id}[/] [{t.mode.value}] - {t.title}{marker}")
+                return True
+            if cmd == "create" and len(parts) > 2:
+                mode_str = parts[2].lower()
+                mode = AgentMode.BUILD if mode_str == "build" else AgentMode.PLAN if mode_str == "plan" else AgentMode.SUBAGENT if mode_str == "subagent" else None
+                if mode is None:
+                    output.write(f"[red]Invalid mode: {mode_str} (use: build/plan/subagent)[/]")
+                else:
+                    tab = self._tab_manager.create_tab(mode=mode)
+                    output.write(f"[green]Created tab:[/] {tab.id} [{tab.mode.value}]")
+                return True
+            if cmd == "switch" and len(parts) > 2:
+                switched: AgentTab | None = self._tab_manager.switch_tab(parts[2])
+                if switched:
+                    output.write(f"[green]Switched to tab:[/] {switched.id} [{switched.mode.value}]")
+                else:
+                    output.write(f"[red]Tab not found:[/] {parts[2]}")
+                return True
+            if cmd == "close" and len(parts) > 2:
+                closed: AgentTab | None = self._tab_manager.close_tab(parts[2])
+                if closed:
+                    output.write(f"[green]Closed tab:[/] {closed.id}")
+                else:
+                    output.write(f"[red]Tab not found:[/] {parts[2]}")
+                return True
+            output.write("[yellow]Usage:[/] /tab list|create <mode>|switch <id>|close <id>")
             return True
 
         return False

@@ -1,0 +1,820 @@
+{
+  "timestamp": "2026-07-10T10:03:51.267597",
+  "test_results": [
+    {
+      "test_name": "按钮点击: 创建新Session",
+      "passed": true,
+      "detail": "成功点击 'Create new session'",
+      "timestamp": "2026-07-10T10:02:45.043439",
+      "screenshot": null
+    },
+    {
+      "test_name": "按钮点击: 筛选线程",
+      "passed": true,
+      "detail": "成功点击 'Filter threads'",
+      "timestamp": "2026-07-10T10:02:46.653273",
+      "screenshot": null
+    },
+    {
+      "test_name": "按钮点击: 排序线程",
+      "passed": true,
+      "detail": "成功点击 'Sort threads'",
+      "timestamp": "2026-07-10T10:02:48.202670",
+      "screenshot": null
+    },
+    {
+      "test_name": "按钮点击: 刷新会话",
+      "passed": true,
+      "detail": "成功点击 'Refresh sessions'",
+      "timestamp": "2026-07-10T10:02:49.818655",
+      "screenshot": null
+    },
+    {
+      "test_name": "按钮点击: 设置",
+      "passed": true,
+      "detail": "成功点击 'Settings'",
+      "timestamp": "2026-07-10T10:02:51.368547",
+      "screenshot": null
+    },
+    {
+      "test_name": "按钮点击: Mode切换",
+      "passed": true,
+      "detail": "Plan/Build切换正常",
+      "timestamp": "2026-07-10T10:02:56.266776",
+      "screenshot": null
+    },
+    {
+      "test_name": "创建Session 1",
+      "passed": true,
+      "detail": "创建成功",
+      "timestamp": "2026-07-10T10:02:58.976480",
+      "screenshot": null
+    },
+    {
+      "test_name": "创建Session 2",
+      "passed": true,
+      "detail": "创建成功",
+      "timestamp": "2026-07-10T10:03:01.098180",
+      "screenshot": null
+    },
+    {
+      "test_name": "创建Session 3",
+      "passed": true,
+      "detail": "创建成功",
+      "timestamp": "2026-07-10T10:03:03.153258",
+      "screenshot": null
+    },
+    {
+      "test_name": "Session列表",
+      "passed": false,
+      "detail": "找到 0 个session",
+      "timestamp": "2026-07-10T10:03:03.504285",
+      "screenshot": null
+    },
+    {
+      "test_name": "发送消息",
+      "passed": true,
+      "detail": "用户消息已显示",
+      "timestamp": "2026-07-10T10:03:11.149153",
+      "screenshot": null
+    },
+    {
+      "test_name": "流式响应",
+      "passed": true,
+      "detail": "收到AI响应",
+      "timestamp": "2026-07-10T10:03:16.426781",
+      "screenshot": null
+    },
+    {
+      "test_name": "Attach按钮",
+      "passed": true,
+      "detail": "Attach按钮存在",
+      "timestamp": "2026-07-10T10:03:17.654978",
+      "screenshot": null
+    },
+    {
+      "test_name": "Session切换测试",
+      "passed": false,
+      "detail": "session数量不足: 0",
+      "timestamp": "2026-07-10T10:03:37.274917",
+      "screenshot": null
+    },
+    {
+      "test_name": "停止响应",
+      "passed": true,
+      "detail": "成功点击停止按钮",
+      "timestamp": "2026-07-10T10:03:45.102686",
+      "screenshot": null
+    },
+    {
+      "test_name": "打开Settings",
+      "passed": true,
+      "detail": "设置面板已显示",
+      "timestamp": "2026-07-10T10:03:47.931158",
+      "screenshot": null
+    },
+    {
+      "test_name": "Provider选项",
+      "passed": true,
+      "detail": "可用Provider: ['OpenAI', 'Anthropic', 'Gemini', 'Ollama', 'Custom']",
+      "timestamp": "2026-07-10T10:03:48.393773",
+      "screenshot": null
+    },
+    {
+      "test_name": "API: Health Check",
+      "passed": true,
+      "detail": "GET /api/health -> 200",
+      "timestamp": "2026-07-10T10:03:50.630528",
+      "screenshot": null
+    },
+    {
+      "test_name": "API: Config获取",
+      "passed": true,
+      "detail": "GET /api/config -> 200",
+      "timestamp": "2026-07-10T10:03:50.652926",
+      "screenshot": null
+    },
+    {
+      "test_name": "API: Session列表",
+      "passed": true,
+      "detail": "GET /api/sessions -> 200",
+      "timestamp": "2026-07-10T10:03:50.959978",
+      "screenshot": null
+    },
+    {
+      "test_name": "API: Session创建",
+      "passed": false,
+      "detail": "POST /api/session -> 422",
+      "timestamp": "2026-07-10T10:03:50.966855",
+      "screenshot": null
+    },
+    {
+      "test_name": "API: 工具列表",
+      "passed": false,
+      "detail": "GET /api/tools -> 404 (未实现)",
+      "timestamp": "2026-07-10T10:03:50.971748",
+      "screenshot": null
+    },
+    {
+      "test_name": "API: 版本信息",
+      "passed": false,
+      "detail": "GET /api/version -> 404 (未实现)",
+      "timestamp": "2026-07-10T10:03:50.976476",
+      "screenshot": null
+    }
+  ],
+  "summary": {
+    "total": 23,
+    "passed": 18,
+    "failed": 5
+  },
+  "console_logs": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-10T10:02:41.455439"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783648964677150000 0 0 0 0",
+      "time": "2026-07-10T10:02:44.725236"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-10T10:02:50.983289"
+    },
+    {
+      "type": "verbose",
+      "text": "[DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o",
+      "time": "2026-07-10T10:02:51.061895"
+    },
+    {
+      "type": "verbose",
+      "text": "[DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o",
+      "time": "2026-07-10T10:02:51.062217"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783648978089961000 0 0 0 0",
+      "time": "2026-07-10T10:02:58.101498"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783648980218040000 0 0 0 0",
+      "time": "2026-07-10T10:03:00.229840"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783648982269146000 0 0 0 0",
+      "time": "2026-07-10T10:03:02.279734"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783648986036559000 0 0 0 0",
+      "time": "2026-07-10T10:03:06.048911"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783648986036559000 \"你好，请用中文介绍Python\"",
+      "time": "2026-07-10T10:03:07.528588"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"你好，请用中文介绍Python\" 1783648986036559000 1 2",
+      "time": "2026-07-10T10:03:07.531046"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783648986036559000 1 1 [\"\\\"你好，请用中文介绍Python\\\"\"]",
+      "time": "2026-07-10T10:03:07.537256"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:1 1783648986036559000",
+      "time": "2026-07-10T10:03:07.537634"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783648986036559000 2 1 [\"\\\"你好，请用中文介绍Python\\\"\"]",
+      "time": "2026-07-10T10:03:07.607894"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:2 1783648986036559000",
+      "time": "2026-07-10T10:03:07.608224"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"Error: [Transport] — LLMClient.stream — \" 1783648986036559000 3 4",
+      "time": "2026-07-10T10:03:15.692615"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783648986036559000 3 1 [\"\\\"你好，请用中文介绍Python\\\"\"]",
+      "time": "2026-07-10T10:03:15.703680"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:3 1783648986036559000",
+      "time": "2026-07-10T10:03:15.704028"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783648999420841000 0 0 0 0",
+      "time": "2026-07-10T10:03:19.432826"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783648999420841000 \"请详细解释Python编程语言，至少提到10个Python相关概念\"",
+      "time": "2026-07-10T10:03:20.908147"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"请详细解释Python编程语言，至少提到10个Python相关概念\" 1783648999420841000 1 2",
+      "time": "2026-07-10T10:03:20.908990"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783648999420841000 1 1 [\"\\\"请详细解释Python编程语言，至少提到10个Python相\\\"\"]",
+      "time": "2026-07-10T10:03:20.911060"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:3, 17836489:1 1783648999420841000",
+      "time": "2026-07-10T10:03:20.911707"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783648999420841000 2 1 [\"\\\"请详细解释Python编程语言，至少提到10个Python相\\\"\"]",
+      "time": "2026-07-10T10:03:20.952232"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:3, 17836489:2 1783648999420841000",
+      "time": "2026-07-10T10:03:20.952726"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"LLM error: Request failed: All connectio\" 1783648986036559000 4 6",
+      "time": "2026-07-10T10:03:24.388401"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783648999420841000 2 1 [\"\\\"请详细解释Python编程语言，至少提到10个Python相\\\"\"]",
+      "time": "2026-07-10T10:03:24.391050"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:2 1783648999420841000",
+      "time": "2026-07-10T10:03:24.391465"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783648986036559000",
+      "time": "2026-07-10T10:03:24.391849"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783649004919961000 0 0 0 0",
+      "time": "2026-07-10T10:03:24.933830"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783649004919961000 \"请详细解释JavaScript编程语言，至少提到10个JavaScript相关概念\"",
+      "time": "2026-07-10T10:03:26.406120"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"请详细解释JavaScript编程语言，至少提到10个JavaScript相关概\" 1783649004919961000 1 2",
+      "time": "2026-07-10T10:03:26.407433"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649004919961000 1 1 [\"\\\"请详细解释JavaScript编程语言，至少提到10个Jav\\\"\"]",
+      "time": "2026-07-10T10:03:26.409700"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:2, 17836490:1 1783649004919961000",
+      "time": "2026-07-10T10:03:26.410097"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649004919961000 2 1 [\"\\\"请详细解释JavaScript编程语言，至少提到10个Jav\\\"\"]",
+      "time": "2026-07-10T10:03:26.453935"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:2, 17836490:2 1783649004919961000",
+      "time": "2026-07-10T10:03:26.454456"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"Error: [Transport] — LLMClient.stream — \" 1783648999420841000 3 4",
+      "time": "2026-07-10T10:03:28.978453"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649004919961000 2 1 [\"\\\"请详细解释JavaScript编程语言，至少提到10个Jav\\\"\"]",
+      "time": "2026-07-10T10:03:28.979167"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:3, 17836490:2 1783649004919961000",
+      "time": "2026-07-10T10:03:28.979529"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"Error: [Transport] — LLMClient.stream — \" 1783649004919961000 3 4",
+      "time": "2026-07-10T10:03:34.475551"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649004919961000 3 1 [\"\\\"请详细解释JavaScript编程语言，至少提到10个Jav\\\"\"]",
+      "time": "2026-07-10T10:03:34.479890"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:3, 17836490:3 1783649004919961000",
+      "time": "2026-07-10T10:03:34.480321"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"LLM error: Request failed: All connectio\" 1783648999420841000 4 6",
+      "time": "2026-07-10T10:03:37.530400"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649004919961000 3 1 [\"\\\"请详细解释JavaScript编程语言，至少提到10个Jav\\\"\"]",
+      "time": "2026-07-10T10:03:37.533164"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:4, 17836490:3 1783649004919961000",
+      "time": "2026-07-10T10:03:37.533459"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783648999420841000",
+      "time": "2026-07-10T10:03:37.535657"
+    },
+    {
+      "type": "log",
+      "text": "[store] setMessages session=%s prev=%d -> fetched=%d filtered=%d result=%d 1783649018622828000 0 0 0 0",
+      "time": "2026-07-10T10:03:38.701264"
+    },
+    {
+      "type": "log",
+      "text": "[chat] sendMessage: appending user message sid=%s content_preview=%s 1783649018622828000 \"请写一个很长很长的故事，至少1000字\"",
+      "time": "2026-07-10T10:03:40.101902"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d user \"请写一个很长很长的故事，至少1000字\" 1783649018622828000 1 2",
+      "time": "2026-07-10T10:03:40.102732"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649018622828000 1 1 [\"\\\"请写一个很长很长的故事，至少1000字\\\"\"]",
+      "time": "2026-07-10T10:03:40.108185"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:4, 17836490:3, 17836490:1 1783649018622828000",
+      "time": "2026-07-10T10:03:40.108703"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649018622828000 2 1 [\"\\\"请写一个很长很长的故事，至少1000字\\\"\"]",
+      "time": "2026-07-10T10:03:40.155074"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:4, 17836490:3, 17836490:2 1783649018622828000",
+      "time": "2026-07-10T10:03:40.155509"
+    },
+    {
+      "type": "log",
+      "text": "[store] appendMessage role=%s content_preview=%s session=%s total=%d version=%d assistant \"LLM error: Request failed: All connectio\" 1783649004919961000 4 6",
+      "time": "2026-07-10T10:03:43.028191"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] RENDER session=%s total=%d user=%d user_previews=%s 1783649018622828000 2 1 [\"\\\"请写一个很长很长的故事，至少1000字\\\"\"]",
+      "time": "2026-07-10T10:03:43.030525"
+    },
+    {
+      "type": "log",
+      "text": "[MessageList] sessionMessages keys: [%s] active=%s 17836489:0, 17836489:0, 17836489:0, 17836489:0, 17836489:4, 17836489:4, 17836490:4, 17836490:2 1783649018622828000",
+      "time": "2026-07-10T10:03:43.030942"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ended normally for session=%s 1783649004919961000",
+      "time": "2026-07-10T10:03:43.034025"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream ABORTED for session=%s 1783649018622828000",
+      "time": "2026-07-10T10:03:44.019669"
+    },
+    {
+      "type": "log",
+      "text": "[chat] stream finally: controller superseded for session=%s (another stream started) 1783649018622828000",
+      "time": "2026-07-10T10:03:44.019899"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-10T10:03:46.840073"
+    },
+    {
+      "type": "verbose",
+      "text": "[DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o",
+      "time": "2026-07-10T10:03:46.927880"
+    },
+    {
+      "type": "verbose",
+      "text": "[DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o",
+      "time": "2026-07-10T10:03:46.928165"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Content)",
+      "time": "2026-07-10T10:03:50.966700"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-10T10:03:50.971539"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "time": "2026-07-10T10:03:50.976293"
+    }
+  ],
+  "network_requests": [
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-10T10:02:41.445836"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:41.446389"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-10T10:02:41.446830"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-10T10:02:41.447139"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-10T10:02:41.448185"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-10T10:02:41.449084"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:41.998061"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-10T10:02:41.998683"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:44.653155"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:44.723600"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:49.434292"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:49.719630"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/credentials",
+      "time": "2026-07-10T10:02:50.972608"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/share",
+      "time": "2026-07-10T10:02:50.972915"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sync/events",
+      "time": "2026-07-10T10:02:50.973121"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/permission-rules",
+      "time": "2026-07-10T10:02:50.973320"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/permission-rules",
+      "time": "2026-07-10T10:02:50.979758"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/credentials",
+      "time": "2026-07-10T10:02:50.982727"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:8000/api/share",
+      "time": "2026-07-10T10:02:50.983147"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sync/events",
+      "time": "2026-07-10T10:02:50.983554"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:58.087139"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:02:58.100809"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:00.215968"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:00.229219"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:02.266888"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:02.279101"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:06.034223"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:06.048288"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:07.536708"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:07.548326"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:19.418535"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:19.432242"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:20.910219"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:20.951369"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:24.917725"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:24.933117"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:26.408190"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:26.449669"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:38.618749"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:38.700644"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:40.106487"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/chat/stream",
+      "time": "2026-07-10T10:03:40.154326"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/sessions/1783649018622828000/stop",
+      "time": "2026-07-10T10:03:44.019376"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sessions/1783649018622828000/stop",
+      "time": "2026-07-10T10:03:44.033240"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/credentials",
+      "time": "2026-07-10T10:03:46.831960"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/share",
+      "time": "2026-07-10T10:03:46.832330"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sync/events",
+      "time": "2026-07-10T10:03:46.832660"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/permission-rules",
+      "time": "2026-07-10T10:03:46.832901"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/permission-rules",
+      "time": "2026-07-10T10:03:46.838221"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/credentials",
+      "time": "2026-07-10T10:03:46.838690"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:8000/api/share",
+      "time": "2026-07-10T10:03:46.839927"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sync/events",
+      "time": "2026-07-10T10:03:46.843379"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-10T10:03:50.615684"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/health",
+      "time": "2026-07-10T10:03:50.630274"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-10T10:03:50.633175"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/config",
+      "time": "2026-07-10T10:03:50.652699"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-10T10:03:50.655313"
+    },
+    {
+      "status": 200,
+      "url": "http://localhost:8000/api/sessions",
+      "time": "2026-07-10T10:03:50.959788"
+    },
+    {
+      "method": "POST",
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:50.962166"
+    },
+    {
+      "status": 422,
+      "url": "http://localhost:8000/api/session",
+      "time": "2026-07-10T10:03:50.966570"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/tools",
+      "time": "2026-07-10T10:03:50.968985"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:8000/api/tools",
+      "time": "2026-07-10T10:03:50.971433"
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:8000/api/version",
+      "time": "2026-07-10T10:03:50.973741"
+    },
+    {
+      "status": 404,
+      "url": "http://localhost:8000/api/version",
+      "time": "2026-07-10T10:03:50.976163"
+    }
+  ]
+}

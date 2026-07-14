@@ -1000,7 +1000,7 @@ async def pty_endpoint(body: PTYInput) -> dict[str, object]:
         return {"success": True}
     if isinstance(data, list):
         return {"sessions": [s.model_dump() for s in data]}
-    return data.model_dump()  # type: ignore[union-attr]
+    return data.model_dump()  # type: ignore[no-any-return]
 
 
 @api_router.websocket("/ws")

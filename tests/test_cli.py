@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from cscode import __version__
 from cscode.cli import cli
+from cscode.core.agent.base import AgentMode
 
 
 @pytest.fixture
@@ -30,6 +31,14 @@ class TestCLI:
         assert result.exit_code == 0
         assert "prompt" in result.output
 
+    def test_chat_help_shows_mode(self, runner: CliRunner):
+        """--mode option should appear in chat --help."""
+        result = runner.invoke(cli, ["chat", "--help"])
+        assert result.exit_code == 0
+        assert "--mode" in result.output
+        for mode in AgentMode:
+            assert mode.value in result.output
+
     def test_config_no_args(self, runner: CliRunner):
         result = runner.invoke(cli, ["config"])
         assert result.exit_code == 0
@@ -47,6 +56,46 @@ class TestCLI:
         result = runner.invoke(cli, ["web", "--help"])
         assert result.exit_code == 0
         assert "browser" in result.output
+
+    # ── agent command group ──────────────────────────────────────────
+
+    def test_agent_group_help(self, runner: CliRunner):
+        result = runner.invoke(cli, ["agent", "--help"])
+        assert result.exit_code == 0
+        assert "agent" in result.output.lower()
+
+    def test_agent_list(self, runner: CliRunner):
+        result = runner.invoke(cli, ["agent", "list"])
+        assert result.exit_code == 0
+
+    def test_agent_switch_no_args_shows_help(self, runner: CliRunner):
+        result = runner.invoke(cli, ["agent", "switch"])
+        assert result.exit_code != 0
+
+    def test_agent_mode_no_args_shows_help(self, runner: CliRunner):
+        result = runner.invoke(cli, ["agent", "mode"])
+        assert result.exit_code != 0
+
+    # ── chat with mode ───────────────────────────────────────────────
+
+    @patch("cscode.cli._create_agent")
+    def test_chat_with_mode(self, mock_create, runner: CliRunner):
+        """--mode plan should be accepted without error (agent.run mocked)."""
+        from cscode.app.agent import AgentV2
+
+        mock_agent = AsyncMock(spec=AgentV2)
+        mock_agent.run.return_value = "mocked response"
+        mock_create.return_value = mock_agent
+
+        result = runner.invoke(cli, ["chat", "--prompt", "hello", "--mode", "plan"])
+        assert result.exit_code == 0
+
+    @patch("cscode.cli._create_agent")
+    def test_chat_invalid_mode_rejected(self, mock_create, runner: CliRunner):
+        """Invalid --mode value should be rejected."""
+        result = runner.invoke(cli, ["chat", "--prompt", "hello", "--mode", "invalid"])
+        assert result.exit_code != 0
+        assert "invalid" in result.output.lower() or "error" in result.output.lower()
 
     def test_desktop_help(self, runner: CliRunner):
         result = runner.invoke(cli, ["desktop", "--help"])
