@@ -63,6 +63,9 @@ e2e-test-output.txt
 # Superpowers
 .superpowers/
 
+# Deepwork state
+.slim/deepwork/
+
 # Misc
 uv.lock
 todo-app.html

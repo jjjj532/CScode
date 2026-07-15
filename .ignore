@@ -1,0 +1,3 @@
+# OpenCode should read deepwork state files
+!.slim/deepwork/
+!.slim/deepwork/**
