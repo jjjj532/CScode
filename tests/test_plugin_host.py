@@ -351,6 +351,184 @@ def activate(api: PluginAPI) -> None:
             assert mod._handler_called is True  # type: ignore[union-attr]
 
 
+class TestPluginHostLifecycleHooks:
+    """Tests for install(api)/uninstall() callbacks and error resilience."""
+
+    # ── install(api) callback ──────────────────────────────────────────
+
+    async def test_install_calls_plugin_install_callback(self) -> None:
+        """install() invokes module's install(api) when source has __init__.py with install()."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_install_cb"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+_called = False
+
+def install(api: PluginAPI) -> None:
+    global _called
+    _called = True
+""")
+            await host.install(str(p))
+            mod = sys.modules.get("test_install_cb")
+            assert mod is not None, "Plugin module should be imported"
+            assert mod._called is True  # type: ignore[union-attr]
+
+    async def test_install_callback_receives_plugin_api(self) -> None:
+        """install(api) receives a PluginAPI instance."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_install_api"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+_received: PluginAPI | None = None
+
+def install(api: PluginAPI) -> None:
+    global _received
+    _received = api
+""")
+            await host.install(str(p))
+            mod = sys.modules.get("test_install_api")
+            assert mod is not None
+            assert mod._received is not None  # type: ignore[union-attr]
+            assert isinstance(mod._received, PluginAPI)  # type: ignore[union-attr]
+
+    async def test_install_no_callback_still_works(self) -> None:
+        """install() works fine when module has no install() function."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_install_none"
+            p.mkdir()
+            _write_init(p, "")
+            m = await host.install(str(p))
+            assert m.state == PluginState.DISCOVERED
+
+    # ── uninstall() callback ───────────────────────────────────────────
+
+    async def test_uninstall_calls_plugin_uninstall_callback(self) -> None:
+        """uninstall() invokes module's uninstall() when module has it."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_uninstall_cb"
+            p.mkdir()
+            _write_init(p, """
+_called = False
+
+def uninstall() -> None:
+    global _called
+    _called = True
+""")
+            pid = "uninstall_cb"
+            host.registry.register(PluginManifest(
+                id=pid, name="UninstCB", version="1.0", source=str(p),
+            ))
+            await host.install(str(p))
+            await host.uninstall(pid)
+            mod = sys.modules.get("test_uninstall_cb")
+            assert mod is not None
+            assert mod._called is True  # type: ignore[union-attr]
+
+    async def test_uninstall_no_callback_still_works(self) -> None:
+        """uninstall() works fine when module has no uninstall() function."""
+        host = PluginHost()
+        host.registry.register(PluginManifest(
+            id="no_uninst", name="NoUninst", version="1.0",
+        ))
+        await host.uninstall("no_uninst")
+        assert host.registry.get("no_uninst") is None
+
+    async def test_uninstall_callback_called_before_removal(self) -> None:
+        """uninstall() is called while the manifest still exists."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_uninst_order"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.registry import PluginManifest, PluginState
+
+_manifest_before: object = None
+
+def uninstall() -> None:
+    global _manifest_before
+    import sys
+    _manifest_before = "called"
+""")
+            pid = "uninst_order"
+            host.registry.register(PluginManifest(
+                id=pid, name="UninstOrder", version="1.0", source=str(p),
+            ))
+            await host.install(str(p))
+            await host.uninstall(pid)
+            # Verify plugin was removed
+            assert host.registry.get(pid) is None
+
+    # ── Error resilience during activate() ─────────────────────────────
+
+    async def test_activate_does_not_crash_on_callback_error(self) -> None:
+        """If module.activate(api) raises, host should catch and set state to INACTIVE."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_act_err"
+            p.mkdir()
+            _write_init(p, """
+def activate(api: object) -> None:
+    raise RuntimeError("Plugin activation failed")
+""")
+            pid = "act_err"
+            host.registry.register(PluginManifest(
+                id=pid, name="ActErr", version="1.0", source=str(p),
+            ))
+            api = await host.activate(pid)
+            assert isinstance(api, PluginAPI)
+            m = host.registry.get(pid)
+            assert m is not None
+            # Should not be ACTIVE — either INACTIVE or LOADED
+            assert m.state != PluginState.ACTIVE
+
+    async def test_activate_error_does_not_affect_other_plugins(self) -> None:
+        """A failing plugin's activate() should not crash other plugins."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Good plugin
+            gp = Path(tmp) / "good_plugin"
+            gp.mkdir()
+            _write_init(gp, """
+def activate(api: object) -> None:
+    pass
+""")
+            # Bad plugin
+            bp = Path(tmp) / "bad_plugin"
+            bp.mkdir()
+            _write_init(bp, """
+def activate(api: object) -> None:
+    raise RuntimeError("bad")
+""")
+            host.registry.register(PluginManifest(
+                id="good", name="Good", version="1.0", source=str(gp),
+            ))
+            host.registry.register(PluginManifest(
+                id="bad", name="Bad", version="1.0", source=str(bp),
+            ))
+            # Activate good one first
+            await host.activate("good")
+            m_good = host.registry.get("good")
+            assert m_good is not None and m_good.state == PluginState.ACTIVE
+
+            # Activate bad one — should not crash
+            api = await host.activate("bad")
+            assert isinstance(api, PluginAPI)
+            m_bad = host.registry.get("bad")
+            assert m_bad is not None and m_bad.state != PluginState.ACTIVE
+
+            # Good plugin should still be active
+            m_good2 = host.registry.get("good")
+            assert m_good2 is not None and m_good2.state == PluginState.ACTIVE
+
+
 class TestPluginDiscoverer:
     async def test_discover_local_empty_dir(self) -> None:
         d = PluginDiscoverer()

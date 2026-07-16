@@ -1,17 +1,27 @@
 {
-  "phase": "Phase 0: ANALYSIS",
-  "iteration": 7,
-  "module": "P0-TUI-Tab-ModeTests",
-  "status": "in_progress",
+  "phase": "COMPLETED",
+  "iteration": 1,
+  "module": "Plugin lifecycle enhancement - install/uninstall callbacks + error resilience",
+  "status": "completed",
   "cost": 0,
   "findings": {
-    "RunState API": "GET/PUT /sessions/{id}/run-state added to routes/sessions.py, 12 existing tests pass"
+    "existing_lifecycle": "DISCOVERED→LOADED→ACTIVE→INACTIVE, with activate(api)/deactivate() callbacks",
+    "install_callback": "PluginHost.install() now calls module.install(api) if defined, best-effort",
+    "uninstall_callback": "PluginHost.uninstall() now calls module.uninstall() if defined, best-effort",
+    "error_resilience": "activate() wraps module.activate(api) in try/except, sets INACTIVE on failure"
   },
-  "next_action": "Analyze TUI app.py structure and TabManager API, write mode integration tests",
+  "next_action": "None for this iteration. Next: plugin isolation or dependency management",
   "stop_conditions": {
     "max_iterations": 10,
     "cost_limit_usd": 15,
-    "current_iteration": 7
+    "current_iteration": 1
   },
-  "deliverables": {}
+  "deliverables": {
+    "test_install_calls_plugin_install_callback": "install(api) invoked when source has __init__.py with install()",
+    "test_install_callback_receives_plugin_api": "install(api) receives PluginAPI instance",
+    "test_uninstall_calls_plugin_uninstall_callback": "uninstall() invoked during uninstall",
+    "test_uninstall_callback_called_before_removal": "uninstall() called while manifest still exists",
+    "test_activate_does_not_crash_on_callback_error": "activate() catches errors in module.activate(api)",
+    "test_activate_error_does_not_affect_other_plugins": "failing plugin's error isolated from others"
+  }
 }

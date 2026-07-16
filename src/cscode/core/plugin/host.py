@@ -119,8 +119,10 @@ class PluginHost:
     async def install(self, source: str) -> PluginManifest:
         """Install a plugin from a source path/URL.
 
-        For Phase 0, this registers a DISCOVERED manifest without
-        actual package installation (pip/git clone).
+        Registers a DISCOVERED manifest and calls the plugin's
+        ``install(api)`` callback (if defined) with a PluginAPI instance.
+        The install callback is best-effort — failures are logged but
+        do not block the install.
         """
         manifests = await self._discoverer.discover_local([source])
         if not manifests:
@@ -135,6 +137,7 @@ class PluginHost:
                 installed_at=time.time(),
             )
             self._registry.register(m)
+            await self._call_install_callback(m)
             return m
 
         m = manifests[0]
@@ -146,7 +149,26 @@ class PluginHost:
         else:
             existing.installed_at = m.installed_at
             existing.source = m.source
+        await self._call_install_callback(m)
         return m
+
+    async def _call_install_callback(self, manifest: PluginManifest) -> None:
+        """Call the plugin's ``install(api)`` callback if defined.
+
+        Best-effort: failures are logged but not propagated.
+        """
+        try:
+            module = _import_plugin(manifest)
+        except (ImportError, Exception):
+            logger.debug("PluginHost._call_install_callback: cannot import plugin %s", manifest.id)
+            return
+        if hasattr(module, "install"):
+            try:
+                api = PluginAPI(event_bus=self._event_bus)
+                module.install(api)
+                logger.info("PluginHost: install callback called for %s", manifest.id)
+            except Exception:
+                logger.exception("PluginHost._call_install_callback: install callback failed for %s", manifest.id)
 
     # ── Load ──────────────────────────────────────────────────────────
 
@@ -228,7 +250,17 @@ class PluginHost:
         # Call plugin's activate(api) callback if defined
         module = self._loaded_modules[plugin_id]
         if hasattr(module, "activate"):
-            module.activate(api)
+            try:
+                module.activate(api)
+            except Exception:
+                logger.exception(
+                    "PluginHost.activate: activate callback failed for plugin %s, setting INACTIVE",
+                    plugin_id,
+                )
+                self._plugin_apis.pop(plugin_id, None)
+                self._loaded_modules.pop(plugin_id, None)
+                self._registry.update_state(plugin_id, PluginState.INACTIVE)
+                return api
 
         self._registry.update_state(plugin_id, PluginState.ACTIVE)
 
@@ -283,10 +315,30 @@ class PluginHost:
         if manifest.state == PluginState.ACTIVE:
             await self.deactivate(plugin_id)
 
+        # Call plugin's uninstall() callback if defined (best-effort)
+        await self._call_uninstall_callback(manifest)
+
         self._plugin_apis.pop(plugin_id, None)
         self._registry.unregister(plugin_id)
 
         logger.info("PluginHost.uninstall: plugin=%s", plugin_id)
+
+    async def _call_uninstall_callback(self, manifest: PluginManifest) -> None:
+        """Call the plugin's ``uninstall()`` callback if defined.
+
+        Best-effort: failures are logged but not propagated.
+        """
+        try:
+            module = _import_plugin(manifest)
+        except (ImportError, Exception):
+            logger.debug("PluginHost._call_uninstall_callback: cannot import plugin %s", manifest.id)
+            return
+        if hasattr(module, "uninstall"):
+            try:
+                module.uninstall()
+                logger.info("PluginHost: uninstall callback called for %s", manifest.id)
+            except Exception:
+                logger.exception("PluginHost._call_uninstall_callback: uninstall callback failed for %s", manifest.id)
 
     # ── Queries ───────────────────────────────────────────────────────
 
