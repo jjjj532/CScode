@@ -1,0 +1,128 @@
+name: Nightly CI
+
+on:
+  schedule:
+    # Every day at 00:00 UTC
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/ref to test (default: pyinstaller-bundle)"
+        required: false
+        default: pyinstaller-bundle
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test-python:
+    name: Python tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'pyinstaller-bundle' }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -e ".[test,dev]"
+
+      - name: Lint & type-check & test
+        id: python-tests
+        run: |
+          source .venv/bin/activate
+          echo "### Ruff lint" >> $GITHUB_STEP_SUMMARY
+          ruff check src/ && echo "Ruff: ✅" >> $GITHUB_STEP_SUMMARY || { echo "Ruff: ❌" >> $GITHUB_STEP_SUMMARY; }
+          echo "### Mypy type check" >> $GITHUB_STEP_SUMMARY
+          mypy src/ && echo "Mypy: ✅" >> $GITHUB_STEP_SUMMARY || { echo "Mypy: ❌" >> $GITHUB_STEP_SUMMARY; }
+          echo "### Pytest" >> $GITHUB_STEP_SUMMARY
+          set +e
+          pytest tests/ -v --tb=short -q 2>&1 | tail -30
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ $rc -eq 0 ]; then echo "Pytest: ✅" >> $GITHUB_STEP_SUMMARY; else echo "Pytest: ❌" >> $GITHUB_STEP_SUMMARY; exit 1; fi
+
+  test-frontend:
+    name: Frontend tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'pyinstaller-bundle' }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/cscode/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/cscode/web
+        run: npm ci
+
+      - name: Lint & type-check & test & build
+        id: frontend-tests
+        run: |
+          cd src/cscode/web
+          echo "### TypeScript check" >> $GITHUB_STEP_SUMMARY
+          npx tsc --noEmit --pretty 2>&1 | head -30
+          if [ $? -eq 0 ]; then echo "TypeScript: ✅" >> $GITHUB_STEP_SUMMARY; else echo "TypeScript: ❌" >> $GITHUB_STEP_SUMMARY; exit 1; fi
+          echo "### Vitest" >> $GITHUB_STEP_SUMMARY
+          npx vitest run --reporter=verbose 2>&1 | tail -30
+          if [ $? -eq 0 ]; then echo "Vitest: ✅" >> $GITHUB_STEP_SUMMARY; else echo "Vitest: ❌" >> $GITHUB_STEP_SUMMARY; exit 1; fi
+          echo "### Vite build" >> $GITHUB_STEP_SUMMARY
+          npx vite build 2>&1 | tail -10 && echo "Vite build: ✅" >> $GITHUB_STEP_SUMMARY || { echo "Vite build: ❌" >> $GITHUB_STEP_SUMMARY; exit 1; }
+
+  report-failure:
+    name: Report failures
+    if: failure() && github.event_name == 'schedule'
+    needs: [test-python, test-frontend]
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const title = `Nightly CI failed (${date})`;
+            const body = [
+              `## Nightly CI Failure — ${date}`,
+              "",
+              "**Python tests:** ${{ needs.test-python.result }}",
+              "**Frontend tests:** ${{ needs.test-frontend.result }}",
+              "",
+              "View full run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            ].join("\n");
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: ["nightly-ci"],
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ["nightly-ci"],
+              });
+            }
