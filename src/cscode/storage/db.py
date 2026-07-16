@@ -34,6 +34,7 @@ def _get_migration_registry() -> MigrationRegistry:
         reg.register(Migration(7, "create shares table", _migration_007, _noop))
         reg.register(Migration(8, "create workspaces table", _migration_008, _noop))
         reg.register(Migration(9, "add event_seq to messages table", _migration_009, _noop))
+        reg.register(Migration(10, "cleanup historical text.delta events", _migration_010, _noop))
         _migration_registry = reg
     return _migration_registry
 
@@ -233,6 +234,13 @@ async def _migration_009(conn: aiosqlite.Connection) -> None:
         await conn.execute("ALTER TABLE messages ADD COLUMN event_seq INTEGER")
     except Exception:
         pass  # column already exists (SQLite has no IF NOT EXISTS for ADD COLUMN)
+
+
+async def _migration_010(conn: aiosqlite.Connection) -> None:
+    """Cleanup: remove historical text.delta events that were persisted before
+    PERSIST_EVENT_TYPES filtering was introduced. These events are no longer
+    written by the current code and cause WARNING log spam + loading delay."""
+    await conn.execute("DELETE FROM events WHERE type = 'text.delta'")
 
 
 async def _migration_008(conn: aiosqlite.Connection) -> None:

@@ -119,8 +119,9 @@ export function SettingsPanel() {
         <div className="p-4 space-y-4">
           {/* Provider */}
           <div>
-            <label className="block text-xs font-medium text-v2-text-secondary mb-1">Provider</label>
+            <label htmlFor="settings-provider" className="block text-xs font-medium text-v2-text-secondary mb-1">Provider</label>
             <select
+              id="settings-provider"
               value={form.provider}
               onChange={(e) => {
                 const newProvider = e.target.value;
@@ -150,9 +151,10 @@ export function SettingsPanel() {
 
           {/* Model */}
           <div>
-            <label className="block text-xs font-medium text-v2-text-secondary mb-1">Model</label>
+            <label htmlFor="settings-model" className="block text-xs font-medium text-v2-text-secondary mb-1">Model</label>
             {form.provider === 'custom' ? (
               <input
+                id="settings-model"
                 type="text"
                 value={form.model}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
@@ -161,6 +163,7 @@ export function SettingsPanel() {
               />
             ) : (
               <select
+                id="settings-model"
                 value={form.model}
                 onChange={(e) => setForm({ ...form, model: e.target.value })}
                 className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
