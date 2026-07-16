@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 
 from fastapi import WebSocket
@@ -17,6 +17,8 @@ from fastapi.websockets import WebSocketState
 
 from cscode.storage.event_store import Event, EventStore
 from cscode.utils.logging import get_logger
+
+ChatHandler = Callable[..., Awaitable[None]]
 
 logger = get_logger(__name__)
 
@@ -106,9 +108,14 @@ class WebSocketManager:
     - Stale connection cleanup
     """
 
-    def __init__(self, event_store: EventStore | None = None) -> None:
+    def __init__(
+        self,
+        event_store: EventStore | None = None,
+        chat_handler: ChatHandler | None = None,
+    ) -> None:
         self._clients: dict[str, WSClient] = {}
         self._event_store = event_store
+        self._chat_handler = chat_handler
         self._event_task: asyncio.Task[None] | None = None
 
     # ── Connection lifecycle ─────────────────────────────────────────
@@ -247,13 +254,13 @@ class WebSocketManager:
                         await self.unsubscribe(client.client_id, session_id)
 
                 elif msg_type == "chat":
-                    # Chat messages bridge to the chat system
-                    # The endpoint-level handler owns the coordinator/session lifecycle;
-                    # this low-level handler acknowledges the message.
-                    await client.websocket.send_json({
-                        "type": "ack",
-                        "data": {"message": "chat received"},
-                    })
+                    if self._chat_handler is not None:
+                        await self._chat_handler(client.client_id, raw)
+                    else:
+                        await client.websocket.send_json({
+                            "type": "ack",
+                            "data": {"message": "chat received"},
+                        })
 
                 else:
                     await client.websocket.send_json({
@@ -285,6 +292,22 @@ class WebSocketManager:
                 pass
             except Exception:
                 logger.exception("[WS] Event bridge error for session %s", session_id)
+
+        sessions: set[str] = set()
+        for client in self._clients.values():
+            sessions.update(client.session_ids)
+
+        if not sessions:
+            return
+
+        tasks = [asyncio.create_task(_forward_session(sid)) for sid in sessions]
+        try:
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            for t in tasks:
+                t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
     async def _event_bridge_once(self) -> None:
         """Forward one round of events from all known sessions (used in tests)."""

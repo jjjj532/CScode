@@ -322,7 +322,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _external_dir_store = ExternalDirectoryStore()
     app_state.external_dir_store = _external_dir_store
 
-    _ws_manager = WebSocketManager(event_store=_event_store)
+    _ws_manager = WebSocketManager(
+        event_store=_event_store,
+        chat_handler=_ws_chat_handler,
+    )
     app_state.ws_manager = _ws_manager
     await _ws_manager.start_event_bridge()
     _token_store = IntegrationTokenStore()
@@ -1001,6 +1004,45 @@ async def pty_endpoint(body: PTYInput) -> dict[str, object]:
     if isinstance(data, list):
         return {"sessions": [s.model_dump() for s in data]}
     return data.model_dump()  # type: ignore[no-any-return]
+
+
+async def _ws_chat_handler(client_id: str, message: dict[str, object]) -> None:
+    """Bridge WebSocket chat messages to the chat system."""
+    from cscode.server.state import state as app_state
+
+    manager = app_state.ws_manager
+    if manager is None:
+        return
+
+    await manager.send_to_client(client_id, {
+        "type": "ack",
+        "data": {"message": "message received, processing"},
+    })
+
+    session_id = message.get("session_id")
+    if not isinstance(session_id, str):
+        session_id = None
+    msg_data = message.get("data", {})
+    if isinstance(msg_data, dict):
+        user_message = msg_data.get("message", "")
+    else:
+        user_message = str(msg_data)
+
+    try:
+        resp = await _handle_chat(user_message, session_id)
+        await manager.send_to_client(client_id, {
+            "type": "chat_response",
+            "data": {
+                "session_id": resp.session_id,
+                "response": resp.response,
+            },
+        })
+    except Exception:
+        logger.exception("[WS] Chat handler error")
+        await manager.send_to_client(client_id, {
+            "type": "error",
+            "data": {"message": "Chat processing failed"},
+        })
 
 
 @api_router.websocket("/ws")

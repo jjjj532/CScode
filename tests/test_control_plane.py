@@ -237,3 +237,95 @@ class TestWorktreeManager:
         assert info is not None
         assert info.bare
         assert info.hash == ""
+
+    def _init_git_repo(self, tmp: str) -> None:
+        """Initialize a temp git repo with one commit."""
+        import os
+        import subprocess
+
+        subprocess.run(["git", "init"], cwd=tmp, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=tmp, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=tmp, capture_output=True, check=True,
+        )
+        readme = os.path.join(tmp, "README.md")
+        with open(readme, "w") as f:
+            f.write("# Test")
+        subprocess.run(["git", "add", "-A"], cwd=tmp, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=tmp, capture_output=True, check=True,
+        )
+
+    def test_add_worktree_creates_new_worktree(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        from cscode.core.control_plane import WorktreeManager
+        p = Path(str(tmp_path))
+        self._init_git_repo(str(p))
+        wt_dir = str(p / "wt-add")
+
+        success, msg = WorktreeManager.add_worktree(wt_dir, work_dir=str(p))
+        assert success, msg
+
+        wts = WorktreeManager.list_worktrees(work_dir=str(p))
+        paths = [w.path for w in wts if not w.bare]
+        assert wt_dir in paths, f"worktree {wt_dir} not in {paths}"
+
+    def test_add_worktree_with_branch(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        from cscode.core.control_plane import WorktreeManager
+        p = Path(str(tmp_path))
+        self._init_git_repo(str(p))
+        wt_dir = str(p / "wt-feature")
+
+        success, msg = WorktreeManager.add_worktree(wt_dir, "feature-x", work_dir=str(p))
+        assert success, msg
+
+        wts = WorktreeManager.list_worktrees(work_dir=str(p))
+        wt = next((w for w in wts if w.path == wt_dir), None)
+        assert wt is not None, f"worktree {wt_dir} not found"
+        assert wt.branch == "feature-x", f"expected feature-x, got {wt.branch}"
+
+    def test_remove_worktree_removes_it(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        from cscode.core.control_plane import WorktreeManager
+        p = Path(str(tmp_path))
+        self._init_git_repo(str(p))
+        wt_dir = str(p / "wt-remove")
+
+        success, msg = WorktreeManager.add_worktree(wt_dir, work_dir=str(p))
+        assert success, msg
+
+        success, msg = WorktreeManager.remove_worktree(wt_dir, work_dir=str(p))
+        assert success, msg
+
+        wts = WorktreeManager.list_worktrees(work_dir=str(p))
+        paths = [w.path for w in wts if not w.bare]
+        assert wt_dir not in paths, f"worktree {wt_dir} still present after remove"
+
+    def test_add_worktree_failure_nonexistent_parent(self) -> None:
+        from cscode.core.control_plane import WorktreeManager
+
+        success, msg = WorktreeManager.add_worktree("/nonexistent/path/wt")
+        assert not success
+        assert msg
+
+    def test_remove_worktree_failure_non_existent(self) -> None:
+        import os
+        import tempfile
+
+        from cscode.core.control_plane import WorktreeManager
+        with tempfile.NamedTemporaryFile(dir="/tmp", suffix="_wt", delete=False) as f:
+            fake_path = f.name
+        os.unlink(fake_path)
+
+        success, msg = WorktreeManager.remove_worktree(fake_path)
+        assert not success
+        assert msg

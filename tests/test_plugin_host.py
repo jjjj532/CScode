@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from cscode.core.events import Event, EventBus
 from cscode.core.plugin.api import CommandDef, PluginAPI, UIExtension
 from cscode.core.plugin.discovery import PluginDiscoverer
 from cscode.core.plugin.host import PluginHost
 from cscode.core.plugin.registry import PluginManifest, PluginState
 from cscode.schema.tool import ToolResult
 from cscode.tools.base import BaseTool
-from typing import Any
-
 
 # ── Helper Tools ──────────────────────────────────────────────────────
 
@@ -170,6 +171,184 @@ class TestPluginHostLifecycle:
         assert len(all_ext) == 2
         tui_ext = host.get_ui_extensions("tui")
         assert len(tui_ext) == 1
+
+
+# ── Activation Pipeline Tests ─────────────────────────────────────────
+
+
+def _create_test_plugin(tmp_dir: Path, source: str) -> PluginManifest:
+    """Create a PluginManifest pointing to a temp dir with __init__.py."""
+    manifest = PluginManifest(
+        id=tmp_dir.name,
+        name=tmp_dir.name,
+        version="1.0.0",
+        source=source,
+    )
+    return manifest
+
+
+def _write_init(p: Path, content: str) -> Path:
+    init_file = p / "__init__.py"
+    init_file.write_text(content)
+    return init_file
+
+
+class TestPluginHostActivation:
+    """Tests for the PluginHost activation pipeline (load/activate/deactivate callbacks)."""
+
+    async def test_load_unknown_raises(self) -> None:
+        """load() with nonexistent plugin raises ValueError."""
+        host = PluginHost()
+        with pytest.raises(ValueError, match="not found"):
+            await host.load("nonexistent")
+
+    async def test_load_twice_raises(self) -> None:
+        """load() called twice on same plugin raises ValueError."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_load_twice"
+            p.mkdir()
+            _write_init(p, "")
+            host.registry.register(PluginManifest(
+                id="load_twice", name="LT", version="1.0", source=str(p),
+            ))
+            await host.load("load_twice")
+            with pytest.raises(ValueError, match="already loaded"):
+                await host.load("load_twice")
+
+    async def test_activate_calls_plugin_activate(self) -> None:
+        """activate() invokes module's activate(api) callback."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_act_cb"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+_called = False
+
+def activate(api: PluginAPI) -> None:
+    global _called
+    _called = True
+""")
+            pid = "act_cb"
+            host.registry.register(PluginManifest(
+                id=pid, name="ActCB", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            # Verify module.activate() was called — import the module and check
+            mod = sys.modules.get("test_act_cb")
+            assert mod is not None, "Plugin module should be imported"
+            assert mod._called is True  # type: ignore[union-attr]
+
+    async def test_activate_registers_tools_via_callback(self) -> None:
+        """Plugin registers tools via activate(api); host.get_tool_providers reflects them."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_act_tools"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+class _ReaderTool:
+    name = "reader"
+    description = "Reads stuff"
+
+def activate(api: PluginAPI) -> None:
+    api.register_tool(_ReaderTool)
+""")
+            pid = "act_tools"
+            host.registry.register(PluginManifest(
+                id=pid, name="ActTools", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            tools = host.get_tool_providers()
+            assert len(tools) == 1
+            assert tools[0].name == "reader"
+
+    async def test_deactivate_calls_plugin_deactivate(self) -> None:
+        """deactivate() invokes module's deactivate() callback."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_deact_cb"
+            p.mkdir()
+            _write_init(p, """
+_called = False
+
+def activate(api: object) -> None:
+    pass
+
+def deactivate() -> None:
+    global _called
+    _called = True
+""")
+            pid = "deact_cb"
+            host.registry.register(PluginManifest(
+                id=pid, name="DeactCB", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            await host.deactivate(pid)
+
+            mod = sys.modules.get("test_deact_cb")
+            assert mod is not None
+            assert mod._called is True  # type: ignore[union-attr]
+
+    async def test_deactivate_cleans_loaded_module(self) -> None:
+        """deactivate() removes the module from _loaded_modules."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_deact_clean"
+            p.mkdir()
+            _write_init(p, "")
+            pid = "deact_clean"
+            host.registry.register(PluginManifest(
+                id=pid, name="DeactClean", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            assert pid in host._loaded_modules  # type: ignore[attr-defined]
+            await host.deactivate(pid)
+            assert pid not in host._loaded_modules  # type: ignore[attr-defined]
+
+    async def test_activate_import_error_raised(self) -> None:
+        """activate() on a plugin with invalid module raises ImportError."""
+        host = PluginHost()
+        host.registry.register(PluginManifest(
+            id="bad_import", name="Bad", version="1.0", source="/nonexistent/path",
+        ))
+        with pytest.raises(ImportError):
+            await host.activate("bad_import")
+
+    async def test_activate_with_eventbus_hooks_wired(self) -> None:
+        """Plugin register on_session_start hook via EventBus."""
+        bus = EventBus()
+        host = PluginHost(event_bus=bus)
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "test_eb_hook"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+_handler_called = False
+
+def handler(event: object) -> None:
+    global _handler_called
+    _handler_called = True
+
+def activate(api: PluginAPI) -> None:
+    api.on_session_start(handler)
+""")
+            pid = "eb_hook"
+            host.registry.register(PluginManifest(
+                id=pid, name="EBHook", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+
+            # Emit a session.start event — the plugin handler should fire
+            await bus.emit("session.start", Event())
+
+            mod = sys.modules.get("test_eb_hook")
+            assert mod is not None
+            assert mod._handler_called is True  # type: ignore[union-attr]
 
 
 class TestPluginDiscoverer:

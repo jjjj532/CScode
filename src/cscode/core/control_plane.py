@@ -37,8 +37,11 @@ class WorktreeManager:
     """
 
     @staticmethod
-    def list_worktrees() -> list[WorktreeInfo]:
+    def list_worktrees(work_dir: str | None = None) -> list[WorktreeInfo]:
         """List all git worktrees.
+
+        Args:
+            work_dir: Git working directory (defaults to cwd).
 
         Returns:
             A list of WorktreeInfo for each worktree.
@@ -47,7 +50,7 @@ class WorktreeManager:
         try:
             result = subprocess.run(
                 ["git", "worktree", "list", "--porcelain"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, timeout=10, cwd=work_dir,
             )
             if result.returncode != 0:
                 logger.warning("git worktree list failed: %s", result.stderr.strip())
@@ -133,21 +136,23 @@ class WorktreeManager:
         return info
 
     @staticmethod
-    def add_worktree(path: str, branch: str | None = None) -> tuple[bool, str]:
+    def add_worktree(path: str, branch: str | None = None, work_dir: str | None = None) -> tuple[bool, str]:
         """Create a new git worktree.
 
         Args:
             path: Path where the worktree should be created.
             branch: Branch to check out (None = new branch from HEAD).
+            work_dir: Git working directory (defaults to cwd).
 
         Returns:
             Tuple of (success, message).
         """
-        cmd = ["git", "worktree", "add", path]
+        cmd = ["git", "worktree", "add"]
         if branch:
-            cmd.append(branch)
+            cmd += ["-b", branch]
+        cmd.append(path)
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=work_dir)
             if result.returncode == 0:
                 return True, result.stdout.strip()
             return False, result.stderr.strip()
@@ -155,11 +160,12 @@ class WorktreeManager:
             return False, str(e)
 
     @staticmethod
-    def remove_worktree(path: str) -> tuple[bool, str]:
+    def remove_worktree(path: str, work_dir: str | None = None) -> tuple[bool, str]:
         """Remove a git worktree.
 
         Args:
             path: Path to the worktree to remove.
+            work_dir: Git working directory (defaults to cwd).
 
         Returns:
             Tuple of (success, message).
@@ -167,7 +173,7 @@ class WorktreeManager:
         try:
             result = subprocess.run(
                 ["git", "worktree", "remove", path],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=30, cwd=work_dir,
             )
             if result.returncode == 0:
                 return True, result.stdout.strip()

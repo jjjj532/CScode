@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from cscode.storage.db import Database
 from cscode.tools2 import (
     BashTool, GrepTool, GlobTool, LsTool,
     WebFetchTool, WebSearchTool,
@@ -186,6 +188,236 @@ class TestTodoWriteTool:
         assert result.success
         assert result.data is not None
         assert result.data.count == 2
+
+    @pytest.mark.asyncio
+    async def test_todowrite_writes_expected_tasks_with_db(self) -> None:
+        """TodoWriteTool should write to expected_tasks table when db and session_id provided."""
+        # Create temp database
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = Database(db_path=path)
+        await db.init()
+        try:
+            tool = TodoWriteTool()
+            # Execute with context containing db and session_id
+            context = {"session_id": "test-session-001", "db": db}
+            result = await tool.execute(
+                TodoWriteInput(todos=[
+                    {"content": "TC-001 Login test", "status": "pending", "priority": "high"},
+                ]),
+                context=context,
+            )
+            assert result.success
+
+            # Verify expected_tasks was written
+            rows = await db.fetchall(
+                "SELECT * FROM expected_tasks WHERE session_id = ?",
+                ("test-session-001",),
+            )
+            assert len(rows) == 1
+            assert rows[0]["task_id"] == "TC-001"
+            assert rows[0]["description"] == "TC-001 Login test"
+        finally:
+            await db.close()
+            os.unlink(path)
+
+    @pytest.mark.asyncio
+    async def test_todowrite_extracts_tc_id_from_content(self) -> None:
+        """TodoWriteTool should extract TC-XXX from task content."""
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = Database(db_path=path)
+        await db.init()
+        try:
+            tool = TodoWriteTool()
+            context = {"session_id": "test-session-002", "db": db}
+            result = await tool.execute(
+                TodoWriteInput(todos=[
+                    {"content": "Test case TC-005 verify login", "status": "pending", "priority": "medium"},
+                ]),
+                context=context,
+            )
+            assert result.success
+
+            rows = await db.fetchall(
+                "SELECT task_id FROM expected_tasks WHERE session_id = ?",
+                ("test-session-002",),
+            )
+            assert len(rows) == 1
+            assert rows[0]["task_id"] == "TC-005"
+        finally:
+            await db.close()
+            os.unlink(path)
+
+    @pytest.mark.asyncio
+    async def test_todowrite_on_event_from_context(self) -> None:
+        """on_event callback from context should be called with task_created event."""
+        tool = TodoWriteTool()
+        events: list[dict[str, object]] = []
+
+        async def capture_event(event: dict[str, object]) -> None:
+            events.append(event)
+
+        context = {"session_id": "test-ctx-001", "on_event": capture_event}
+        result = await tool.execute(
+            TodoWriteInput(todos=[
+                {"content": "TC-010 Context event", "status": "pending", "priority": "high"},
+            ]),
+            context=context,
+        )
+        assert result.success
+        assert len(events) == 1
+        assert events[0]["type"] == "task_created"
+        assert events[0]["session_id"] == "test-ctx-001"
+        data = events[0]["data"]
+        assert isinstance(data, dict)
+        assert data["task_id"] == "TC-010"
+        assert data["description"] == "TC-010 Context event"
+        assert data["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_todowrite_on_event_from_init(self) -> None:
+        """on_event callback from __init__ should be called with task_created event."""
+        events: list[dict[str, object]] = []
+
+        async def capture_event(event: dict[str, object]) -> None:
+            events.append(event)
+
+        tool = TodoWriteTool(on_event=capture_event)
+        result = await tool.execute(
+            TodoWriteInput(todos=[
+                {"content": "TC-011 Init event", "status": "in_progress", "priority": "medium"},
+            ]),
+        )
+        assert result.success
+        assert len(events) == 1
+        assert events[0]["type"] == "task_created"
+        data = events[0]["data"]
+        assert isinstance(data, dict)
+        assert data["task_id"] == "TC-011"
+
+    @pytest.mark.asyncio
+    async def test_todowrite_context_on_event_overrides_init(self) -> None:
+        """context on_event overrides __init__ on_event when both provided."""
+        init_events: list[dict[str, object]] = []
+        ctx_events: list[dict[str, object]] = []
+
+        async def init_cb(event: dict[str, object]) -> None:
+            init_events.append(event)
+
+        async def ctx_cb(event: dict[str, object]) -> None:
+            ctx_events.append(event)
+
+        tool = TodoWriteTool(on_event=init_cb)
+        result = await tool.execute(
+            TodoWriteInput(todos=[
+                {"content": "TC-012 Override test", "status": "completed", "priority": "low"},
+            ]),
+            context={"session_id": "test-override", "on_event": ctx_cb},
+        )
+        assert result.success
+        # Only context callback should fire
+        assert len(ctx_events) == 1
+        assert len(init_events) == 0
+
+    @pytest.mark.asyncio
+    async def test_todowrite_no_tc_id_fallback_to_content(self) -> None:
+        """When no TC-XXX pattern matches, task_id should fallback to first 50 chars of content."""
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = Database(db_path=path)
+        await db.init()
+        try:
+            tool = TodoWriteTool()
+            long_content = "A" * 100
+            context = {"session_id": "test-noid-001", "db": db}
+            result = await tool.execute(
+                TodoWriteInput(todos=[
+                    {"content": long_content, "status": "pending", "priority": "high"},
+                ]),
+                context=context,
+            )
+            assert result.success
+
+            rows = await db.fetchall(
+                "SELECT task_id FROM expected_tasks WHERE session_id = ?",
+                ("test-noid-001",),
+            )
+            assert len(rows) == 1
+            assert rows[0]["task_id"] == "A" * 50
+        finally:
+            await db.close()
+            os.unlink(path)
+
+    @pytest.mark.asyncio
+    async def test_todowrite_context_none(self) -> None:
+        """context=None should not raise and should produce valid output."""
+        tool = TodoWriteTool()
+        result = await tool.execute(
+            TodoWriteInput(todos=[
+                {"content": "TC-020 No context", "status": "pending", "priority": "high"},
+            ]),
+            context=None,
+        )
+        assert result.success
+        assert result.data is not None
+        assert "TC-020" in result.data.formatted
+
+    @pytest.mark.asyncio
+    async def test_todowrite_context_empty_db_no_session_id(self) -> None:
+        """db present but session_id empty should skip DB write without error."""
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = Database(db_path=path)
+        await db.init()
+        try:
+            tool = TodoWriteTool()
+            context = {"session_id": "", "db": db}
+            result = await tool.execute(
+                TodoWriteInput(todos=[
+                    {"content": "TC-030 No session", "status": "pending", "priority": "medium"},
+                ]),
+                context=context,
+            )
+            assert result.success
+
+            rows = await db.fetchall(
+                "SELECT * FROM expected_tasks",
+            )
+            assert len(rows) == 0
+        finally:
+            await db.close()
+            os.unlink(path)
+
+    @pytest.mark.asyncio
+    async def test_todowrite_duplicate_tc_id_idempotent(self) -> None:
+        """INSERT OR IGNORE should handle duplicate TC-ID without error."""
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = Database(db_path=path)
+        await db.init()
+        try:
+            tool = TodoWriteTool()
+            context = {"session_id": "test-dedup-001", "db": db}
+            # Insert same TC-XXX twice
+            for _ in range(2):
+                result = await tool.execute(
+                    TodoWriteInput(todos=[
+                        {"content": "TC-040 Duplicate test", "status": "pending", "priority": "high"},
+                    ]),
+                    context=context,
+                )
+                assert result.success
+
+            # Should only have one row
+            rows = await db.fetchall(
+                "SELECT * FROM expected_tasks WHERE session_id = ?",
+                ("test-dedup-001",),
+            )
+            assert len(rows) == 1
+        finally:
+            await db.close()
+            os.unlink(path)
 
 
 # ---------------------------------------------------------------------------

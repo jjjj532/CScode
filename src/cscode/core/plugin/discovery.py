@@ -80,7 +80,8 @@ def _try_extract_name(init_file: Path) -> str | None:
                 if len(parts) == 2:
                     return parts[1].strip().strip('"').strip("'")
     except Exception:
-        pass
+        logger.debug("Failed to read plugin __init__.py: %s", init_file)
+        return None
     return None
 
 

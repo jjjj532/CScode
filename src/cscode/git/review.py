@@ -70,7 +70,7 @@ class GitReview:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return ""
 
-    def blame(self, file_path: str, options: dict[str, Any] | None = None) -> list[BlameLine]:
+    def blame(self, file_path: str, options: dict[str, Any] | None = None, cwd: str | None = None) -> list[BlameLine]:
         """Run git blame on a file.
 
         Args:
@@ -78,6 +78,7 @@ class GitReview:
             options: Optional dict with keys:
                 - line_range: tuple[int, int] to blame specific lines
                 - show_email: bool to show author email
+            cwd: Git working directory (defaults to cwd).
 
         Returns:
             List of BlameLine objects.
@@ -93,9 +94,9 @@ class GitReview:
         cmd.append(file_path)
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=cwd)
             if result.returncode != 0:
-                logger.warning(f"git blame failed: {result.stderr}")
+                logger.warning("git blame failed: %s", result.stderr)
                 return []
             return self._parse_blame_output(result.stdout)
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -141,21 +142,22 @@ class GitReview:
 
         return blame_lines
 
-    def bisect_start(self, bad_rev: str = "HEAD", good_rev: str | None = None) -> bool:
+    def bisect_start(self, bad_rev: str = "HEAD", good_rev: str | None = None, cwd: str | None = None) -> bool:
         """Start git bisect with bad and good revisions.
 
         Args:
             bad_rev: The known bad revision (default: HEAD).
             good_rev: The known good revision.
+            cwd: Git working directory (defaults to cwd).
 
         Returns:
             True if bisect started successfully.
         """
         try:
-            subprocess.run(["git", "bisect", "start"], capture_output=True, timeout=10)
-            subprocess.run(["git", "bisect", "bad", bad_rev], capture_output=True, timeout=10)
+            subprocess.run(["git", "bisect", "start"], capture_output=True, timeout=10, cwd=cwd)
+            subprocess.run(["git", "bisect", "bad", bad_rev], capture_output=True, timeout=10, cwd=cwd)
             if good_rev:
-                subprocess.run(["git", "bisect", "good", good_rev], capture_output=True, timeout=10)
+                subprocess.run(["git", "bisect", "good", good_rev], capture_output=True, timeout=10, cwd=cwd)
             return True
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
@@ -163,29 +165,32 @@ class GitReview:
     def bisect_run(self) -> BisectResult | None:
         """Run git bisect and return the result."""
         try:
-            subprocess.run(
-                ["git", "bisect", "reset"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            # Parse bisect log for first bad commit
+            # Read bisect log BEFORE reset — reset clears the state
             log_result = subprocess.run(
                 ["git", "bisect", "log"],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
+
             first_bad = None
             good_commits = []
             if log_result.returncode == 0:
                 for line in log_result.stdout.split("\n"):
-                    if line.startswith("first bad commit"):
-                        first_bad = line.split(":")[1].strip() if ":" in line else None
+                    if line.startswith("# first bad commit"):
+                        parts = line.split(":", 1)
+                        first_bad = parts[1].strip() if len(parts) > 1 else None
                     elif "good:" in line:
                         commit = line.split("good:")[1].strip() if "good:" in line else ""
                         if commit:
                             good_commits.append(commit)
+
+            subprocess.run(
+                ["git", "bisect", "reset"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
 
             return BisectResult(
                 bad_commit=None,
@@ -203,7 +208,7 @@ class GitReview:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def log_search(self, search_string: str, options: dict[str, Any] | None = None) -> list[LogSearchResult]:
+    def log_search(self, search_string: str, options: dict[str, Any] | None = None, cwd: str | None = None) -> list[LogSearchResult]:
         """Search for code changes using git log -S.
 
         Args:
@@ -212,6 +217,7 @@ class GitReview:
                 - limit: int for max results
                 - file_path: str to limit to specific file
                 - all: bool to search all branches
+            cwd: Git working directory (defaults to cwd).
 
         Returns:
             List of LogSearchResult objects.
@@ -227,7 +233,7 @@ class GitReview:
             cmd.extend(["--", file_path])
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=cwd)
             if result.returncode != 0:
                 return []
             return self._parse_log_search(result.stdout)

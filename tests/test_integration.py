@@ -9,6 +9,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -305,6 +306,45 @@ class TestProtocolHandling:
         errors = [m for m in ws.sent_messages if m.get("type") == "error"]
         assert len(errors) >= 1
 
+    async def test_chat_calls_handler(self) -> None:
+        """Chat messages are forwarded to the registered chat handler."""
+        handler_calls: list[tuple[str, dict[str, object]]] = []
+
+        async def mock_handler(client_id: str, msg: dict[str, object]) -> None:
+            handler_calls.append((client_id, msg))
+
+        ws = MockWebSocketQueue([
+            {"type": "chat", "data": {"message": "Hello"}},
+        ])
+        mgr = WebSocketManager(chat_handler=mock_handler)
+        client = await mgr.connect(ws)  # type: ignore[arg-type]
+
+        await mgr._handle_client_messages(client)
+
+        assert len(handler_calls) == 1
+        cid, msg = handler_calls[0]
+        assert cid == client.client_id
+        assert msg.get("type") == "chat"
+        data = msg.get("data")
+        assert isinstance(data, dict)
+        assert data.get("message") == "Hello"
+
+    async def test_chat_no_handler_fallback_ack(self) -> None:
+        """Without a handler, chat messages still get an ack."""
+        ws = MockWebSocketQueue([
+            {"type": "chat", "data": {"message": "Hello"}},
+        ])
+        mgr = WebSocketManager()
+        client = await mgr.connect(ws)  # type: ignore[arg-type]
+
+        await mgr._handle_client_messages(client)
+
+        acks = [m for m in ws.sent_messages if m.get("type") == "ack"]
+        assert len(acks) == 1
+        ack_data = acks[0].get("data")
+        assert isinstance(ack_data, dict)
+        assert ack_data.get("message") == "chat received"
+
 
 # ═══════════════════════════════════════════════════════════════════
 # Event bridge tests
@@ -377,3 +417,97 @@ class TestEventBridge:
         await mgr._event_bridge_once()
 
         assert len(ws.sent_messages) == 0
+
+    async def test_event_bridge_forwards_multiple_sessions(self, mock_event_store: MagicMock) -> None:
+        """Events from multiple subscribed sessions are all forwarded."""
+        ws = MockWebSocket()
+        mgr = WebSocketManager(event_store=mock_event_store)
+        client = await mgr.connect(ws)  # type: ignore[arg-type]
+        await mgr.subscribe(client.client_id, "sess_a")
+        await mgr.subscribe(client.client_id, "sess_b")
+
+
+        calls: list[str] = []
+
+        async def _subscribe_gen(session_id: str, *args: object, **kwargs: object):
+            calls.append(session_id)
+            return
+            yield  # type: ignore[return-value]  # generator function stub
+
+        mock_event_store.subscribe = _subscribe_gen  # type: ignore[method-assign]
+
+        await mgr._event_bridge_once()
+        assert set(calls) == {"sess_a", "sess_b"}
+
+
+class TestEventBridgeLifecycle:
+
+    async def test_start_bridge_creates_task(self, mock_event_store: MagicMock) -> None:
+        mgr = WebSocketManager(event_store=mock_event_store)
+        assert mgr._event_task is None
+        await mgr.start_event_bridge()
+        assert mgr._event_task is not None
+        assert not mgr._event_task.done()
+        await mgr.stop_event_bridge()
+
+    async def test_stop_bridge_cancels_task(self, mock_event_store: MagicMock) -> None:
+        mgr = WebSocketManager(event_store=mock_event_store)
+        await mgr.start_event_bridge()
+        assert mgr._event_task is not None
+        await mgr.stop_event_bridge()
+        assert mgr._event_task is None
+
+    async def test_start_bridge_no_event_store(self) -> None:
+        mgr = WebSocketManager()
+        await mgr.start_event_bridge()
+        assert mgr._event_task is None
+
+    async def test_stop_bridge_no_task(self) -> None:
+        mgr = WebSocketManager(event_store=MagicMock())
+        await mgr.stop_event_bridge()
+
+    async def test_stop_bridge_idempotent(self, mock_event_store: MagicMock) -> None:
+        mgr = WebSocketManager(event_store=mock_event_store)
+        await mgr.start_event_bridge()
+        await mgr.stop_event_bridge()
+        await mgr.stop_event_bridge()
+        assert mgr._event_task is None
+
+    async def test_event_bridge_forwards_continuously(self, mock_event_store: MagicMock) -> None:
+        ws = MockWebSocket()
+        mgr = WebSocketManager(event_store=mock_event_store)
+        client = await mgr.connect(ws)  # type: ignore[arg-type]
+        await mgr.subscribe(client.client_id, "sess_c")
+
+        from cscode.storage.event_store import Event
+
+        events_yielded: list[Event] = []
+
+        async def subscribe_gen(session_id: str, *args: object, **kwargs: object):
+            nonlocal events_yielded
+            evt = Event(
+                aggregate_id=session_id,
+                seq=1,
+                type="text.delta",
+                data={"content": "bridge test"},
+                created_at=time.time(),
+            )
+            events_yielded.append(evt)
+            yield evt
+            await asyncio.Event().wait()
+
+        mock_event_store.subscribe = subscribe_gen  # type: ignore[method-assign]
+
+        task = asyncio.create_task(mgr._event_bridge())
+        await asyncio.sleep(0.05)
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        assert len(events_yielded) >= 1
+        forwarded = [m for m in ws.sent_messages if m.get("type") == "event"]
+        assert len(forwarded) >= 1
+        assert forwarded[0]["event_type"] == "text.delta"

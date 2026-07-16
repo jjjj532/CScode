@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,7 +17,6 @@ from cscode.core.plugin.api import (
 )
 from cscode.schema.tool import ToolResult
 from cscode.tools.base import BaseTool
-
 
 # ── Helper: minimal tool for testing ──────────────────────────────────
 

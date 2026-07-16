@@ -16,7 +16,6 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 # ---------------------------------------------------------------------------
@@ -603,3 +602,42 @@ class TestWorkspaceSessions:
         """Non-existent workspace returns 404."""
         resp = client.get("/api/workspaces/nonexistent/sessions")
         assert resp.status_code == 404
+
+
+# ─── P2-2: WebSocket endpoint ──────────────────────────────────────────────
+
+
+class TestWebSocketEndpoint:
+
+    def test_ping_pong(self) -> None:
+        with client.websocket_connect("/api/ws") as ws:
+            ws.send_json({"type": "ping"})
+            resp = ws.receive_json()
+            assert resp["type"] == "pong"
+
+    def test_unknown_message_type(self) -> None:
+        with client.websocket_connect("/api/ws") as ws:
+            ws.send_json({"type": "unknown_type"})
+            resp = ws.receive_json()
+            assert resp["type"] == "error"
+            assert "unknown" in resp.get("data", {}).get("message", "").lower()
+
+    def test_multiple_clients(self) -> None:
+        with client.websocket_connect("/api/ws") as ws1:
+            with client.websocket_connect("/api/ws") as ws2:
+                ws1.send_json({"type": "ping"})
+                ws2.send_json({"type": "ping"})
+                r1 = ws1.receive_json()
+                r2 = ws2.receive_json()
+                assert r1["type"] == "pong"
+                assert r2["type"] == "pong"
+
+    def test_disconnect_then_reconnect(self) -> None:
+        with client.websocket_connect("/api/ws") as ws:
+            ws.send_json({"type": "ping"})
+            resp = ws.receive_json()
+            assert resp["type"] == "pong"
+        with client.websocket_connect("/api/ws") as ws2:
+            ws2.send_json({"type": "ping"})
+            resp = ws2.receive_json()
+            assert resp["type"] == "pong"

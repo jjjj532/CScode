@@ -5,9 +5,14 @@ Manages the full lifecycle: discover → install → load → activate → deact
 
 from __future__ import annotations
 
+import importlib
+import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
+from types import ModuleType
 
+from cscode.core.events import EventBus
 from cscode.core.plugin.api import (
     CommandDef,
     PluginAPI,
@@ -19,6 +24,38 @@ from cscode.tools.base import BaseTool
 from cscode.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _import_plugin(manifest: PluginManifest) -> ModuleType:
+    """Import a plugin's Python module from its source path.
+
+    Args:
+        manifest: Plugin manifest with ``source`` field.
+                  Supports ``pip:<pkg_name>`` and local directory paths.
+
+    Returns:
+        The imported module.
+
+    Raises:
+        ImportError: If the module cannot be imported.
+    """
+    source = manifest.source
+    if source.startswith("pip:"):
+        pkg_name = source[4:]
+        return importlib.import_module(pkg_name)
+
+    # Local path
+    path = Path(source).resolve()
+    if path.is_dir():
+        parent = str(path.parent)
+        mod_name = path.name
+    else:
+        parent = str(path.parent)
+        mod_name = path.stem
+
+    if parent not in sys.path:
+        sys.path.insert(0, parent)
+    return importlib.import_module(mod_name)
 
 
 class PluginHost:
@@ -34,13 +71,15 @@ class PluginHost:
         discoverer: PluginDiscoverer | None = None,
         api_provider: Callable[[], PluginAPI] | None = None,
         pip_packages: list[str] | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._registry = registry or PluginRegistry()
         self._discoverer = discoverer or PluginDiscoverer()
         self._pip_packages = pip_packages or []
+        self._event_bus = event_bus
 
-        # Per-plugin API instances (created on activate)
         self._plugin_apis: dict[str, PluginAPI] = {}
+        self._loaded_modules: dict[str, ModuleType] = {}
 
     @property
     def registry(self) -> PluginRegistry:
@@ -109,14 +148,65 @@ class PluginHost:
             existing.source = m.source
         return m
 
+    # ── Load ──────────────────────────────────────────────────────────
+
+    async def load(self, plugin_id: str) -> ModuleType:
+        """Import the plugin's Python module.
+
+        Transitions state: DISCOVERED → LOADED.
+        Uses ``_import_plugin()`` to import the module from the plugin's
+        source path (pip package or local directory).
+
+        Args:
+            plugin_id: ID of the plugin to load.
+
+        Returns:
+            The imported module.
+
+        Raises:
+            ValueError: If the plugin is not found or already loaded.
+            ImportError: If the module cannot be imported.
+        """
+        manifest = self._registry.get(plugin_id)
+        if manifest is None:
+            msg = f"Plugin '{plugin_id}' not found"
+            raise ValueError(msg)
+
+        if manifest.state >= PluginState.LOADED:
+            msg = f"Plugin '{plugin_id}' is already loaded (state={manifest.state.value})"
+            raise ValueError(msg)
+
+        try:
+            module = _import_plugin(manifest)
+        except ImportError:
+            logger.exception("PluginHost.load: failed to import plugin %s", plugin_id)
+            raise
+
+        self._loaded_modules[plugin_id] = module
+        self._registry.update_state(plugin_id, PluginState.LOADED)
+
+        logger.info("PluginHost.load: plugin=%s module=%s", plugin_id, module.__name__)
+        return module
+
     # ── Activate ──────────────────────────────────────────────────────
 
     async def activate(self, plugin_id: str) -> PluginAPI:
         """Activate a plugin and return its PluginAPI.
 
         Transitions state: DISCOVERED/LOADED → ACTIVE.
-        Creates a PluginAPI instance that the plugin can use
-        to register tools, commands, hooks, etc.
+        Loads the plugin module if not already loaded, creates a PluginAPI
+        instance with EventBus, and calls the plugin's ``activate(api)``
+        function (if defined).
+
+        Args:
+            plugin_id: ID of the plugin to activate.
+
+        Returns:
+            PluginAPI instance for the plugin.
+
+        Raises:
+            ValueError: If the plugin is not found or already active.
+            ImportError: If the plugin module cannot be imported.
         """
         manifest = self._registry.get(plugin_id)
         if manifest is None:
@@ -127,9 +217,19 @@ class PluginHost:
             msg = f"Plugin '{plugin_id}' is already active"
             raise ValueError(msg)
 
-        # Create a fresh PluginAPI for this plugin
-        api = PluginAPI()
+        # Load first if not already loaded
+        if manifest.state < PluginState.LOADED:
+            await self.load(plugin_id)
+
+        # Create PluginAPI with EventBus for hook integration
+        api = PluginAPI(event_bus=self._event_bus)
         self._plugin_apis[plugin_id] = api
+
+        # Call plugin's activate(api) callback if defined
+        module = self._loaded_modules[plugin_id]
+        if hasattr(module, "activate"):
+            module.activate(api)
+
         self._registry.update_state(plugin_id, PluginState.ACTIVE)
 
         logger.info("PluginHost.activate: plugin=%s version=%s", plugin_id, manifest.version)
@@ -141,7 +241,14 @@ class PluginHost:
         """Deactivate a plugin.
 
         Transitions state: ACTIVE → INACTIVE.
-        Removes the PluginAPI instance.
+        Calls the plugin's ``deactivate()`` function (if defined),
+        then removes the PluginAPI instance.
+
+        Args:
+            plugin_id: ID of the plugin to deactivate.
+
+        Raises:
+            ValueError: If the plugin is not found or not active.
         """
         manifest = self._registry.get(plugin_id)
         if manifest is None:
@@ -152,7 +259,13 @@ class PluginHost:
             msg = f"Plugin '{plugin_id}' is not active (state={manifest.state.value})"
             raise ValueError(msg)
 
+        # Notify plugin of deactivation
+        module = self._loaded_modules.get(plugin_id)
+        if module is not None and hasattr(module, "deactivate"):
+            module.deactivate()
+
         self._plugin_apis.pop(plugin_id, None)
+        self._loaded_modules.pop(plugin_id, None)
         self._registry.update_state(plugin_id, PluginState.INACTIVE)
 
         logger.info("PluginHost.deactivate: plugin=%s", plugin_id)
