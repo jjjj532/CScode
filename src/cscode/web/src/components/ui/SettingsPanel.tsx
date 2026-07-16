@@ -13,14 +13,34 @@ const PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'gemini', label: 'Gemini' },
-  { value: 'ollama', label: 'Ollama' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'azure', label: 'Azure OpenAI' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'cohere', label: 'Cohere' },
+  { value: 'grok', label: 'Grok (xAI)' },
+  { value: 'mistral', label: 'Mistral AI' },
+  { value: 'nvidia', label: 'NVIDIA AI' },
+  { value: 'perplexity', label: 'Perplexity' },
+  { value: 'xai', label: 'xAI' },
+  { value: 'bedrock', label: 'AWS Bedrock' },
+  { value: 'vertex', label: 'GCP Vertex AI' },
+  { value: 'ollama', label: 'Ollama (Local)' },
+  { value: 'custom', label: 'Custom API' },
 ];
 
 const MODELS: Record<string, string[]> = {
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1-mini', 'o3-mini'],
-  anthropic: ['claude-sonnet-4-20250514', 'claude-3.5-sonnet', 'claude-3-opus'],
+  anthropic: ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'],
   gemini: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'],
+  azure: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+  openrouter: ['openai/gpt-4o', 'openai/gpt-4o-mini', 'anthropic/claude-sonnet-4-20250514', 'google/gemini-2.0-flash'],
+  cohere: ['command-r-plus', 'command-r', 'command-light'],
+  grok: ['grok-2-latest', 'grok-1'],
+  mistral: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest'],
+  nvidia: ['meta/llama-3.1-70b-instruct', 'meta/llama-3.1-8b-instruct', 'mistralai/mixtral-8x22b-instruct'],
+  perplexity: ['sonar-pro', 'sonar', 'sonar-reasoning'],
+  xai: ['grok-2-latest', 'grok-1'],
+  bedrock: ['anthropic.claude-3-5-sonnet-20241022', 'anthropic.claude-3-opus-20240229', 'meta.llama3-70b-instruct-v1'],
+  vertex: ['gemini-2.0-flash-001', 'gemini-2.5-pro-001', 'gemini-1.5-pro-001'],
   ollama: ['llama3', 'mistral', 'codellama', 'qwen2.5-coder', 'deepseek-coder'],
 };
 
@@ -71,7 +91,7 @@ export function SettingsPanel() {
         ...config,
       };
     });
-    if (config.provider && !['openai', 'anthropic', 'gemini', 'ollama', 'custom'].includes(config.provider)) {
+    if (config.provider && !['openai', 'anthropic', 'gemini', 'azure', 'openrouter', 'cohere', 'grok', 'mistral', 'nvidia', 'perplexity', 'xai', 'bedrock', 'vertex', 'ollama', 'custom'].includes(config.provider)) {
       setCustomProviderName(config.provider);
     }
   }, [config]);

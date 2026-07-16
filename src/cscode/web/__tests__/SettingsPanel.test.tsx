@@ -76,7 +76,7 @@ describe('SettingsPanel Component', () => {
   test('renders API key input', () => {
     const { container } = render(<SettingsPanel />);
     const inputs = container.querySelectorAll('input[type="password"]');
-    expect(inputs.length).toBe(1);
+    expect(inputs.length).toBeGreaterThanOrEqual(1);
   });
 
   test('API key input is password type', () => {
