@@ -27,7 +27,7 @@ from cscode.core.i18n import t as i18n_t
 from cscode.core.runner import SessionRunner
 from cscode.core.session import SessionProjector, SessionV2
 from cscode.core.session_input import InputInbox, InputInboxState, QueuedInput
-from cscode.core.tui_sessions import TuiSession, TuiSessionManager
+from cscode.core.tui_sessions import TuiMessage, TuiSession, TuiSessionManager
 
 # Backward compatibility shims for legacy tests
 # Map old names to new classes

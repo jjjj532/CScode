@@ -2,20 +2,30 @@ from __future__ import annotations
 
 from textual import work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
-from textual.widgets import Footer, Header, Input, RichLog
+from textual.widgets import Footer, Header, Input, Label, RichLog
 
 from cscode.app.factory import create_agent_v2
 from cscode.core.agent.base import AgentMode, AgentTab
 from cscode.core.agent.tab import TabManager
 from cscode.core.config import load_config
 from cscode.core.tui_sessions import TuiSessionManager
+from cscode.tui.autocomplete import CommandCompleter
+from cscode.tui.screens.sessions_screen import SessionsScreen
+from cscode.tui.screens.settings_screen import SettingsScreen
 from cscode.tui.themes import apply_theme
 
 
 class CScodeTUI(App[None]):
     TITLE = "CScode"
     SUB_TITLE = "AI-powered coding assistant"
+
+    BINDINGS = [
+        Binding("f2", "show_sessions", "Sessions", priority=True),
+        Binding("f3", "show_settings", "Settings", priority=True),
+        Binding("tab", "autocomplete", "Complete", priority=True),
+    ]
 
     def __init__(self) -> None:
         super().__init__()
@@ -29,7 +39,7 @@ class CScodeTUI(App[None]):
             padding: 1;
         }
         #input-container {
-            height: 3;
+            height: 4;
             dock: bottom;
             padding: 0 1;
         }
@@ -39,6 +49,11 @@ class CScodeTUI(App[None]):
             text-style: italic;
             color: $text-muted;
         }
+        .autocomplete-hint {
+            height: 1;
+            color: $text-muted;
+            text-style: italic;
+        }
         """
         self.CSS = css  # type: ignore[misc]
 
@@ -46,12 +61,14 @@ class CScodeTUI(App[None]):
         self._agent = create_agent_v2(config)
         self._session_manager = TuiSessionManager()
         self._tab_manager = TabManager()
+        self._completer = CommandCompleter()
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield RichLog(id="output-panel", highlight=True, markup=True)
         yield Container(
             Input(placeholder="Type your message here...", id="input-box"),
+            Label("", id="autocomplete-hint", classes="autocomplete-hint"),
             id="input-container",
         )
         yield Footer()
@@ -79,6 +96,55 @@ class CScodeTUI(App[None]):
 
         input_widget.disabled = True
         self._process_input(user_input)
+
+    def action_show_sessions(self) -> None:
+        """Open the Sessions list screen."""
+        self.push_screen(SessionsScreen(manager=self._session_manager))
+
+    def action_show_settings(self) -> None:
+        """Open the Settings screen."""
+        # Import inline to avoid circular import at module level
+        from cscode.core.config import load_config
+
+        config = load_config()
+        self.push_screen(SettingsScreen(config=config))
+
+    def action_autocomplete(self) -> None:
+        """Tab: cycle through command autocompletions."""
+        input_box = self.query_one("#input-box", Input)
+        if not input_box.has_focus or not input_box.value.startswith("/"):
+            return
+
+        prefix = input_box.value
+        matches = self._completer.find_matches(prefix)
+        if not matches:
+            return
+
+        completion = self._completer.next_match()
+        if completion is not None and completion != prefix:
+            input_box.value = completion
+            input_box.cursor_position = len(completion)
+
+        self._update_hint(matches)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Update autocomplete hint as the user types."""
+        val = event.value
+        if val.startswith("/"):
+            matches = self._completer.find_matches(val)
+            self._update_hint(matches)
+        else:
+            self._completer.reset()
+            self.query_one("#autocomplete-hint", Label).update("")
+
+    def _update_hint(self, matches: list[str]) -> None:
+        hint = self.query_one("#autocomplete-hint", Label)
+        if not matches:
+            hint.update("")
+        elif len(matches) == 1:
+            hint.update("")
+        else:
+            hint.update(f"  {'  '.join(matches)}")
 
     def _handle_session_command(self, user_input: str, output: RichLog) -> bool:
         """Handle session management commands. Returns True if command was handled."""

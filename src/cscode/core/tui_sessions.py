@@ -6,6 +6,18 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class TuiMessage:
+    """A single message in a TUI session."""
+
+    role: str
+    """Message role: 'user', 'assistant', or 'system'."""
+    content: str
+    """Message text content."""
+    created_at: float = field(default_factory=time.time)
+    """Unix timestamp when the message was created."""
+
+
+@dataclass
 class TuiSession:
     id: str
     title: str
@@ -14,6 +26,8 @@ class TuiSession:
     status: str = "active"
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    messages: list[TuiMessage] = field(default_factory=list)
+    """Messages belonging to this session."""
 
 
 class TuiSessionManager:
