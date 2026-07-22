@@ -37,10 +37,16 @@ jest.mock('../src/stores/useToastStore', () => ({
   }),
 }));
 
+const mockPermissionRules = jest.fn().mockResolvedValue([]);
+
 jest.mock('../src/lib/api', () => ({
   api: {
     config: { save: jest.fn() },
-    permissionRules: { list: jest.fn().mockResolvedValue([]) },
+    permissionRules: {
+      list: (...args: unknown[]) => mockPermissionRules(...args),
+      create: jest.fn(),
+      delete: jest.fn(),
+    },
   },
 }));
 
@@ -117,5 +123,74 @@ describe('SettingsPanel Component', () => {
     const saveButton = screen.getByText(/save settings/i);
     await user.click(saveButton);
     expect(api.config.save).toHaveBeenCalled();
+  });
+
+  // ─── Permission Rules ───────────────────────────────────────────────
+
+  test('renders permission rules section heading', () => {
+    mockPermissionRules.mockResolvedValue([]);
+    render(<SettingsPanel />);
+    expect(screen.getByText(/Permission Rules/i)).toBeTruthy();
+  });
+
+  test('shows empty state when no rules', async () => {
+    mockPermissionRules.mockResolvedValue([]);
+    render(<SettingsPanel />);
+    expect(await screen.findByText(/No saved permission rules/i)).toBeTruthy();
+  });
+
+  test('renders permission rules from API with action/resource/effect', async () => {
+    mockPermissionRules.mockResolvedValue([
+      { id: 1, action: 'bash', resource: '*', effect: 'deny' },
+      { id: 2, action: 'read', resource: '/tmp/*', effect: 'allow' },
+    ]);
+    render(<SettingsPanel />);
+    expect(await screen.findByText('bash')).toBeTruthy();
+    expect(await screen.findByText('read')).toBeTruthy();
+    expect(await screen.findByText('/tmp/*')).toBeTruthy();
+    const denyEls = screen.getAllByText((_, el) => el.textContent === 'Denied');
+    expect(denyEls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('delete button calls api.permissionRules.delete with numeric id', async () => {
+    const { api } = require('../src/lib/api');
+    api.permissionRules.delete.mockResolvedValue(undefined);
+    mockPermissionRules.mockResolvedValue([
+      { id: 42, action: 'bash', resource: '*', effect: 'deny' },
+    ]);
+    render(<SettingsPanel />);
+    const deleteBtn = await screen.findByLabelText('Delete rule');
+    const user = userEvent.setup();
+    await user.click(deleteBtn);
+    expect(api.permissionRules.delete).toHaveBeenCalledWith(42);
+  });
+
+  test('shows create rule form inputs', async () => {
+    mockPermissionRules.mockResolvedValue([]);
+    render(<SettingsPanel />);
+    const actionInput = screen.getByPlaceholderText(/^action$/i);
+    const resourceInput = screen.getByPlaceholderText(/^resource$/i);
+    const effectSelect = screen.getByLabelText(/Effect/i);
+    expect(actionInput).toBeTruthy();
+    expect(resourceInput).toBeTruthy();
+    expect(effectSelect).toBeTruthy();
+  });
+
+  test('calls api.permissionRules.create with action/resource/effect', async () => {
+    const { api } = require('../src/lib/api');
+    api.permissionRules.create.mockResolvedValue({ id: 99 });
+    mockPermissionRules.mockResolvedValue([]);
+    const user = userEvent.setup();
+    render(<SettingsPanel />);
+
+    await user.type(screen.getByPlaceholderText(/^action$/i), 'write');
+    await user.type(screen.getByPlaceholderText(/^resource$/i), '/data/*');
+    await user.click(screen.getByLabelText(/Add rule/i));
+
+    expect(api.permissionRules.create).toHaveBeenCalledWith({
+      action: 'write',
+      resource: '/data/*',
+      effect: 'deny',
+    });
   });
 });

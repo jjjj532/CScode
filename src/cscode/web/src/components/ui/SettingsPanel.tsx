@@ -483,17 +483,21 @@ function KeybindingsSection({ form, updateForm }: { form: Config; updateForm: (p
 
 // ─── Permission Rules ─────────────────────────────────────────────────────────
 
-interface PermissionRule {
-  id: string;
-  pattern: string;
-  allow: boolean;
-  label: string;
+interface PermissionRuleDTO {
+  id: number;
+  action: string;
+  resource: string;
+  effect: string;
 }
 
 function PermissionRulesSection() {
-  const [rules, setRules] = useState<PermissionRule[]>([]);
+  const [rules, setRules] = useState<PermissionRuleDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const addToast = useToastStore((s) => s.addToast);
+
+  const [newAction, setNewAction] = useState('');
+  const [newResource, setNewResource] = useState('');
+  const [newEffect, setNewEffect] = useState('deny');
 
   useEffect(() => {
     api.permissionRules.list()
@@ -502,7 +506,7 @@ function PermissionRulesSection() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     try {
       await api.permissionRules.delete(id);
       setRules((prev) => prev.filter((r) => r.id !== id));
@@ -510,6 +514,31 @@ function PermissionRulesSection() {
       addToast('Failed to delete rule', 'error');
     }
   };
+
+  const handleCreate = async () => {
+    if (!newAction.trim() || !newResource.trim()) return;
+    try {
+      const created = await api.permissionRules.create({
+        action: newAction.trim(),
+        resource: newResource.trim(),
+        effect: newEffect,
+      });
+      setRules((prev) => [...prev, {
+        id: created.id,
+        action: newAction.trim(),
+        resource: newResource.trim(),
+        effect: newEffect,
+      }]);
+      setNewAction('');
+      setNewResource('');
+      setNewEffect('deny');
+    } catch {
+      addToast('Failed to create rule', 'error');
+    }
+  };
+
+  const effectLabel = (effect: string) => effect === 'allow' ? 'Allowed' : 'Denied';
+  const effectColor = (effect: string) => effect === 'allow' ? 'text-green-400' : 'text-red-400';
 
   return (<>
     <div>
@@ -526,10 +555,11 @@ function PermissionRulesSection() {
           {rules.map((rule) => (
             <li key={rule.id} className="flex items-center justify-between bg-v2-bg-deep border border-v2-border rounded-md px-2.5 py-1.5">
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-mono text-v2-text-primary truncate">{rule.pattern}</p>
-                <p className="text-[10px] text-v2-text-muted">
-                  {rule.allow ? 'Allowed' : 'Denied'}
-                  {rule.label ? ` · ${rule.label}` : ''}
+                <p className="text-xs font-mono text-v2-text-primary truncate">
+                  {rule.action} <span className="text-v2-text-muted">{rule.resource}</span>
+                </p>
+                <p className={`text-[10px] ${effectColor(rule.effect)}`}>
+                  {effectLabel(rule.effect)}
                 </p>
               </div>
               <button
@@ -544,6 +574,41 @@ function PermissionRulesSection() {
           ))}
         </ul>
       )}
+
+      <div className="flex items-center gap-1.5 mt-1.5">
+        <input
+          type="text"
+          value={newAction}
+          onChange={(e) => setNewAction(e.target.value)}
+          placeholder="Action"
+          className="flex-1 min-w-0 bg-v2-bg-deep border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
+        />
+        <input
+          type="text"
+          value={newResource}
+          onChange={(e) => setNewResource(e.target.value)}
+          placeholder="Resource"
+          className="flex-1 min-w-0 bg-v2-bg-deep border border-v2-border rounded px-2 py-1 text-xs text-v2-text-primary placeholder-v2-text-muted"
+        />
+        <select
+          value={newEffect}
+          onChange={(e) => setNewEffect(e.target.value)}
+          aria-label="Effect"
+          className="bg-v2-bg-deep border border-v2-border rounded px-1.5 py-1 text-xs text-v2-text-primary"
+        >
+          <option value="allow">Allow</option>
+          <option value="deny">Deny</option>
+        </select>
+        <button
+          onClick={handleCreate}
+          disabled={!newAction.trim() || !newResource.trim()}
+          aria-label="Add rule"
+          className="text-v2-text-muted hover:text-v2-accent transition-colors shrink-0 disabled:opacity-30"
+          title="Add rule"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
     </div>
 
     <div className="px-5 py-3 border-t border-v2-border">

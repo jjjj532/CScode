@@ -25,12 +25,16 @@ export const api = {
   },
 
   permissionRules: {
-    list: () => request<Array<{ id: string; pattern: string; allow: boolean; label: string }>>('/api/permission-rules'),
-    create: (rule: { pattern: string; allow: boolean; label?: string }) => request<{ id: string }>('/api/permission-rules', {
+    list: () => request<Array<{ id: number; action: string; resource: string; effect: string }>>('/api/permission-rules'),
+    create: (rule: { action: string; resource: string; effect: string }) => request<{ id: number }>('/api/permission-rules', {
       method: 'POST',
       body: JSON.stringify(rule),
     }),
-    delete: (id: string) => request<void>(`/api/permission-rules/${id}`, { method: 'DELETE' }),
+    delete: (id: number) => request<void>(`/api/permission-rules/${id}`, { method: 'DELETE' }),
+    update: (id: number, rule: { action?: string; resource?: string; effect?: string }) => request<{ id: number; action: string; resource: string; effect: string }>(`/api/permission-rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(rule),
+    }),
   },
 
   /** Singular alias — maps to /api/session/* (backend aliases) */
