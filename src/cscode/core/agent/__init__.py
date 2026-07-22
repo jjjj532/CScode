@@ -6,11 +6,14 @@ from cscode.core.agent.base import AgentMode, AgentTab, BaseAgent
 from cscode.core.agent.build import BuildAgent
 from cscode.core.agent.factory import create_agent
 from cscode.core.agent.plan import PlanAgent
+from cscode.core.agent.registry import AgentDef, AgentRegistry
 from cscode.core.agent.subagent import SubAgentAgent
 from cscode.core.agent.tab import TabManager
 
 __all__ = [
+    "AgentDef",
     "AgentMode",
+    "AgentRegistry",
     "AgentTab",
     "BaseAgent",
     "BuildAgent",
