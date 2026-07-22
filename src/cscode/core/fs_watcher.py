@@ -2,6 +2,10 @@
 
 Detects file creation, modification, and deletion events and
 notifies registered callbacks for further processing.
+
+If ``watchdog`` is not installed, ``FilesystemWatcher.start()``
+raises ``RuntimeError`` with an installation hint. All other
+operations (path management, properties) work without watchdog.
 """
 
 from __future__ import annotations
@@ -10,31 +14,43 @@ import logging
 import os
 from typing import Callable
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers import Observer
-
 logger = logging.getLogger(__name__)
 
 # Type alias for event callbacks
 EventCallback = Callable[[str, str], None]
 
+try:
+    from watchdog.events import FileSystemEvent, FileSystemEventHandler
+    from watchdog.observers import Observer
 
-class _ChangeHandler(FileSystemEventHandler):
+    _WATCHDOG_AVAILABLE = True
+except ImportError:
+    _WATCHDOG_AVAILABLE = False
+    FileSystemEvent = object  # type: ignore[assignment, misc]
+    FileSystemEventHandler = object  # type: ignore[assignment, misc]
+    Observer = object  # type: ignore[assignment, misc]
+
+_WATCHDOG_INSTALL_HINT = (
+    "watchdog is not installed. Install it with: pip install watchdog"
+)
+
+
+class _ChangeHandler(FileSystemEventHandler):  # type: ignore[valid-type, misc]
     """Internal watchdog event handler that delegates to a callback."""
 
     def __init__(self, callback: EventCallback | None) -> None:
         super().__init__()
         self._callback = callback
 
-    def on_created(self, event: FileSystemEvent) -> None:
+    def on_created(self, event: FileSystemEvent) -> None:  # type: ignore[valid-type, misc]
         if not event.is_directory:
             self._safe_notify(str(event.src_path), "created")
 
-    def on_modified(self, event: FileSystemEvent) -> None:
+    def on_modified(self, event: FileSystemEvent) -> None:  # type: ignore[valid-type, misc]
         if not event.is_directory:
             self._safe_notify(str(event.src_path), "modified")
 
-    def on_deleted(self, event: FileSystemEvent) -> None:
+    def on_deleted(self, event: FileSystemEvent) -> None:  # type: ignore[valid-type, misc]
         if not event.is_directory:
             self._safe_notify(str(event.src_path), "deleted")
 
@@ -61,6 +77,8 @@ class FilesystemWatcher:
             # filesystem is being watched
             ...
 
+    Raises ``RuntimeError`` on ``start()`` if watchdog is not installed.
+
     Attributes:
         is_running: Whether the observer is currently active.
         watched_paths: List of directory paths being watched.
@@ -73,7 +91,7 @@ class FilesystemWatcher:
     ) -> None:
         self._paths: list[str] = []
         self._callback = callback
-        self._observer = Observer()
+        self._observer: object = None
         self._handler = _ChangeHandler(callback)
         self._is_running = False
 
@@ -119,17 +137,26 @@ class FilesystemWatcher:
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
+    def _ensure_observer(self) -> None:
+        """Create the Observer if watchdog is available. Raises otherwise."""
+        if not _WATCHDOG_AVAILABLE:
+            raise RuntimeError(_WATCHDOG_INSTALL_HINT)
+        if self._observer is None:
+            self._observer = Observer()
+
     def start(self) -> None:
         """Start watching all registered paths.
 
         Raises:
-            RuntimeError: If no paths have been configured.
+            RuntimeError: If no paths have been configured or watchdog is missing.
         """
         if self._is_running:
             logger.debug("FilesystemWatcher already running")
             return
         if not self._paths:
             raise RuntimeError("No paths configured for watching")
+        self._ensure_observer()
+        assert isinstance(self._observer, Observer)  # type: ignore[assignment]
         for p in self._paths:
             self._observer.schedule(self._handler, p, recursive=False)
         self._observer.start()
@@ -141,8 +168,9 @@ class FilesystemWatcher:
         if not self._is_running:
             logger.debug("FilesystemWatcher already stopped")
             return
-        self._observer.stop()
-        self._observer.join()
+        if self._observer is not None and isinstance(self._observer, Observer):  # type: ignore[assignment]
+            self._observer.stop()
+            self._observer.join()
         self._is_running = False
         logger.info("FilesystemWatcher stopped")
 
