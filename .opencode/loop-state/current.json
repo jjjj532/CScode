@@ -1,27 +1,35 @@
 {
-  "phase": "COMPLETED",
-  "iteration": 1,
-  "module": "Plugin lifecycle enhancement - install/uninstall callbacks + error resilience",
+  "phase": "Phase 5: REVIEW",
+  "iteration": 19,
+  "module": "P4-10: Wire plugins into AgentV2",
   "status": "completed",
   "cost": 0,
   "findings": {
-    "existing_lifecycle": "DISCOVERED→LOADED→ACTIVE→INACTIVE, with activate(api)/deactivate() callbacks",
-    "install_callback": "PluginHost.install() now calls module.install(api) if defined, best-effort",
-    "uninstall_callback": "PluginHost.uninstall() now calls module.uninstall() if defined, best-effort",
-    "error_resilience": "activate() wraps module.activate(api) in try/except, sets INACTIVE on failure"
+    "problem": "Plugin tools (v1 BaseTool) were incompatible with AgentV2 (v2 Tool[I, O]) \u2014 no bridge existed",
+    "solution": "Created LegacyToolAdapter + build_full_tool_registry() composition function",
+    "key_decisions": [
+      "Used composition over factory coupling: build_full_tool_registry() is separate from create_agent_v2()",
+      "Dynamic Pydantic model creation from JSON Schema parameters dict",
+      "Plugin activation failures are isolated and do not block other plugins"
+    ]
   },
-  "next_action": "None for this iteration. Next: plugin isolation or dependency management",
+  "next_action": "Update cli.py/server/tui to use build_full_tool_registry() with default plugin dir",
   "stop_conditions": {
-    "max_iterations": 10,
+    "max_iterations": 30,
     "cost_limit_usd": 15,
-    "current_iteration": 1
+    "current_iteration": 19
+  },
+  "verification": {
+    "tests": "1773 passed, 4 skipped (pre-existing)",
+    "new_tests": "11 (adapter) + 8 (factory) = 19 new tests",
+    "mypy": "No issues in changed files",
+    "ruff": "No issues in changed files"
   },
   "deliverables": {
-    "test_install_calls_plugin_install_callback": "install(api) invoked when source has __init__.py with install()",
-    "test_install_callback_receives_plugin_api": "install(api) receives PluginAPI instance",
-    "test_uninstall_calls_plugin_uninstall_callback": "uninstall() invoked during uninstall",
-    "test_uninstall_callback_called_before_removal": "uninstall() called while manifest still exists",
-    "test_activate_does_not_crash_on_callback_error": "activate() catches errors in module.activate(api)",
-    "test_activate_error_does_not_affect_other_plugins": "failing plugin's error isolated from others"
+    "src/cscode/tools2/adapter.py": "LegacyToolAdapter \u2014 v1 BaseTool \u2192 v2 Tool adapter",
+    "src/cscode/app/factory.py": "build_full_tool_registry() \u2014 composition function",
+    "src/cscode/app/__init__.py": "export build_full_tool_registry",
+    "tests/test_tools2_adapter.py": "11 tests for the adapter",
+    "tests/test_app_factory.py": "8 tests for build_full_tool_registry()"
   }
 }

@@ -6,9 +6,10 @@ AgentV2 提供 Agent run() 接口，
 """
 
 from cscode.app.agent import AgentV2
-from cscode.app.factory import create_agent_v2
+from cscode.app.factory import build_full_tool_registry, create_agent_v2
 
 __all__ = [
     "AgentV2",
+    "build_full_tool_registry",
     "create_agent_v2",
 ]

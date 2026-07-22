@@ -133,6 +133,73 @@ def create_tool_registry() -> ToolRegistryV2:
     return registry
 
 
+async def build_full_tool_registry(
+    plugin_dirs: list[str] | None = None,
+) -> ToolRegistryV2:
+    """Build a ``ToolRegistryV2`` with standard tools + plugin tools.
+
+    Discovers, loads, and activates plugins from ``plugin_dirs``, wraps
+    their v1 tools via ``LegacyToolAdapter``, and registers them alongside
+    the standard v2 tools.
+
+    Usage::
+
+        registry = await build_full_tool_registry()
+        agent = create_agent_v2(config, tool_registry=registry)
+
+    Args:
+        plugin_dirs: Optional list of plugin directory paths to scan.
+                     When ``None`` or empty, only standard tools are included.
+
+    Returns:
+        A fully populated ``ToolRegistryV2``.
+    """
+    registry = create_tool_registry()
+
+    if plugin_dirs:
+        from cscode.core.plugin.host import PluginHost
+        from cscode.tools2.adapter import LegacyToolAdapter
+
+        host = PluginHost()
+        try:
+            await host.discover(plugin_dirs)
+        except Exception:
+            logger.exception("build_full_tool_registry: plugin discovery failed")
+            return registry
+
+        for manifest in host.registry.list():
+            try:
+                await host.activate(manifest.id)
+            except Exception:
+                logger.exception(
+                    "build_full_tool_registry: failed to activate plugin=%s, skipping",
+                    manifest.id,
+                )
+                continue
+
+        for tool_cls in host.get_tool_providers():
+            try:
+                adapted = LegacyToolAdapter(tool_cls)
+                registry.register_tool(adapted)
+                logger.debug(
+                    "build_full_tool_registry: registered plugin tool=%s", adapted.name
+                )
+            except Exception:
+                logger.exception(
+                    "build_full_tool_registry: failed to adapt tool=%s, skipping",
+                    getattr(tool_cls, "name", tool_cls.__name__),
+                )
+
+        logger.info(
+            "build_full_tool_registry: total tools=%d (%d standard + %d plugin)",
+            len(registry.list_tools()),
+            20,  # approximate standard count
+            len(host.get_tool_providers()),
+        )
+
+    return registry
+
+
 def create_agent_v2(
     config: Config,
     tool_registry: ToolRegistryV2 | None = None,
