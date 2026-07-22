@@ -20,6 +20,7 @@ from cscode.core.plugin.api import (
 )
 from cscode.core.plugin.discovery import PluginDiscoverer
 from cscode.core.plugin.registry import PluginManifest, PluginRegistry, PluginState
+from cscode.plugins.sdk import PluginSDK
 from cscode.tools.base import BaseTool
 from cscode.utils.logging import get_logger
 
@@ -80,6 +81,7 @@ class PluginHost:
 
         self._plugin_apis: dict[str, PluginAPI] = {}
         self._loaded_modules: dict[str, ModuleType] = {}
+        self._sdk_instances: dict[str, list[PluginSDK]] = {}
 
     @property
     def registry(self) -> PluginRegistry:
@@ -205,6 +207,14 @@ class PluginHost:
             raise
 
         self._loaded_modules[plugin_id] = module
+
+        from cscode.plugins.bridge import detect_sdk_instances
+
+        sdk_instances = detect_sdk_instances(module)
+        if sdk_instances:
+            self._sdk_instances[plugin_id] = sdk_instances
+            logger.debug("PluginHost.load: detected %d SDK instances in %s", len(sdk_instances), plugin_id)
+
         self._registry.update_state(plugin_id, PluginState.LOADED)
 
         logger.info("PluginHost.load: plugin=%s module=%s", plugin_id, module.__name__)
@@ -261,6 +271,13 @@ class PluginHost:
                 self._loaded_modules.pop(plugin_id, None)
                 self._registry.update_state(plugin_id, PluginState.INACTIVE)
                 return api
+        else:
+            sdk_instances = self._sdk_instances.get(plugin_id)
+            if sdk_instances:
+                from cscode.plugins.bridge import build_activate_func
+
+                activate_fn = build_activate_func(sdk_instances)
+                activate_fn(api)
 
         self._registry.update_state(plugin_id, PluginState.ACTIVE)
 
@@ -298,6 +315,7 @@ class PluginHost:
 
         self._plugin_apis.pop(plugin_id, None)
         self._loaded_modules.pop(plugin_id, None)
+        self._sdk_instances.pop(plugin_id, None)
         self._registry.update_state(plugin_id, PluginState.INACTIVE)
 
         logger.info("PluginHost.deactivate: plugin=%s", plugin_id)

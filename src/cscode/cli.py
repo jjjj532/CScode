@@ -38,6 +38,22 @@ def cli(ctx: click.Context) -> None:
 
 
 @cli.command()
+@click.option("--check", is_flag=True, help="Verify all version locations are consistent")
+def version(check: bool) -> None:
+    """Show CScode version and optionally check consistency across all files."""
+    from cscode.core.version import check_consistency, format_check_report
+
+    if check:
+        results = check_consistency()
+        report = format_check_report(results)
+        click.echo(report)
+        if not all(r.is_ok for r in results):
+            raise SystemExit(1)
+    else:
+        click.echo(__version__)
+
+
+@cli.command()
 @click.option("-p", "--prompt", help="Single prompt to run (non-interactive)")
 @click.option(
     "--mode",
@@ -272,6 +288,99 @@ def migration_rollback(target: int) -> None:
         await db.close()
 
     asyncio.run(_rollback())
+
+
+@cli.group()
+def plugin() -> None:
+    """Manage plugins."""
+
+
+@plugin.command("list")
+@click.option("--dir", "-d", "plugin_dir", default=None, help="Plugin directory to scan (default: cwd/.cscode/plugins)")
+def plugin_list(plugin_dir: str | None) -> None:
+    """List discovered plugins."""
+    import asyncio
+
+    from cscode.core.plugin.host import PluginHost
+
+    async def _list() -> None:
+        host = PluginHost()
+        sources = [plugin_dir] if plugin_dir else []
+        if not sources:
+            from pathlib import Path as _Path
+            _default = _Path.cwd() / ".cscode" / "plugins"
+            if _default.exists():
+                sources.append(str(_default))
+        if sources:
+            await host.discover(sources)
+
+        manifests = host.registry.list()
+        if not manifests:
+            click.echo("No plugins found.")
+            return
+
+        click.echo(f"{'ID':<20} {'Name':<25} {'Version':<10} {'State':<12} Tools")
+        click.echo("-" * 80)
+        for m in manifests:
+            tool_count = len(m.tools)
+            click.echo(f"{m.id:<20} {m.name:<25} {m.version:<10} {m.state.value:<12} {tool_count}")
+
+    asyncio.run(_list())
+
+
+@plugin.command("install")
+@click.argument("source_path")
+def plugin_install(source_path: str) -> None:
+    """Install a plugin from a directory path."""
+    import asyncio
+
+    from cscode.core.plugin.host import PluginHost
+
+    async def _install() -> None:
+        host = PluginHost()
+        m = await host.install(source_path)
+        click.echo(f"Installed plugin: {m.name} v{m.version} (id={m.id})")
+
+    asyncio.run(_install())
+
+
+@plugin.command("info")
+@click.argument("plugin_id")
+@click.option("--dir", "-d", "plugin_dir", default=None, help="Plugin directory to scan")
+def plugin_info(plugin_id: str, plugin_dir: str | None) -> None:
+    """Show detailed plugin information."""
+    import asyncio
+
+    from cscode.core.plugin.host import PluginHost
+
+    async def _info() -> None:
+        host = PluginHost()
+        sources = [plugin_dir] if plugin_dir else []
+        if not sources:
+            from pathlib import Path as _Path
+            _default = _Path.cwd() / ".cscode" / "plugins"
+            if _default.exists():
+                sources.append(str(_default))
+        if sources:
+            await host.discover(sources)
+
+        m = host.registry.get(plugin_id)
+        if m is None:
+            click.echo(f"Plugin '{plugin_id}' not found.")
+            raise SystemExit(1)
+
+        click.echo(f"  ID:          {m.id}")
+        click.echo(f"  Name:        {m.name}")
+        click.echo(f"  Version:     {m.version}")
+        click.echo(f"  Description: {m.description or '(none)'}")
+        click.echo(f"  Author:      {m.author or '(none)'}")
+        click.echo(f"  State:       {m.state.value}")
+        click.echo(f"  Source:      {m.source or '(none)'}")
+        click.echo(f"  Tools:       {', '.join(m.tools) if m.tools else '(none)'}")
+        click.echo(f"  Hooks:       {', '.join(m.hooks) if m.hooks else '(none)'}")
+        click.echo(f"  Commands:    {', '.join(m.commands) if m.commands else '(none)'}")
+
+    asyncio.run(_info())
 
 
 def main() -> None:
