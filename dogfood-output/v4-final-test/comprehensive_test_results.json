@@ -1,0 +1,224 @@
+{
+  "timestamp": "2026-07-16T11:43:30.243054",
+  "target_url": "http://127.0.0.1:8080",
+  "test_results": [
+    {
+      "test_name": "Button: Plan mode",
+      "passed": true,
+      "detail": "'Plan' found",
+      "timestamp": "2026-07-16T11:43:05.769315",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Build mode",
+      "passed": true,
+      "detail": "'Build' found",
+      "timestamp": "2026-07-16T11:43:05.769355",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Filter threads",
+      "passed": true,
+      "detail": "'Filter threads' found",
+      "timestamp": "2026-07-16T11:43:05.769372",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Sort threads",
+      "passed": true,
+      "detail": "'Sort threads' found",
+      "timestamp": "2026-07-16T11:43:05.769383",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Refresh sessions",
+      "passed": true,
+      "detail": "'Refresh sessions' found",
+      "timestamp": "2026-07-16T11:43:05.769393",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Create new session",
+      "passed": true,
+      "detail": "'Create new session' found",
+      "timestamp": "2026-07-16T11:43:05.769403",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Export session (hover)",
+      "passed": true,
+      "detail": "'Export session' found",
+      "timestamp": "2026-07-16T11:43:05.769412",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Delete session (hover)",
+      "passed": true,
+      "detail": "'Delete session' found",
+      "timestamp": "2026-07-16T11:43:05.769421",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Settings",
+      "passed": true,
+      "detail": "'Settings' found",
+      "timestamp": "2026-07-16T11:43:05.769430",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Help",
+      "passed": true,
+      "detail": "'Help' found",
+      "timestamp": "2026-07-16T11:43:05.769439",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Attach file",
+      "passed": true,
+      "detail": "'Attach file' found",
+      "timestamp": "2026-07-16T11:43:05.769448",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Send message",
+      "passed": true,
+      "detail": "'Send message' found",
+      "timestamp": "2026-07-16T11:43:05.769457",
+      "screenshot": null
+    },
+    {
+      "test_name": "Button: Open terminal",
+      "passed": true,
+      "detail": "'Open terminal' found",
+      "timestamp": "2026-07-16T11:43:05.769469",
+      "screenshot": null
+    },
+    {
+      "test_name": "Create new session",
+      "passed": true,
+      "detail": "Button clicked",
+      "timestamp": "2026-07-16T11:43:06.710557",
+      "screenshot": null
+    },
+    {
+      "test_name": "Session appears in sidebar",
+      "passed": true,
+      "detail": "Sessions: 2 -> 3",
+      "timestamp": "2026-07-16T11:43:06.773503",
+      "screenshot": null
+    },
+    {
+      "test_name": "Hover buttons",
+      "passed": false,
+      "detail": "Error: 'ElementHandle' object has no attribute 'locator'",
+      "timestamp": "2026-07-16T11:43:07.324817",
+      "screenshot": null
+    },
+    {
+      "test_name": "Session switching",
+      "passed": true,
+      "detail": "Switched between 3 sessions",
+      "timestamp": "2026-07-16T11:43:08.497451",
+      "screenshot": null
+    },
+    {
+      "test_name": "Send message",
+      "passed": true,
+      "detail": "Message sent",
+      "timestamp": "2026-07-16T11:43:09.649007",
+      "screenshot": null
+    },
+    {
+      "test_name": "AI response",
+      "passed": true,
+      "detail": "AI responded",
+      "timestamp": "2026-07-16T11:43:24.711715",
+      "screenshot": null
+    },
+    {
+      "test_name": "Open terminal",
+      "passed": true,
+      "detail": "Terminal panels found: 2",
+      "timestamp": "2026-07-16T11:43:26.342251",
+      "screenshot": null
+    },
+    {
+      "test_name": "Settings panel opens",
+      "passed": true,
+      "detail": "Found 26 inputs",
+      "timestamp": "2026-07-16T11:43:27.474021",
+      "screenshot": null
+    },
+    {
+      "test_name": "Settings: Provider",
+      "passed": false,
+      "detail": "Provider field found",
+      "timestamp": "2026-07-16T11:43:27.548126",
+      "screenshot": null
+    },
+    {
+      "test_name": "Settings: Model",
+      "passed": false,
+      "detail": "Model field found",
+      "timestamp": "2026-07-16T11:43:27.548160",
+      "screenshot": null
+    },
+    {
+      "test_name": "Settings: API Key",
+      "passed": true,
+      "detail": "API Key field found",
+      "timestamp": "2026-07-16T11:43:27.548173",
+      "screenshot": null
+    },
+    {
+      "test_name": "Settings: Plugins section",
+      "passed": true,
+      "detail": "Plugins found: ['code-reviewer', 'test-engineer', 'security-auditor']",
+      "timestamp": "2026-07-16T11:43:27.550935",
+      "screenshot": null
+    },
+    {
+      "test_name": "Settings: MCP Servers",
+      "passed": true,
+      "detail": "MCP Servers section found",
+      "timestamp": "2026-07-16T11:43:27.552837",
+      "screenshot": null
+    },
+    {
+      "test_name": "Click: Filter threads",
+      "passed": true,
+      "detail": "Button clicked",
+      "timestamp": "2026-07-16T11:43:28.432653",
+      "screenshot": null
+    },
+    {
+      "test_name": "Click: Sort threads",
+      "passed": true,
+      "detail": "Button clicked",
+      "timestamp": "2026-07-16T11:43:28.964379",
+      "screenshot": null
+    },
+    {
+      "test_name": "Click: Refresh sessions",
+      "passed": true,
+      "detail": "Button clicked",
+      "timestamp": "2026-07-16T11:43:29.480570",
+      "screenshot": null
+    },
+    {
+      "test_name": "Mode toggle",
+      "passed": true,
+      "detail": "Plan/Build toggled",
+      "timestamp": "2026-07-16T11:43:30.197495",
+      "screenshot": null
+    }
+  ],
+  "summary": {
+    "total": 30,
+    "passed": 27,
+    "failed": 3
+  },
+  "console_errors": [],
+  "network_errors": [],
+  "network_4xx_5xx": []
+}

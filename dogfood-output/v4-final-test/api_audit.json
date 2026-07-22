@@ -1,0 +1,92 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/health",
+    "status": 200,
+    "body_preview": "{\"status\": \"ok\", \"version\": \"0.3.4\"}"
+  },
+  {
+    "method": "GET",
+    "path": "/api/version",
+    "status": 200,
+    "body_preview": "{\"version\": \"0.3.4\", \"app\": \"CScode\"}"
+  },
+  {
+    "method": "GET",
+    "path": "/api/config",
+    "status": 200,
+    "body_preview": "{\"provider\": \"openai\", \"model\": \"MiniMax-M2.5\", \"api_base\": null, \"max_tokens\": 2048, \"temperature\":"
+  },
+  {
+    "method": "GET",
+    "path": "/api/tools",
+    "status": 200,
+    "body_preview": "{\"tools\": [\"glob\", \"grep\", \"ls\", \"lsp\", \"lsp_diagnostics\", \"lsp_find_references\", \"lsp_goto_definiti"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sessions",
+    "status": 200,
+    "body_preview": "[{\"id\": \"1783490900903273000\", \"title\": \"Concurrent Isolation Test A\", \"provider\": \"openai\", \"model\""
+  },
+  {
+    "method": "POST",
+    "path": "/api/sessions",
+    "status": 200,
+    "body_preview": "{\"id\": \"1784173466321349000\", \"title\": \"New Session\"}"
+  },
+  {
+    "method": "GET",
+    "path": "/api/share",
+    "status": 200,
+    "body_preview": "[{\"id\": \"a7096bd4-a20a-438c-9bd3-e471d1c105f5\", \"session_id\": \"\", \"title\": \"\", \"created_at\": \"2026-0"
+  },
+  {
+    "method": "POST",
+    "path": "/api/share",
+    "status": 201,
+    "body_preview": "{\"id\": \"96d10869-5816-423f-b485-539c979ea876\"}"
+  },
+  {
+    "method": "GET",
+    "path": "/api/workspaces",
+    "status": 200,
+    "body_preview": "[]"
+  },
+  {
+    "method": "POST",
+    "path": "/api/workspaces",
+    "status": 422,
+    "body_preview": "{\"detail\": [{\"type\": \"missing\", \"loc\": [\"body\", \"name\"], \"msg\": \"Field required\", \"input\": {}}, {\"ty"
+  },
+  {
+    "method": "GET",
+    "path": "/api/credentials",
+    "status": 200,
+    "body_preview": "[{\"id\": \"cred_13ca6783c9f0\", \"name\": \"test_cred\", \"type\": \"api_key\", \"display_value\": \"sk-t****23\", "
+  },
+  {
+    "method": "GET",
+    "path": "/api/application-tools",
+    "status": 404,
+    "body_preview": "{\"detail\": \"Not Found\"}"
+  },
+  {
+    "method": "GET",
+    "path": "/docs",
+    "status": 200,
+    "body_preview": "\n    <!DOCTYPE html>\n    <html>\n    <head>\n    <meta name=\"viewport\" content=\"wi"
+  },
+  {
+    "method": "GET",
+    "path": "/openapi.json",
+    "status": 200,
+    "body_preview": "{\"openapi\":\"3.1.0\",\"info\":{\"title\":\"CScode API\",\"version\":\"0.3.4\"},\"paths\":{\"/ap"
+  },
+  {
+    "method": "GET",
+    "path": "/redoc",
+    "status": 200,
+    "body_preview": "\n    <!DOCTYPE html>\n    <html>\n    <head>\n    <title>CScode API - ReDoc</title>"
+  }
+]

@@ -1,0 +1,152 @@
+{
+  "buttons": [
+    {
+      "text": "Plan",
+      "ariaLabel": "",
+      "title": "",
+      "className": "px-3 py-1 font-medium transition-colors text-v2-text-muted hover:text-v2-text-secondary",
+      "disabled": false
+    },
+    {
+      "text": "Build",
+      "ariaLabel": "",
+      "title": "",
+      "className": "px-3 py-1 font-medium transition-colors bg-v2-accent-secondary text-white",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Filter threads",
+      "title": "Filter threads",
+      "className": "p-1 rounded hover:bg-v2-bg-base text-v2-text-muted hover:text-v2-text-secondary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Sort threads",
+      "title": "Sort threads",
+      "className": "p-1 rounded hover:bg-v2-bg-base text-v2-text-muted hover:text-v2-text-secondary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Refresh sessions",
+      "title": "Refresh sessions",
+      "className": "p-1 rounded hover:bg-v2-bg-base text-v2-text-muted hover:text-v2-text-secondary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Create new session",
+      "title": "New session",
+      "className": "p-1 rounded hover:bg-v2-bg-base text-v2-text-muted hover:text-v2-text-secondary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "AI-CScode",
+      "ariaLabel": "",
+      "title": "",
+      "className": "flex items-center gap-1.5 w-full px-3 py-1.5 text-sm text-v2-text-secondary hover:text-v2-text-primary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "Concurrent Isolation Test A",
+      "ariaLabel": "",
+      "title": "",
+      "className": "flex items-center gap-1.5 flex-1 px-3 py-1.5 text-sm text-v2-text-muted hover:text-v2-text-secondary truncate",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Export session",
+      "title": "Export session",
+      "className": "p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-v2-accent transition-all",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Delete session",
+      "title": "Delete session",
+      "className": "p-1 mr-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-red-400 transition-all",
+      "disabled": false
+    },
+    {
+      "text": "Concurrent Isolation Test B",
+      "ariaLabel": "",
+      "title": "",
+      "className": "flex items-center gap-1.5 flex-1 px-3 py-1.5 text-sm text-v2-text-muted hover:text-v2-text-secondary truncate",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Export session",
+      "title": "Export session",
+      "className": "p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-v2-accent transition-all",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Delete session",
+      "title": "Delete session",
+      "className": "p-1 mr-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-red-400 transition-all",
+      "disabled": false
+    },
+    {
+      "text": "Settings",
+      "ariaLabel": "Settings",
+      "title": "",
+      "className": "flex items-center gap-1.5 text-xs text-v2-text-muted hover:text-v2-text-secondary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "Help",
+      "ariaLabel": "Help",
+      "title": "",
+      "className": "flex items-center gap-1.5 text-xs text-v2-text-muted hover:text-v2-text-secondary transition-colors",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Attach file",
+      "title": "",
+      "className": "text-v2-text-muted hover:text-v2-text-secondary transition-colors p-1",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "ariaLabel": "Send message",
+      "title": "",
+      "className": "bg-v2-accent text-white p-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed",
+      "disabled": true
+    },
+    {
+      "text": "",
+      "ariaLabel": "",
+      "title": "Open terminal",
+      "className": "",
+      "disabled": false
+    }
+  ],
+  "sidebar": null,
+  "main": {
+    "className": "flex-1 flex flex-col min-w-0 bg-v2-bg-base m-2 mr-2 mb-2 rounded-v2 shadow-v2-raised overflow-hidden",
+    "textareaCount": 1,
+    "textareas": [
+      {
+        "placeholder": "Ask anything or @mention a file...",
+        "className": "w-full bg-transparent text-sm text-v2-text-primary placehold"
+      }
+    ],
+    "messageCount": 0
+  },
+  "store_state": {
+    "hasStore": true,
+    "storeType": "function",
+    "keys": [
+      "oncontextrestored",
+      "cookieStore",
+      "__STORE_STATE__"
+    ]
+  },
+  "console_errors": []
+}
