@@ -402,3 +402,215 @@ async def test_session_permission_default_deny() -> None:
     perm = SessionPermission(saved)
     result = await perm.evaluate("sess_001", "read", "/tmp/x")
     assert result is None
+
+
+# ── SavedRules: delete_by_id ─────────────────────────────────────────
+
+
+async def test_saved_rules_delete_by_id() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule_id = await store.save(Rule(action="read", resource="*", effect=RuleEffect.ALLOW))
+
+    # Should exist before delete
+    all_rules = await store.load_all()
+    assert len(all_rules) == 1
+
+    await store.delete_by_id(rule_id)
+
+    all_rules = await store.load_all()
+    assert len(all_rules) == 0
+
+
+async def test_saved_rules_delete_by_id_not_found() -> None:
+    """Deleting a non-existent id should raise KeyError."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    with pytest.raises(KeyError, match="not found"):
+        await store.delete_by_id(999)
+
+
+async def test_saved_rules_delete_session_rule_by_id() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule_id = await store.save_session_rule("sess_001", Rule(action="write", resource="*", effect=RuleEffect.ALLOW))
+
+    all_rules = await store.load_all()
+    assert len(all_rules) == 1
+
+    await store.delete_by_id(rule_id)
+    assert len(await store.load_all()) == 0
+
+
+async def test_saved_rules_delete_by_id_only_removes_one() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    id1 = await store.save(Rule(action="read", resource="*", effect=RuleEffect.ALLOW))
+    await store.save(Rule(action="write", resource="*", effect=RuleEffect.DENY))
+
+    await store.delete_by_id(id1)
+    remaining = await store.load_all()
+    assert len(remaining) == 1
+    assert remaining[0][1].action == "write"
+
+
+# ── SavedRules: update ──────────────────────────────────────────────
+
+
+async def test_saved_rules_update_action() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule_id = await store.save(Rule(action="read", resource="*", effect=RuleEffect.ALLOW))
+
+    await store.update(rule_id, action="write")
+    all_rules = await store.load_all()
+    assert len(all_rules) == 1
+    _, rule = all_rules[0]
+    assert rule.action == "write"
+    assert rule.resource == "*"
+    assert rule.effect == RuleEffect.ALLOW
+
+
+async def test_saved_rules_update_effect() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule_id = await store.save(Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+
+    await store.update(rule_id, effect=RuleEffect.DENY)
+    _, rule = (await store.load_all())[0]
+    assert rule.effect == RuleEffect.DENY
+
+
+async def test_saved_rules_update_resource() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule_id = await store.save(Rule(action="read", resource="/tmp/*", effect=RuleEffect.ALLOW))
+
+    await store.update(rule_id, resource="/var/*")
+    _, rule = (await store.load_all())[0]
+    assert rule.resource == "/var/*"
+
+
+async def test_saved_rules_update_not_found() -> None:
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    with pytest.raises(KeyError, match="not found"):
+        await store.update(999, action="read")
+
+
+async def test_saved_rules_update_partial() -> None:
+    """Updating only one field leaves others unchanged."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    store = SavedRules(db)
+    rule_id = await store.save(Rule(action="read", resource="/tmp/*", effect=RuleEffect.DENY))
+
+    await store.update(rule_id, effect=RuleEffect.ALLOW)
+    _, rule = (await store.load_all())[0]
+    assert rule.action == "read"
+    assert rule.resource == "/tmp/*"
+    assert rule.effect == RuleEffect.ALLOW
+
+
+# ─── load_permission_rules — bridge to AgentV2 ─────────────────────
+
+
+async def test_load_permission_rules_with_rules() -> None:
+    """load_permission_rules returns Ruleset when rules exist."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    saved = SavedRules(db)
+    await saved.save(Rule(action="bash", resource="*", effect=RuleEffect.DENY))
+
+    from cscode.app.factory import load_permission_rules
+    rulesets = await load_permission_rules(db)
+    assert len(rulesets) == 1
+    assert rulesets[0].name == "saved"
+    assert len(rulesets[0].rules) == 1
+    assert rulesets[0].rules[0].action == "bash"
+    assert rulesets[0].rules[0].effect == RuleEffect.DENY
+
+    await db.close()
+
+
+async def test_load_permission_rules_empty() -> None:
+    """load_permission_rules returns [] when no rules exist."""
+    from cscode.storage.db import Database
+    db = Database(":memory:")
+    await db.init()
+
+    from cscode.app.factory import load_permission_rules
+    rulesets = await load_permission_rules(db)
+    assert rulesets == []
+
+    await db.close()
+
+
+async def test_load_permission_rules_enforces_via_settle() -> None:
+    """Rules loaded by load_permission_rules actually filter tools in settle.
+
+    When permissions are provided, default-deny applies: only tools with
+    an explicit ALLOW rule are permitted. Tools with a DENY rule or no
+    matching rule are denied.
+    """
+    from cscode.core.tool_registry import ToolRegistryV2
+    from cscode.storage.db import Database
+    from cscode.tools2 import BashTool, ReadTool
+
+    db = Database(":memory:")
+    await db.init()
+
+    saved = SavedRules(db)
+    # bash is denied
+    await saved.save(Rule(action="bash", resource="*", effect=RuleEffect.DENY))
+    # read is explicitly allowed
+    await saved.save(Rule(action="read", resource="*", effect=RuleEffect.ALLOW))
+
+    from cscode.app.factory import load_permission_rules
+    rulesets = await load_permission_rules(db)
+
+    registry = ToolRegistryV2()
+    registry.register_tool(BashTool())
+    registry.register_tool(ReadTool())
+
+    mat = registry.materialize(permissions=rulesets)
+
+    # DENIED tool → should fail with permission error
+    result = await mat.settle("bash", {"command": "echo hi"})
+    assert result.success is False
+    assert "not permitted" in (result.error or "")
+
+    # ALLOWED tool → should not be permission-denied (may fail on execution)
+    result = await mat.settle("read", {"path": "/tmp/nonexistent.txt"})
+    assert result.success is False  # file doesn't exist
+    assert "not permitted" not in (result.error or "")
+
+    await db.close()

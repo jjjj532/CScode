@@ -214,15 +214,17 @@ class SavedRules:
 
     # ── Global rules ────────────────────────────────────────────────
 
-    async def save(self, rule: Rule) -> None:
-        """Persist a global rule (applies to all sessions)."""
+    async def save(self, rule: Rule) -> int:
+        """Persist a global rule (applies to all sessions). Returns the new row id."""
         logger.debug("SavedRules.save: %s/%s -> %s", rule.action, rule.resource, rule.effect)
         await self._ensure_table()
-        await self._db.conn.execute(
+        cursor = await self._db.conn.execute(
             "INSERT INTO saved_rules (action, resource, effect) VALUES (?, ?, ?)",
             (rule.action, rule.resource, rule.effect.value),
         )
         await self._db.conn.commit()
+        assert cursor.lastrowid is not None, "INSERT should return a row id"
+        return cursor.lastrowid
 
     async def load(self) -> list[Rule]:
         """Load all global rules (session_id IS NULL)."""
@@ -249,16 +251,18 @@ class SavedRules:
 
     # ── Session-scoped rules ────────────────────────────────────────
 
-    async def save_session_rule(self, session_id: str, rule: Rule) -> None:
-        """Save a rule scoped to a specific session."""
+    async def save_session_rule(self, session_id: str, rule: Rule) -> int:
+        """Save a rule scoped to a specific session. Returns the new row id."""
         logger.debug("SavedRules.save_session_rule: session=%s %s/%s -> %s",
                      session_id, rule.action, rule.resource, rule.effect)
         await self._ensure_table()
-        await self._db.conn.execute(
+        cursor = await self._db.conn.execute(
             "INSERT INTO saved_rules (session_id, action, resource, effect) VALUES (?, ?, ?, ?)",
             (session_id, rule.action, rule.resource, rule.effect.value),
         )
         await self._db.conn.commit()
+        assert cursor.lastrowid is not None
+        return cursor.lastrowid
 
     async def load_session_rules(self, session_id: str) -> list[Rule]:
         """Load all rules scoped to a specific session."""
@@ -301,6 +305,85 @@ class SavedRules:
             ))
             for row in rows
         ]
+
+    async def list_all(self) -> list[dict[str, object]]:
+        """Load all rules with their database id for API consumption.
+
+        Returns dicts with keys: id, session_id, action, resource, effect.
+        """
+        await self._ensure_table()
+        cursor = await self._db.conn.execute(
+            "SELECT id, session_id, action, resource, effect FROM saved_rules ORDER BY id ASC"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": row["id"],
+                "session_id": row["session_id"],
+                "action": row["action"],
+                "resource": row["resource"],
+                "effect": row["effect"],
+            }
+            for row in rows
+        ]
+
+    # ── Individual rule CRUD ─────────────────────────────────────────
+
+    async def delete_by_id(self, rule_id: int) -> None:
+        """Delete a single rule by its id.
+
+        Raises KeyError if no rule with that id exists.
+        """
+        logger.debug("SavedRules.delete_by_id: id=%d", rule_id)
+        await self._ensure_table()
+        cursor = await self._db.conn.execute(
+            "DELETE FROM saved_rules WHERE id = ?", (rule_id,)
+        )
+        await self._db.conn.commit()
+        if cursor.rowcount == 0:
+            msg = f"Rule with id {rule_id} not found"
+            raise KeyError(msg)
+
+    async def update(
+        self,
+        rule_id: int,
+        *,
+        action: str | None = None,
+        resource: str | None = None,
+        effect: RuleEffect | None = None,
+    ) -> None:
+        """Update fields of an existing rule.
+
+        Only non-None keyword arguments are applied. Raises KeyError
+        if no rule with that id exists.
+        """
+        logger.debug("SavedRules.update: id=%d", rule_id)
+        await self._ensure_table()
+
+        fields: list[str] = []
+        params: list[object] = []
+        if action is not None:
+            fields.append("action = ?")
+            params.append(action)
+        if resource is not None:
+            fields.append("resource = ?")
+            params.append(resource)
+        if effect is not None:
+            fields.append("effect = ?")
+            params.append(effect.value)
+
+        if not fields:
+            return  # nothing to update
+
+        params.append(rule_id)
+        cursor = await self._db.conn.execute(
+            f"UPDATE saved_rules SET {', '.join(fields)} WHERE id = ?",
+            params,
+        )
+        await self._db.conn.commit()
+        if cursor.rowcount == 0:
+            msg = f"Rule with id {rule_id} not found"
+            raise KeyError(msg)
 
 
 class SessionPermission:

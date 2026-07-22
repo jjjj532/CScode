@@ -445,12 +445,13 @@ def test_permission_rules_crud():
 
             create_resp = client.post(
                 "/api/permission-rules",
-                json={"pattern": "read_file:*", "allow": True, "label": "Allow reading all files"},
+                json={"action": "read", "resource": "*", "effect": "allow"},
             )
             assert create_resp.status_code == 200
             rule = create_resp.json()
             assert "id" in rule
-            assert rule["pattern"] == "read_file:*"
+            assert rule["action"] == "read"
+            assert rule["effect"] == "allow"
             rule_id = rule["id"]
 
             list_resp = client.get("/api/permission-rules")
@@ -465,6 +466,83 @@ def test_permission_rules_crud():
             list_resp = client.get("/api/permission-rules")
             assert list_resp.status_code == 200
             assert list_resp.json() == []
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_permission_rules_update():
+    """P2-3: Update (PUT) a permission rule."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            create_resp = client.post(
+                "/api/permission-rules",
+                json={"action": "read", "resource": "*", "effect": "allow"},
+            )
+            assert create_resp.status_code == 200
+            rule_id = create_resp.json()["id"]
+
+            upd_resp = client.put(
+                f"/api/permission-rules/{rule_id}",
+                json={"action": "write"},
+            )
+            assert upd_resp.status_code == 200
+            assert upd_resp.json()["action"] == "write"
+            assert upd_resp.json()["resource"] == "*"
+            assert upd_resp.json()["effect"] == "allow"
+
+            upd_resp = client.put(
+                f"/api/permission-rules/{rule_id}",
+                json={"effect": "deny"},
+            )
+            assert upd_resp.status_code == 200
+            assert upd_resp.json()["effect"] == "deny"
+            assert upd_resp.json()["action"] == "write"
+
+            upd_resp = client.put(
+                f"/api/permission-rules/{rule_id}",
+                json={"resource": "/tmp/*"},
+            )
+            assert upd_resp.status_code == 200
+            assert upd_resp.json()["resource"] == "/tmp/*"
+
+            upd_resp = client.put(
+                f"/api/permission-rules/{rule_id}",
+                json={"action": "bash", "resource": "*", "effect": "deny"},
+            )
+            assert upd_resp.status_code == 200
+            assert upd_resp.json()["action"] == "bash"
+            assert upd_resp.json()["resource"] == "*"
+            assert upd_resp.json()["effect"] == "deny"
+
+            upd_resp = client.put(
+                "/api/permission-rules/99999",
+                json={"action": "read"},
+            )
+            assert upd_resp.status_code == 404
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_catalog_agents_includes_registry_builtins():
+    """AgentRegistry built-in agents should appear in /catalog/agents."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            resp = client.get("/api/catalog/agents")
+            assert resp.status_code == 200
+            agents = resp.json()
+            names = {a["name"] for a in agents}
+            assert "Default Agent" in names
+            registry_ids = {"build", "plan", "subagent"}
+            agent_ids = {a["id"] for a in agents}
+            assert len(registry_ids & agent_ids) >= 1
     finally:
         if db_path.exists():
             db_path.unlink()
@@ -741,7 +819,7 @@ def test_messages_table_populated_after_chat(monkeypatch):
         from cscode.server import app as server_app
         monkeypatch.setattr(
             server_app, "create_agent_v2",
-            lambda config, tool_registry=None: _make_mock_agent("Hello from projector test"),
+            lambda config, tool_registry=None, permissions=None, **kwargs: _make_mock_agent("Hello from projector test"),
         )
         with TestClient(server_app.app) as client:
             sess = client.post("/api/sessions", json={"title": "ProjectorTest"}).json()
@@ -888,7 +966,7 @@ def test_chat_persists_assistant_response(monkeypatch):
         from cscode.server import app as server_app
         monkeypatch.setattr(
             server_app, "create_agent_v2",
-            lambda config, tool_registry=None: _make_mock_agent("Hello from mock"),
+            lambda config, tool_registry=None, permissions=None, **kwargs: _make_mock_agent("Hello from mock"),
         )
         with TestClient(server_app.app) as client:
             sess = client.post("/api/sessions", json={"title": "PersistTest"}).json()

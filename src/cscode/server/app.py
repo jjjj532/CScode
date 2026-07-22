@@ -66,7 +66,8 @@ from cscode.server.compactor import Compactor
 from cscode.server.integration import IntegrationTokenStore, WebSocketManager
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
-from cscode.server.routes import sessions_router
+from cscode.server.routes import permissions_router, sessions_router
+from cscode.server.state import state
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
 from cscode.tools2.pty import PTYInput, PTYSessionManager
@@ -363,6 +364,7 @@ app.add_middleware(
 
 # Route modules (split from app.py for maintainability)
 app.include_router(sessions_router)
+app.include_router(permissions_router)
 
 
 @app.middleware("http")
@@ -394,7 +396,6 @@ _share_store: ShareStore | None = None
 _external_dir_store: ExternalDirectoryStore | None = None
 _active_agent_tasks: dict[str, asyncio.Task[Any]] = {}
 _session_queues: dict[str, asyncio.Queue[dict[str, object]]] = {}
-_permission_store: dict[str, dict[str, object]] = {}
 
 
 class ChatResponse(BaseModel):
@@ -418,12 +419,6 @@ class PluginConfig(BaseModel):
 class PermissionRule(BaseModel):
     pattern: str
     allow: bool = True
-
-
-class PermissionRuleCreate(BaseModel):
-    pattern: str
-    allow: bool = True
-    label: str = ""
 
 
 class ConfigRequest(BaseModel):
@@ -1342,6 +1337,12 @@ async def _handle_chat(
             [{"type": "prompt.admitted", "data": {"prompt": message, "files": attached_filenames}}],
         )
 
+        # Load permission rules for tool enforcement
+        permission_rulesets = None
+        if _db is not None:
+            from cscode.app.factory import load_permission_rules
+            permission_rulesets = await load_permission_rules(_db)
+
         # Create agent for this request
         if _db is not None:
             from cscode.core.config import Config, ConfigStore, load_config
@@ -1357,7 +1358,7 @@ async def _handle_chat(
 
             saved_config = load_config()
 
-        agent = create_agent_v2(saved_config, tool_registry=_tool_registry)
+        agent = create_agent_v2(saved_config, tool_registry=_tool_registry, permissions=permission_rulesets)
 
         # Persist LLM events to EventStore (matching streaming path behaviour)
         async def _on_event(event: LLMEvent) -> None:
@@ -2073,16 +2074,16 @@ async def reply_question(
     if not ok:
         raise HTTPException(status_code=404, detail="Question not found or already answered")
 
-    # P2-3: If always_allow is true, auto-save a permission rule
-    if body.get("always_allow"):
+    # P2-3: If always_allow is true, auto-save a global allow-all permission rule (SQLite)
+    if body.get("always_allow") and state.db is not None:
         logger.info("always_allow triggered for session=%s request=%s", session_id, request_id)
-        rule_id = str(uuid.uuid4())
-        _permission_store[rule_id] = {
-            "id": rule_id,
-            "pattern": f"tool:{session_id}:*",
-            "allow": True,
-            "label": f"Auto-saved from question {request_id}",
-        }
+        try:
+            from cscode.core.permission_v2 import Rule as PermissionRule, RuleEffect, SavedRules as PermissionSavedRules
+
+            saved = PermissionSavedRules(state.db)
+            await saved.save(PermissionRule(action="*", resource="*", effect=RuleEffect.ALLOW))
+        except Exception:
+            logger.exception("Failed to save always_allow rule")
 
     return {"status": "ok"}
 
@@ -2096,40 +2097,6 @@ async def reject_question(session_id: str, request_id: str) -> dict[str, str]:
     ok = await _question_registry.reject(request_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Question not found or already answered")
-    return {"status": "ok"}
-
-
-# ---------------------------------------------------------------------------
-# P2-3: Permission rules API
-# ---------------------------------------------------------------------------
-
-
-@api_router.get("/permission-rules")
-async def list_permission_rules() -> list[dict[str, object]]:
-    """List all saved permission rules."""
-    return list(_permission_store.values())
-
-
-@api_router.post("/permission-rules")
-async def create_permission_rule(rule: PermissionRuleCreate) -> dict[str, object]:
-    """Create a new permission rule."""
-    rule_id = str(uuid.uuid4())
-    entry: dict[str, object] = {
-        "id": rule_id,
-        "pattern": rule.pattern,
-        "allow": rule.allow,
-        "label": rule.label,
-    }
-    _permission_store[rule_id] = entry
-    return entry
-
-
-@api_router.delete("/permission-rules/{rule_id}")
-async def delete_permission_rule(rule_id: str) -> dict[str, str]:
-    """Delete a permission rule."""
-    if rule_id not in _permission_store:
-        raise HTTPException(status_code=404, detail="Rule not found")
-    del _permission_store[rule_id]
     return {"status": "ok"}
 
 
@@ -2574,6 +2541,17 @@ def _get_catalog() -> object:
             tools=["read", "grep", "edit", "bash"],
         )
     )
+    # Sync agents from AgentRegistry so they appear in the catalog endpoint
+    from cscode.core.agent.factory import get_registry
+    reg = get_registry()
+    for ad in reg.list():
+        if not cat.get_agent(ad.name):
+            cat.register_agent(AgentEntry(
+                id=ad.name,
+                name=ad.name,
+                description=ad.description,
+                tools=sorted(ad.capabilities),
+            ))
     _catalog = cat
     return cat
 
