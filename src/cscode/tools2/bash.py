@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 
 from pydantic import BaseModel
@@ -40,20 +41,28 @@ class BashTool(Tool[BashInput, BashOutput]):
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
             except asyncio.TimeoutError:
                 proc.kill()
+                ts = datetime.now(timezone.utc).isoformat()
+                evidence_str = json.dumps({"content_length": 0, "exit_code": -1, "timestamp": ts})
                 return ToolResult(
                     success=False,
                     error=f"Command timed out after {timeout_s}s",
                     metadata={
                         "task_id": input.task_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "evidence": evidence_str,
+                        "timestamp": ts,
                     },
                 )
 
             exit_code = proc.returncode or 0
-            output = stdout.decode("utf-8", errors="replace")
-            if stderr:
-                output += "\n--- stderr ---\n" + stderr.decode("utf-8", errors="replace")
+            stdout_text = stdout.decode("utf-8", errors="replace")
+            stderr_text = stderr.decode("utf-8", errors="replace") if stderr else ""
+            output = stdout_text
+            if stderr_text:
+                output += "\n--- stderr ---\n" + stderr_text
 
+            content_length = len(stdout_text) + len(stderr_text)
+            ts = datetime.now(timezone.utc).isoformat()
+            evidence_str = json.dumps({"content_length": content_length, "exit_code": exit_code, "timestamp": ts})
             success = exit_code == 0
             return ToolResult(
                 success=success,
@@ -62,12 +71,19 @@ class BashTool(Tool[BashInput, BashOutput]):
                 metadata={
                     "exit_code": str(exit_code),
                     "task_id": input.task_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "evidence": evidence_str,
+                    "timestamp": ts,
                 },
             )
         except FileNotFoundError as e:
+            ts = datetime.now(timezone.utc).isoformat()
+            evidence_str = json.dumps({"content_length": 0, "exit_code": -1, "timestamp": ts})
             return ToolResult(
                 success=False,
                 error=f"Command not found: {e}",
-                metadata={"task_id": input.task_id},
+                metadata={
+                    "task_id": input.task_id,
+                    "evidence": evidence_str,
+                    "timestamp": ts,
+                },
             )

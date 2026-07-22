@@ -56,6 +56,34 @@ class TestBashTool:
         assert not result.success
         assert "timed out" in (result.error or "").lower()
 
+    async def test_metadata_includes_evidence_with_content_length(self) -> None:
+        """BashTool metadata includes evidence dict with content_length > 0 on success."""
+        result = await self.tool.execute(BashInput(command="echo hello world", task_id="TC-001"))
+        assert result.metadata is not None
+        assert "evidence" in result.metadata
+        import json
+        evidence = json.loads(result.metadata["evidence"]) if isinstance(result.metadata["evidence"], str) else result.metadata["evidence"]
+        assert evidence["content_length"] > 0
+        assert evidence["exit_code"] == 0
+        assert "timestamp" in evidence
+
+    async def test_metadata_includes_task_id_when_provided(self) -> None:
+        """BashTool metadata includes task_id when set in input."""
+        result = await self.tool.execute(BashInput(command="echo hi", task_id="TC-002"))
+        assert result.metadata is not None
+        assert result.metadata.get("task_id") == "TC-002"
+
+    async def test_metadata_evidence_with_nonzero_exit(self) -> None:
+        """BashTool evidence includes content_length even when exit_code != 0."""
+        result = await self.tool.execute(BashInput(command="echo stderr_output >&2; exit 1", task_id="TC-003"))
+        assert result.metadata is not None
+        assert "evidence" in result.metadata
+        import json
+        evidence = json.loads(result.metadata["evidence"]) if isinstance(result.metadata["evidence"], str) else result.metadata["evidence"]
+        assert evidence["content_length"] > 0  # stderr has content
+        assert evidence["exit_code"] == 1
+        assert "timestamp" in evidence
+
 
 # ---------------------------------------------------------------------------
 # GrepTool

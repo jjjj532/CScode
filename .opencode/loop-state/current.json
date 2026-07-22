@@ -1,35 +1,21 @@
 {
-  "phase": "Phase 5: REVIEW",
-  "iteration": 19,
-  "module": "P4-10: Wire plugins into AgentV2",
-  "status": "completed",
+  "phase": "Phase 3: BUILD",
+  "iteration": 20,
+  "module": "bash-evidence-metadata",
+  "status": "in_progress",
   "cost": 0,
   "findings": {
-    "problem": "Plugin tools (v1 BaseTool) were incompatible with AgentV2 (v2 Tool[I, O]) \u2014 no bridge existed",
-    "solution": "Created LegacyToolAdapter + build_full_tool_registry() composition function",
+    "problem": "BashTool v2 metadata lacks evidence field with content_length, so bash tool calls with task_id always show as UNVERIFIED in verification reports",
+    "solution": "Add evidence dict with content_length, exit_code, timestamp to BashTool.execute() metadata",
     "key_decisions": [
-      "Used composition over factory coupling: build_full_tool_registry() is separate from create_agent_v2()",
-      "Dynamic Pydantic model creation from JSON Schema parameters dict",
-      "Plugin activation failures are isolated and do not block other plugins"
+      "Use existing task_id field in BashInput to conditionally add evidence",
+      "Follow same pattern as BrowserTool evidence: JSON dict in metadata['evidence']"
     ]
   },
-  "next_action": "Update cli.py/server/tui to use build_full_tool_registry() with default plugin dir",
+  "next_action": "Write failing test first, then implement bash evidence + verify end-to-end",
   "stop_conditions": {
     "max_iterations": 30,
     "cost_limit_usd": 15,
-    "current_iteration": 19
-  },
-  "verification": {
-    "tests": "1773 passed, 4 skipped (pre-existing)",
-    "new_tests": "11 (adapter) + 8 (factory) = 19 new tests",
-    "mypy": "No issues in changed files",
-    "ruff": "No issues in changed files"
-  },
-  "deliverables": {
-    "src/cscode/tools2/adapter.py": "LegacyToolAdapter \u2014 v1 BaseTool \u2192 v2 Tool adapter",
-    "src/cscode/app/factory.py": "build_full_tool_registry() \u2014 composition function",
-    "src/cscode/app/__init__.py": "export build_full_tool_registry",
-    "tests/test_tools2_adapter.py": "11 tests for the adapter",
-    "tests/test_app_factory.py": "8 tests for build_full_tool_registry()"
+    "current_iteration": 20
   }
 }
