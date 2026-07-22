@@ -138,7 +138,7 @@ package_windows() {
 
     cd "$DIST/windows"
     zip -r "$DIST/CScode-0.3.4-windows-x64.zip" cscode.exe 2>/dev/null || \
-        echo "zip failed (install zip utility")
+        echo "zip failed (install zip utility)"
     cd "$ROOT"
 
     echo "Windows package: $DIST/CScode-0.3.4-windows-x64.zip"

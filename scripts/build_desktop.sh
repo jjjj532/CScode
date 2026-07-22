@@ -56,6 +56,13 @@ create_dmg() {
 
 echo "=== Building cscode desktop app ==="
 
+# Step 0: Version consistency check
+echo ""
+echo ">>> Step 0: Checking version consistency..."
+cd "$PROJECT_DIR"
+source .venv/bin/activate
+python -m cscode version --check || exit 1
+
 # Step 0: Clean stale DMG mounts
 echo ""
 echo ">>> Step 0: Cleaning up stale DMG images..."
