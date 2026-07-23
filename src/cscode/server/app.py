@@ -1459,6 +1459,12 @@ async def save_config(config: ConfigRequest) -> dict[str, str]:
     return {"status": "ok"}
 
 
+@api_router.put("/config")
+async def update_config(config: ConfigRequest) -> dict[str, str]:
+    """Alias for POST /config — accepts PUT for cross-tool compatibility."""
+    return await save_config(config)
+
+
 @api_router.post("/sessions/{session_id}/export")
 async def export_session(session_id: str) -> Response:
     global _event_store, _projector

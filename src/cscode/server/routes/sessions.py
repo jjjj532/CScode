@@ -31,7 +31,7 @@ async def list_sessions(limit: int = 50, offset: int = 0) -> list[dict[str, Any]
     if state.db is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
     cursor = await state.db.conn.execute(
-        "SELECT aggregate_id FROM event_sequences ORDER BY aggregate_id LIMIT ? OFFSET ?",
+        "SELECT aggregate_id FROM event_sequences ORDER BY aggregate_id DESC LIMIT ? OFFSET ?",
         (limit, offset),
     )
     rows = await cursor.fetchall()
@@ -57,6 +57,32 @@ async def list_sessions(limit: int = 50, offset: int = 0) -> list[dict[str, Any]
         except Exception:
             continue
     return sessions
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(session_id: str) -> dict[str, Any]:
+    if state.event_store is None or state.projector is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    try:
+        session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
+        s = session_v2.state
+        if s.status == "deleted":
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {
+            "id": str(s.session_id) if s.session_id else session_id,
+            "title": s.title,
+            "provider": s.provider,
+            "model": s.model,
+            "status": s.status,
+            "message_count": len(s.messages),
+            "event_count": s.seq,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=404, detail="Session not found")
 
 
 @router.post("/sessions")

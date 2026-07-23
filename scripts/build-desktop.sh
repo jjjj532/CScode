@@ -78,10 +78,10 @@ if [ -d "$ROOT/src/cscode/web/dist" ]; then
     cp -r "$ROOT/src/cscode/web/dist" "$TMP_PYTHON/python/cscode/web/"
 fi
 
-# Create site-packages.zip
-cd "$TMP_PYTHON"
-zip -qr "$ROOT/desktop/src-tauri/resources/site-packages.zip" . -x "python/cscode/**" 2>&1 | tail -2
-echo "site-packages.zip: $(du -sh "$ROOT/desktop/src-tauri/resources/site-packages.zip" | cut -f1)"
+# Copy dependencies to python_deps/ directory (not zip — native .so can't load from zip)
+mkdir -p "$ROOT/desktop/src-tauri/resources/python_deps"
+cp -r "$TMP_PYTHON/"* "$ROOT/desktop/src-tauri/resources/python_deps/"
+rm -rf "$ROOT/desktop/src-tauri/resources/python_deps/python" 2>/dev/null || true
 
 # Copy python source separately
 mkdir -p "$ROOT/desktop/src-tauri/resources/python"
@@ -96,7 +96,7 @@ rm -rf "$TMP_PYTHON"
 cd "$ROOT"
 
 echo "Python resources ready:"
-ls -la desktop/src-tauri/resources/
+du -sh desktop/src-tauri/resources/python_deps/ desktop/src-tauri/resources/python/
 
 # --- Build Tauri app ---
 echo ""

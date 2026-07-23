@@ -132,15 +132,15 @@ impl BackendState {
             .cloned()
             .unwrap_or_else(|| String::from("python3"));
 
-        // 2a. Try legacy bundled resources (site-packages.zip + python/)
+        // 2a. Try legacy bundled resources (python_deps/ + python/)
         if let Some(dir) = resource_dir {
             let python_src = dir.join("resources").join("python");
-            let site_packages_zip = dir.join("resources").join("site-packages.zip");
+            let python_deps = dir.join("resources").join("python_deps");
             if python_src.join("cscode").join("server").join("app.py").exists() {
                 let mut pythonpath = python_src.to_string_lossy().to_string();
-                if site_packages_zip.exists() {
-                    pythonpath.push_str(&format!("{}", std::path::MAIN_SEPARATOR));
-                    pythonpath.push_str(&site_packages_zip.to_string_lossy());
+                if python_deps.exists() {
+                    pythonpath.push(':');
+                    pythonpath.push_str(&python_deps.to_string_lossy());
                 }
 
                 let mut cmd = Command::new(&python_exe);

@@ -279,7 +279,7 @@ class SessionProjector:
                     # Use a list-compatible approach for the frozen state
                     state.reminders = [*state.reminders, reminder_data]
 
-                case "step.started" | "step.ended":
+                case "step.started" | "step.ended" | "error":
                     pass
 
                 case _:

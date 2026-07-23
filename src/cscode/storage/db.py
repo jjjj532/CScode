@@ -237,10 +237,12 @@ async def _migration_009(conn: aiosqlite.Connection) -> None:
 
 
 async def _migration_010(conn: aiosqlite.Connection) -> None:
-    """Cleanup: remove historical text.delta events that were persisted before
-    PERSIST_EVENT_TYPES filtering was introduced. These events are no longer
-    written by the current code and cause WARNING log spam + loading delay."""
-    await conn.execute("DELETE FROM events WHERE type = 'text.delta'")
+    """Cleanup: remove historical text.delta and error events that were
+    persisted before PERSIST_EVENT_TYPES filtering was properly aligned with
+    the SessionProjector. text.delta events are no longer written; error
+    events are now handled silently by SessionProjector, but historical ones
+    are cleaned up to reduce log noise and loading latency."""
+    await conn.execute("DELETE FROM events WHERE type IN ('text.delta', 'error')")
 
 
 async def _migration_008(conn: aiosqlite.Connection) -> None:
