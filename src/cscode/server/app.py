@@ -288,8 +288,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
             logger.debug("Set PYTHONPATH for subprocesses: %s", python_dir)
 
-    db_path = os.environ.get("CSCODE_DB_PATH")
+    db_path = os.environ.get("CSCODE_DB_PATH") or None  # empty string → None → default
     _db = Database(db_path=db_path)
+    logger.info("Database initialized: path=%s", _db._db_path)
     app_state.db = _db
     await _db.init()
 
@@ -1038,6 +1039,21 @@ async def _ws_chat_handler(client_id: str, message: dict[str, object]) -> None:
             "type": "error",
             "data": {"message": "Chat processing failed"},
         })
+
+
+@api_router.get("/ws")
+async def ws_info() -> dict[str, object]:
+    """Return info about the WebSocket endpoint (HTTP GET alternative).
+
+    WebSocket endpoints don't respond to HTTP GET — this provides a helpful
+    response for tooling and health checks that can't perform WebSocket upgrades.
+    """
+    return {
+        "endpoint": "/api/ws",
+        "protocol": "WebSocket",
+        "description": "Real-time bidirectional communication for session events and chat",
+        "usage": "Connect via WebSocket client, not HTTP GET/POST",
+    }
 
 
 @api_router.websocket("/ws")
