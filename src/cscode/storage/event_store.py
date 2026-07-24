@@ -26,12 +26,15 @@ class EventStore:
         self._append_lock_mutex = asyncio.Lock()
 
     async def append(self, aggregate_id: str, events: list[dict[str, Any]]) -> list[Event]:
+        _start = time.monotonic()
         async with self._append_lock_mutex:
             if aggregate_id not in self._append_locks:
                 self._append_locks[aggregate_id] = asyncio.Lock()
 
         async with self._append_locks[aggregate_id]:
-            return await self._append_impl(aggregate_id, events)
+            result = await self._append_impl(aggregate_id, events)
+            logger.info("event_store.append aggregate=%s events=%d duration_ms=%.0f", aggregate_id, len(events), (time.monotonic() - _start) * 1000)
+            return result
 
     async def _append_impl(self, aggregate_id: str, events: list[dict[str, Any]]) -> list[Event]:
         now = time.time()
@@ -88,13 +91,14 @@ class EventStore:
     async def read(
         self, aggregate_id: str, after_seq: int = 0, limit: int = 1000
     ) -> list[Event]:
+        _start = time.monotonic()
         logger.debug("Reading events for %s after_seq=%d limit=%d", aggregate_id, after_seq, limit)
         cursor = await self._db.conn.execute(
             "SELECT * FROM events WHERE aggregate_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?",
             (aggregate_id, after_seq, limit),
         )
         rows = await cursor.fetchall()
-        return [
+        result = [
             Event(
                 id=r["id"],
                 aggregate_id=r["aggregate_id"],
@@ -105,6 +109,8 @@ class EventStore:
             )
             for r in rows
         ]
+        logger.info("event_store.read aggregate=%s events=%d duration_ms=%.0f", aggregate_id, len(result), (time.monotonic() - _start) * 1000)
+        return result
 
     async def scan_events_global(
         self, after_id: int = 0, limit: int = 100

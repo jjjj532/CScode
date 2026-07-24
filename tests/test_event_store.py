@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -94,3 +95,29 @@ async def test_concurrent_append_same_aggregate(db):
 
     all_seqs = [e.seq for batch in results for e in batch]
     assert sorted(all_seqs) == list(range(1, 11))
+
+
+@pytest.mark.asyncio
+async def test_append_logs_timing(db, caplog: pytest.LogCaptureFixture) -> None:
+    """EventStore.append should log duration_ms at INFO level."""
+    caplog.set_level(logging.INFO)
+    store = EventStore(db)
+    await store.append("s1", [{"type": "a"}, {"type": "b"}])
+    assert any(
+        "duration_ms" in msg and "event_store.append" in msg
+        for msg in caplog.messages
+    ), "append should log duration_ms"
+
+
+@pytest.mark.asyncio
+async def test_read_logs_timing(db, caplog: pytest.LogCaptureFixture) -> None:
+    """EventStore.read should log duration_ms at INFO level."""
+    caplog.set_level(logging.INFO)
+    store = EventStore(db)
+    await store.append("s1", [{"type": "a"}])
+    caplog.clear()
+    await store.read("s1")
+    assert any(
+        "duration_ms" in msg and "event_store.read" in msg
+        for msg in caplog.messages
+    ), "read should log duration_ms"
