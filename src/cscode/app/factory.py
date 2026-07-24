@@ -59,16 +59,26 @@ _PROVIDER_KEY_ENV: dict[str, str] = {
 
 
 def _resolve_api_key(config: Config) -> str:
-    """Resolve API key from config or environment fallback.
+    """Resolve API key from config, keychain, or environment fallback.
 
     Priority:
       1. config.api_key (set via CSCODE_API_KEY or config file)
-      2. Provider-specific env var (e.g. OPENAI_API_KEY)
-      3. Empty string (provider may work without key, e.g. Ollama)
+      2. Keychain (from ``KeychainStore.get_api_key("default")``)
+      3. Provider-specific env var (e.g. OPENAI_API_KEY)
+      4. Empty string (provider may work without key, e.g. Ollama)
     """
     if config.api_key:
         logger.debug("API key resolved from config for provider=%s", config.provider)
         return config.api_key
+
+    # P2-1: Check keychain before env fallback
+    from cscode.core.keychain import KeychainStore
+
+    kc = KeychainStore()
+    keychain_key = kc.get_api_key("default")
+    if keychain_key:
+        logger.debug("API key resolved from keychain for provider=%s", config.provider)
+        return keychain_key
 
     env_name = _PROVIDER_KEY_ENV.get(config.provider.lower())
     if env_name:
