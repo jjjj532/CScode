@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from cscode import __version__
-from cscode.cli import cli
+from cscode.cli import cli, server
 from cscode.core.agent.base import AgentMode
 
 
@@ -101,3 +102,25 @@ class TestCLI:
         result = runner.invoke(cli, ["desktop", "--help"])
         assert result.exit_code == 0
         assert "desktop" in result.output
+
+    # ── P1-1a: server warns on missing API key ────────────────────────
+
+    @patch("uvicorn.run")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_server_warns_on_missing_api_key(self, _: object, runner: CliRunner) -> None:
+        """cs server should warn when no API key env var is set."""
+        result = runner.invoke(server, ["--port", "9999", "--host", "127.0.0.1"])
+        assert result.exit_code == 0
+        assert "warning" in result.output.lower() or "api key" in result.output.lower()
+
+    @patch("uvicorn.run")
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"}, clear=True)
+    def test_server_no_warning_with_api_key(self, _: object, runner: CliRunner) -> None:
+        """cs server should NOT warn when an API key env var is set."""
+        result = runner.invoke(server, ["--port", "9999", "--host", "127.0.0.1"])
+        assert result.exit_code == 0
+        warning_found = "warning" in result.output.lower()
+        missing_key_found = "api key" in result.output.lower()
+        assert not warning_found and not missing_key_found, (
+            "Should not warn when OPENAI_API_KEY is set"
+        )

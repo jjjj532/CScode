@@ -175,9 +175,27 @@ def config(key: str | None, value: str | None) -> None:
 
 @cli.command()
 @click.option("--port", default=8080, help="Port to listen on")
-@click.option("--host", default="0.0.0.0", help="Host to bind to")
+@click.option("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1 for security)")
 def server(port: int, host: str) -> None:
     """Start the web API server."""
+    import os as _os
+
+    # Warn if no API key is configured (P1-1a)
+    _api_key_env_vars = [
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "CSCODE_API_KEY",
+    ]
+    if not any(_os.environ.get(v) for v in _api_key_env_vars):
+        click.secho(
+            "Warning: No API key found in environment. "
+            "Set OPENAI_API_KEY, ANTHROPIC_API_KEY, or CSCODE_API_KEY, "
+            "or run 'cs config set --global api_key <KEY>'.",
+            fg="yellow",
+        )
+
     import uvicorn
 
     click.echo(f"Starting CScode server on http://{host}:{port}")
