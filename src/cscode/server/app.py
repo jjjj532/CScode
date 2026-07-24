@@ -24,7 +24,7 @@ from typing import Any, AsyncGenerator, AsyncIterator
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -343,6 +343,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         template_path.chmod(0o755)
 
     logger.info("Lifespan startup complete")
+    logger.info("Security: API endpoint restricted to localhost (use --host 0.0.0.0 to expose externally)")
 
     yield
 
@@ -382,6 +383,20 @@ async def log_requests(request: Request, call_next: Any) -> Response:
         duration_ms,
     )
     return response
+
+
+@app.middleware("http")
+async def localhost_only(request: Request, call_next: Any) -> Response:
+    """Block non-localhost requests for security (API key exposure)."""
+    if request.url.path.startswith("/api/"):
+        host = request.client.host if request.client else None
+        if host not in ("127.0.0.1", "::1", "localhost", "testclient", "test"):
+            logger.warning("Blocked non-localhost request: %s %s from %s", request.method, request.url.path, host)
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Only localhost requests are allowed for security. Use --host 0.0.0.0 to expose externally."},
+            )
+    return await call_next(request)
 
 
 _db: Database | None = None
@@ -1440,25 +1455,35 @@ async def _handle_chat(
 @api_router.get("/config")
 async def get_config() -> dict[str, Any]:
     global _db
+    cfg_dict: dict[str, Any] = {}
+
     if _db is not None:
-        from cscode.core.config import ConfigStore
+        try:
+            from cscode.core.config import ConfigStore
+            store = ConfigStore(_db)
+            saved_config = await store.get()
+            if saved_config:
+                cfg_dict = saved_config
+        except Exception:
+            logger.debug("DB unavailable for config read, falling back to file config")
 
-        store = ConfigStore(_db)
-        saved_config = await store.get()
-        if saved_config:
-            saved_config.pop("api_key", None)
-            return saved_config
+    if not cfg_dict:
+        from cscode.core.config import load_config
+        cfg = load_config()
+        if isinstance(cfg, dict):
+            cfg_dict = cfg
+        else:
+            cfg_dict = cfg.to_dict()
 
-    from cscode.core.config import load_config
+    # Check keychain for API key
+    from cscode.core.keychain import KeychainStore
+    kc = KeychainStore()
+    keychain_key = kc.get_api_key("default")
+    has_key = kc.is_api_key_configured(["default"])
 
-    cfg = load_config()
-    # Some PyInstaller builds may return dict instead of Config
-    if isinstance(cfg, dict):
-        cfg.pop("api_key", None)
-        return cfg
-    d = cfg.to_dict()
-    d.pop("api_key", None)
-    return d
+    cfg_dict.pop("api_key", None)
+    cfg_dict["api_key_configured"] = True if keychain_key else has_key if has_key else False
+    return cfg_dict
 
 
 @api_router.post("/config")
@@ -1468,9 +1493,23 @@ async def save_config(config: ConfigRequest) -> dict[str, str]:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
     from cscode.core.config import ConfigStore
+    from cscode.core.keychain import KeychainStore
 
-    store = ConfigStore(_db)
-    await store.save(config.model_dump())
+    kc = KeychainStore()
+    dump = config.model_dump()
+    api_key = dump.pop("api_key", None)
+
+    if api_key:
+        kc.set_api_key("default", api_key)
+    else:
+        kc.delete_api_key("default")
+
+    try:
+        store = ConfigStore(_db)
+        await store.save(dump)
+    except Exception:
+        logger.debug("DB unavailable for config write")
+        raise HTTPException(status_code=503, detail="Database not available")
 
     return {"status": "ok"}
 
@@ -2100,7 +2139,9 @@ async def reply_question(
     if body.get("always_allow") and state.db is not None:
         logger.info("always_allow triggered for session=%s request=%s", session_id, request_id)
         try:
-            from cscode.core.permission_v2 import Rule as PermissionRule, RuleEffect, SavedRules as PermissionSavedRules
+            from cscode.core.permission_v2 import Rule as PermissionRule
+            from cscode.core.permission_v2 import RuleEffect
+            from cscode.core.permission_v2 import SavedRules as PermissionSavedRules
 
             saved = PermissionSavedRules(state.db)
             await saved.save(PermissionRule(action="*", resource="*", effect=RuleEffect.ALLOW))
