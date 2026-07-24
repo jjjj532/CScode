@@ -195,7 +195,7 @@ CONFIG_KEY_META: dict[str, dict[str, str]] = {
     "api_key": {
         "type": "string",
         "default": "",
-        "description": "API key for the selected provider (stored securely)",
+        "description": "Primary API key. Resolved in priority: config → keychain → env var (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)",
     },
     "max_tokens": {
         "type": "int",
