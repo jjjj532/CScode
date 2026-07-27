@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Titlebar } from './components/layout/Titlebar';
 import { Sidebar } from './components/layout/Sidebar';
 import { MainContent } from './components/layout/MainContent';
@@ -6,23 +6,37 @@ import { SettingsPanel } from './components/ui/SettingsPanel';
 import { ToastContainer } from './components/ui/ToastContainer';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { CommandPalette } from './components/ui/CommandPalette';
+import { OfflineBanner } from './components/ui/OfflineBanner';
 import { useUIStore } from './stores/useUIStore';
 import { useConfigStore } from './stores/useConfigStore';
 import { useSessionStore } from './stores/useSessionStore';
+import { useToastStore } from './stores/useToastStore';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { initErrorMonitor } from './lib/errorMonitor';
 
 function App() {
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setConfig = useConfigStore((s) => s.setConfig);
+  const setLoading = useConfigStore((s) => s.setLoading);
   const setSessions = useSessionStore((s) => s.setSessions);
+  const addToast = useToastStore((s) => s.addToast);
 
   useEffect(() => {
+    initErrorMonitor();
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
     fetch('/api/config')
       .then((r) => r.json())
       .then((data) => {
         if (data && data.provider) setConfig(data);
       })
-      .catch(() => {});
-  }, [setConfig]);
+      .catch(() => {
+        addToast('Failed to load configuration', 'error');
+      })
+      .finally(() => setLoading(false));
+  }, [setConfig, setLoading, addToast]);
 
   useEffect(() => {
     fetch('/api/sessions')
@@ -30,14 +44,28 @@ function App() {
       .then((data) => {
         if (Array.isArray(data)) setSessions(data);
       })
-      .catch(() => {});
-  }, [setSessions]);
+      .catch(() => {
+        addToast('Failed to load sessions', 'error');
+      });
+  }, [setSessions, addToast]);
+
+  const isOnline = useOnlineStatus();
+  const wasOffline = useRef(false);
+  useEffect(() => {
+    if (!isOnline) {
+      wasOffline.current = true;
+    } else if (wasOffline.current) {
+      wasOffline.current = false;
+      addToast('Back online', 'success');
+    }
+  }, [isOnline, addToast]);
 
   return (
     <ErrorBoundary>
       <CommandPalette />
       <div className="h-full flex flex-col bg-v2-bg-deep text-v2-text-primary">
         <Titlebar />
+        <OfflineBanner />
         <div className="flex-1 flex min-h-0">
           <Sidebar />
           <MainContent />

@@ -208,11 +208,17 @@ export function SettingsPanel() {
           {/* API Key */}
           <form onSubmit={(e) => e.preventDefault()}>
             <label className="block text-xs font-medium text-v2-text-secondary mb-1">API Key</label>
+            {config?.api_key_configured && !form.api_key && (
+              <div className="flex items-center gap-1.5 mb-1.5 text-xs text-green-500">
+                <span>✓ Key configured (stored securely in system keychain)</span>
+              </div>
+            )}
             <input
               type="password"
               value={form.api_key || ''}
               onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-              className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary"
+              placeholder={config?.api_key_configured ? 'Leave empty to keep existing key' : 'Enter your API key'}
+              className="w-full bg-v2-bg-deep border border-v2-border rounded-md px-3 py-1.5 text-sm text-v2-text-primary placeholder-v2-text-muted"
             />
           </form>
 

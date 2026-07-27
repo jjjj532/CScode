@@ -39,7 +39,7 @@ export function MessageList() {
 
   if (messages.length === 0 && !showProcessing) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center" role="status">
         <div className="text-center">
           <div className="text-4xl mb-4">🐚</div>
           <h2 className="text-xl font-semibold text-v2-text-primary mb-2">CScode</h2>

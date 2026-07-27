@@ -23,6 +23,7 @@ export interface Config {
   model: string;
   api_base: string | null;
   api_key?: string;
+  api_key_configured?: boolean;
   max_tokens: number;
   temperature: number;
   top_p: number;

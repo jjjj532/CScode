@@ -1,39 +1,30 @@
 """P2-4: Control-Plane — Worktree management and session routing.
 
 Provides:
-- WorktreeManager: git worktree list/add/remove/prune
+- WorktreeManager: git worktree list/add/remove/prune (static-method API)
 - WorktreeInfo: parsed worktree metadata
+
+This module delegates internal logic to :mod:`cscode.core.worktree` for the
+instance-based implementation; the static-method API here exists for backward
+compatibility with existing endpoint imports.
 """
 
 from __future__ import annotations
 
 import logging
 import subprocess
-from dataclasses import dataclass
+
+from cscode.core.worktree import WorktreeInfo
+from cscode.core.worktree import WorktreeManager as _WorktreeManagerImpl
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class WorktreeInfo:
-    """Parsed git worktree information."""
-
-    path: str = ""
-    """Absolute path to the worktree."""
-    hash: str = ""
-    """HEAD commit hash."""
-    branch: str = ""
-    """Branch name (empty if detached)."""
-    bare: bool = False
-    """Whether this is a bare repository."""
-    detached: bool = False
-    """Whether HEAD is detached."""
-
-
 class WorktreeManager:
-    """Git worktree management utility.
+    """Git worktree management utility (static-method API).
 
-    All operations delegate to ``git worktree`` subcommands.
+    All operations delegate to the instance-based implementation in
+    :mod:`cscode.core.worktree`.
     """
 
     @staticmethod
@@ -45,57 +36,22 @@ class WorktreeManager:
 
         Returns:
             A list of WorktreeInfo for each worktree.
-            Empty list if ``git worktree list`` fails or is not in a git repo.
+            Empty list if the command fails or the directory is not a git repo.
         """
+        if work_dir is None:
+            import os
+            work_dir = os.getcwd()
+
+        mgr = _WorktreeManagerImpl(repo_path=work_dir)
         try:
-            result = subprocess.run(
-                ["git", "worktree", "list", "--porcelain"],
-                capture_output=True, text=True, timeout=10, cwd=work_dir,
-            )
-            if result.returncode != 0:
-                logger.warning("git worktree list failed: %s", result.stderr.strip())
-                return []
-            return WorktreeManager._parse_output(result.stdout)
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logger.warning("Failed to list worktrees: %s", e)
+            return mgr.list()
+        except (RuntimeError, NotADirectoryError):
             return []
 
     @staticmethod
     def _parse_output(output: str) -> list[WorktreeInfo]:
         """Parse ``--porcelain`` format output into WorktreeInfo list."""
-        worktrees: list[WorktreeInfo] = []
-        current: WorktreeInfo | None = None
-
-        for line in output.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith("worktree "):
-                if current is not None:
-                    worktrees.append(current)
-                current = WorktreeInfo(path=line[9:])
-            elif line.startswith("HEAD "):
-                if current is not None:
-                    current.hash = line[5:]
-            elif line.startswith("branch "):
-                if current is not None:
-                    ref = line[7:]
-                    # refs/heads/branch-name → branch-name
-                    if ref.startswith("refs/heads/"):
-                        current.branch = ref[11:]
-                    else:
-                        current.branch = ref
-            elif line == "bare":
-                if current is not None:
-                    current.bare = True
-            elif line == "detached":
-                if current is not None:
-                    current.detached = True
-
-        if current is not None:
-            worktrees.append(current)
-
-        return worktrees
+        return _WorktreeManagerImpl._parse_output(output)
 
     @staticmethod
     def _parse_line(line: str) -> WorktreeInfo | None:
@@ -136,7 +92,9 @@ class WorktreeManager:
         return info
 
     @staticmethod
-    def add_worktree(path: str, branch: str | None = None, work_dir: str | None = None) -> tuple[bool, str]:
+    def add_worktree(
+        path: str, branch: str | None = None, work_dir: str | None = None
+    ) -> tuple[bool, str]:
         """Create a new git worktree.
 
         Args:
@@ -147,20 +105,31 @@ class WorktreeManager:
         Returns:
             Tuple of (success, message).
         """
-        cmd = ["git", "worktree", "add"]
-        if branch:
-            cmd += ["-b", branch]
-        cmd.append(path)
+        if work_dir is None:
+            import os
+            work_dir = os.getcwd()
+
+        mgr = _WorktreeManagerImpl(repo_path=work_dir)
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=work_dir)
-            if result.returncode == 0:
-                return True, result.stdout.strip()
-            return False, result.stderr.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            if branch:
+                mgr.create(branch=branch, path=path)
+            else:
+                # When no branch is specified, create a detached-HEAD worktree.
+                # This differs from mgr.create() which always uses -b.
+                result = subprocess.run(
+                    ["git", "worktree", "add", path],
+                    capture_output=True, text=True, timeout=30, cwd=work_dir,
+                )
+                if result.returncode != 0:
+                    return False, result.stderr.strip()
+            return True, ""
+        except (RuntimeError, subprocess.TimeoutExpired, FileNotFoundError, NotADirectoryError) as e:
             return False, str(e)
 
     @staticmethod
-    def remove_worktree(path: str, work_dir: str | None = None) -> tuple[bool, str]:
+    def remove_worktree(
+        path: str, work_dir: str | None = None
+    ) -> tuple[bool, str]:
         """Remove a git worktree.
 
         Args:
@@ -170,13 +139,13 @@ class WorktreeManager:
         Returns:
             Tuple of (success, message).
         """
+        if work_dir is None:
+            import os
+            work_dir = os.getcwd()
+
+        mgr = _WorktreeManagerImpl(repo_path=work_dir)
         try:
-            result = subprocess.run(
-                ["git", "worktree", "remove", path],
-                capture_output=True, text=True, timeout=30, cwd=work_dir,
-            )
-            if result.returncode == 0:
-                return True, result.stdout.strip()
-            return False, result.stderr.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            mgr.remove(path)
+            return True, ""
+        except (RuntimeError, NotADirectoryError) as e:
             return False, str(e)

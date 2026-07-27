@@ -179,6 +179,7 @@ export function CommandPalette() {
             <button
               key={cmd.id}
               onClick={cmd.action}
+              aria-current={i === selectedIndex ? 'true' : undefined}
               className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-left transition-colors ${
                 i === selectedIndex
                   ? 'bg-v2-accent/10 text-v2-accent'

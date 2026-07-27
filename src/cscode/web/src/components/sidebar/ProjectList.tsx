@@ -1,5 +1,6 @@
 import { ProjectItem } from './ProjectItem';
 import type { Session } from '../../stores/useSessionStore';
+import { EmptyState } from '../ui/EmptyState';
 
 interface ProjectListProps {
   sessions: Session[];
@@ -29,9 +30,11 @@ export function ProjectList({ sessions, activeSessionId, onSelectSession, onDele
         />
       ))}
       {sessions.length === 0 && (
-        <div className="px-6 py-8 text-center text-sm text-v2-text-muted">
-          No sessions yet. Start a new chat.
-        </div>
+        <EmptyState
+          icon="💬"
+          title="No sessions yet"
+          description="Start a new chat to begin."
+        />
       )}
     </div>
   );

@@ -3,16 +3,48 @@ import type { Session, Message } from '../stores/useSessionStore';
 
 const BASE = '';
 
+interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+}
+
+let retryConfig: RetryConfig = { maxRetries: 2, baseDelayMs: 1000 };
+
+export function setRetryConfig(config: Partial<RetryConfig>): void {
+  retryConfig = { ...retryConfig, ...config };
+}
+
+async function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`API error ${res.status}: ${text}`);
+      }
+      return res.json();
+    } catch (err) {
+      // Don't retry on HTTP errors (4xx/5xx) — only network errors
+      if (err instanceof Error && !(err instanceof TypeError)) {
+        throw err;
+      }
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retryConfig.maxRetries) {
+        await delay(retryConfig.baseDelayMs * Math.pow(2, attempt));
+      }
+    }
   }
-  return res.json();
+
+  throw lastError ?? new Error('Request failed');
 }
 
 export const api = {

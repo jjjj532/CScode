@@ -2,7 +2,7 @@
  * API Client Tests
  * 测试API客户端功能
  */
-import { api } from '../src/lib/api';
+import { api, setRetryConfig } from '../src/lib/api';
 import { Config } from '../src/types';
 
 // Mock global fetch
@@ -223,5 +223,53 @@ describe('api', () => {
 
       expect(result).toEqual({ status: 'ok' });
     });
+  });
+});
+
+describe('retry logic', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    setRetryConfig({ maxRetries: 2, baseDelayMs: 50 });
+  });
+
+  test('succeeds on first attempt without retry', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok' }),
+    });
+    const result = await api.health.check();
+    expect(result).toEqual({ status: 'ok' });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('retries on network error and succeeds', async () => {
+    (global.fetch as jest.Mock)
+      .mockRejectedValueOnce(new TypeError('Network error'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'ok' }),
+      });
+
+    const result = await api.health.check();
+    expect(result).toEqual({ status: 'ok' });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test('throws after exhausting retries', async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new TypeError('Network error'));
+
+    await expect(api.health.check()).rejects.toThrow('Network error');
+    expect(global.fetch).toHaveBeenCalledTimes(3); // initial + 2 retries
+  });
+
+  test('does NOT retry on HTTP 4xx error', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => 'Bad request',
+    });
+
+    await expect(api.health.check()).rejects.toThrow('API error 400');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });
