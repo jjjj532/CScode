@@ -35,6 +35,8 @@ def _get_migration_registry() -> MigrationRegistry:
         reg.register(Migration(8, "create workspaces table", _migration_008, _noop))
         reg.register(Migration(9, "add event_seq to messages table", _migration_009, _noop))
         reg.register(Migration(10, "cleanup historical text.delta events", _migration_010, _noop))
+        reg.register(Migration(11, "create audit_logs table", _migration_011, _noop))
+        reg.register(Migration(12, "create error_logs table", _migration_012, _noop))
         _migration_registry = reg
     return _migration_registry
 
@@ -243,6 +245,45 @@ async def _migration_010(conn: aiosqlite.Connection) -> None:
     events are now handled silently by SessionProjector, but historical ones
     are cleaned up to reduce log noise and loading latency."""
     await conn.execute("DELETE FROM events WHERE type IN ('text.delta', 'error')")
+
+
+async def _migration_011(conn: aiosqlite.Connection) -> None:
+    """Create audit_logs table for enterprise audit logging."""
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at REAL NOT NULL,
+            action_type TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT,
+            detail TEXT NOT NULL DEFAULT '{}',
+            ip_address TEXT NOT NULL DEFAULT '',
+            user_agent TEXT NOT NULL DEFAULT ''
+        )
+    """)
+    await conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+        ON audit_logs(created_at DESC)
+    """)
+
+
+async def _migration_012(conn: aiosqlite.Connection) -> None:
+    """Create error_logs table for frontend error ingestion."""
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS error_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at REAL NOT NULL,
+            message TEXT NOT NULL,
+            stack TEXT NOT NULL DEFAULT '',
+            url TEXT NOT NULL DEFAULT '',
+            user_agent TEXT NOT NULL DEFAULT '',
+            detail TEXT NOT NULL DEFAULT '{}'
+        )
+    """)
+    await conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
+        ON error_logs(created_at DESC)
+    """)
 
 
 async def _migration_008(conn: aiosqlite.Connection) -> None:

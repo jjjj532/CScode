@@ -97,6 +97,13 @@ async def create_session(req: CreateSessionRequest) -> dict[str, Any]:
         provider=config.provider,
         title=req.title,
     )
+    if state.audit_log:
+        await state.audit_log.record(
+            action_type="session.create",
+            resource_type="session",
+            resource_id=str(session_v2.session_id),
+            detail={"title": req.title},
+        )
     return {"id": str(session_v2.session_id), "title": session_v2.state.title}
 
 
@@ -106,6 +113,13 @@ async def delete_session(session_id: str) -> dict[str, str]:
         raise HTTPException(status_code=503, detail="Server not initialized")
     session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
     await session_v2.delete()
+    if state.audit_log:
+        await state.audit_log.record(
+            action_type="session.delete",
+            resource_type="session",
+            resource_id=session_id,
+            detail={"title": session_v2.state.title},
+        )
     return {"status": "ok"}
 
 

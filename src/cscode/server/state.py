@@ -14,6 +14,7 @@ from cscode.server.compactor import Compactor
 from cscode.server.integration import IntegrationTokenStore, WebSocketManager
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
+from cscode.server.audit_log import AuditLogStore, ErrorLogStore
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
 from cscode.tools2.pty import PTYSessionManager
@@ -36,6 +37,8 @@ class AppState:
     token_store: IntegrationTokenStore | None = None
     pty_manager: PTYSessionManager | None = None
     lsp_manager: LSPManager | None = None
+    audit_log: AuditLogStore | None = None
+    error_log: ErrorLogStore | None = None
     active_agent_tasks: dict[str, asyncio.Task[Any]] = field(default_factory=dict)
     session_queues: dict[str, asyncio.Queue[dict[str, object]]] = field(default_factory=dict)
     permission_store: dict[str, dict[str, object]] = field(default_factory=dict)

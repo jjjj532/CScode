@@ -62,10 +62,12 @@ from cscode.schema.messages import (
 from cscode.schema.messages import (
     MessageRole,
 )
+from cscode.server.audit_log import AuditLogStore, ErrorLogStore
 from cscode.server.compactor import Compactor
 from cscode.server.integration import IntegrationTokenStore, WebSocketManager
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
+from cscode.server.rate_limiter import RateLimiter
 from cscode.server.routes import permissions_router, sessions_router
 from cscode.server.state import state
 from cscode.storage.db import Database
@@ -73,6 +75,9 @@ from cscode.storage.event_store import EventStore
 from cscode.tools2.pty import PTYInput, PTYSessionManager
 
 logger = logging.getLogger(__name__)
+
+# In-memory rate limiter: 60 requests/minute/IP for chat endpoints
+rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
 
 api_router = APIRouter(prefix="/api")
 
@@ -335,6 +340,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _pty_manager = PTYSessionManager()
     app_state.pty_manager = _pty_manager
 
+    # Audit log + error log stores
+    app_state.audit_log = AuditLogStore(_db) if _db else None
+    app_state.error_log = ErrorLogStore(_db) if _db else None
+
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUTS_DIR / "evidence").mkdir(parents=True, exist_ok=True)
     template_path = OUTPUTS_DIR / "xlsx_template.py"
@@ -367,6 +376,20 @@ app.add_middleware(
 # Route modules (split from app.py for maintainability)
 app.include_router(sessions_router)
 app.include_router(permissions_router)
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next: Any) -> Response:
+    """Rate-limit /api/chat and /api/chat/stream per IP (60 req/min)."""
+    path = request.url.path
+    if path in ("/api/chat", "/api/chat/stream"):
+        client_ip = request.client.host if request.client else "unknown"
+        if not rate_limiter.check(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Try again later."},
+            )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -553,6 +576,15 @@ async def chat(request: Request) -> ChatResponse:
                     file_bytes = f.get("content", "").encode("utf-8")
                 files.append((f.get("name", "file"), file_bytes))
 
+    if state.audit_log:
+        await state.audit_log.record(
+            action_type="chat.send",
+            resource_type="chat",
+            resource_id=session_id or "",
+            detail={"message_length": len(message), "has_files": len(files) > 0},
+            ip_address=request.client.host if request.client else "",
+            user_agent=request.headers.get("user-agent", ""),
+        )
     return await _handle_chat(message, session_id, files)
 
 
@@ -589,6 +621,16 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 except Exception:
                     file_bytes = f.get("content", "").encode("utf-8")
                 files.append((f.get("name", "file"), file_bytes))
+
+    if state.audit_log:
+        await state.audit_log.record(
+            action_type="chat.send",
+            resource_type="chat",
+            resource_id=session_id or "",
+            detail={"message_length": len(message), "has_files": len(files) > 0},
+            ip_address=request.client.host if request.client else "",
+            user_agent=request.headers.get("user-agent", ""),
+        )
 
     async def event_stream() -> AsyncGenerator[str, None]:
         global _event_store, _coordinator, _tool_registry, _db
@@ -1511,6 +1553,12 @@ async def save_config(config: ConfigRequest) -> dict[str, str]:
         logger.debug("DB unavailable for config write")
         raise HTTPException(status_code=503, detail="Database not available")
 
+    if state.audit_log:
+        await state.audit_log.record(
+            action_type="config.update",
+            resource_type="config",
+            detail={k: v for k, v in dump.items() if k != "api_key"},
+        )
     return {"status": "ok"}
 
 
@@ -1973,6 +2021,33 @@ async def list_all_tools() -> dict[str, list[str]]:
     from cscode.core.application_tools import get_application_tools
 
     return {"tools": get_application_tools()}
+
+
+@api_router.post("/logs/error")
+async def log_frontend_error(body: dict[str, object]) -> dict[str, str]:
+    """Ingest a frontend JavaScript error for monitoring."""
+    if state.error_log is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    msg = str(body.get("message", ""))
+    stack = str(body.get("stack", ""))
+    url = str(body.get("url", ""))
+    ua = str(body.get("user_agent", ""))
+    detail = body.get("detail")
+    detail_dict: dict[str, object] = {}
+    if isinstance(detail, dict):
+        detail_dict = detail
+    await state.error_log.record(
+        message=msg, stack=stack, url=url, user_agent=ua, detail=detail_dict,
+    )
+    return {"status": "ok"}
+
+
+@api_router.get("/audit-logs")
+async def list_audit_logs(limit: int = 50, offset: int = 0) -> list[dict[str, object]]:
+    """Return paginated audit log entries, most recent first."""
+    if state.audit_log is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    return await state.audit_log.list(limit=limit, offset=offset)
 
 
 @api_router.get("/version")
