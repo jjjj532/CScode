@@ -1,21 +1,23 @@
 {
-  "phase": "Phase 3: BUILD",
-  "iteration": 20,
-  "module": "bash-evidence-metadata",
-  "status": "in_progress",
-  "cost": 0,
+  "phase": "COMPLETED",
+  "iteration": 2,
+  "module": "system-prompts-constants",
+  "status": "completed",
+  "cost": 0.2,
   "findings": {
-    "problem": "BashTool v2 metadata lacks evidence field with content_length, so bash tool calls with task_id always show as UNVERIFIED in verification reports",
-    "solution": "Add evidence dict with content_length, exit_code, timestamp to BashTool.execute() metadata",
-    "key_decisions": [
-      "Use existing task_id field in BashInput to conditionally add evidence",
-      "Follow same pattern as BrowserTool evidence: JSON dict in metadata['evidence']"
+    "analysis": "Added BUILD_SYSTEM_PROMPT and SUBAGENT_SYSTEM_PROMPT constants to system_prompts.py. Updated BuildAgent and SubAgentAgent to use these as default fallbacks instead of returning None or inline strings. All 3 agents now return a proper default system prompt when none is provided.",
+    "deliverables": [
+      "system_prompts.py — BUILD_SYSTEM_PROMPT (coding assistant), SUBAGENT_SYSTEM_PROMPT (focused subtask) constants",
+      "build.py — get_system_prompt() returns BUILD_SYSTEM_PROMPT when no custom prompt given",
+      "subagent.py — get_system_prompt() returns SUBAGENT_SYSTEM_PROMPT constant instead of inline string",
+      "__init__.py — exports all 3 prompt constants",
+      "tests/test_system_prompts.py — 14 tests (constants defined, distinct, default fallback, custom override, mode checks)"
     ]
   },
-  "next_action": "Write failing test first, then implement bash evidence + verify end-to-end",
+  "next_action": "Ready for next module",
   "stop_conditions": {
-    "max_iterations": 30,
-    "cost_limit_usd": 15,
-    "current_iteration": 20
+    "max_iterations": 10,
+    "cost_limit_usd": 10,
+    "current_iteration": 2
   }
 }

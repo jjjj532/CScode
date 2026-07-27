@@ -1,0 +1,162 @@
+{
+  "summary": {
+    "pass": 29,
+    "warn": 3,
+    "fail": 0,
+    "skip": 0,
+    "total": 32,
+    "timestamp": "2026-07-24T11:02:56.277289",
+    "issues_found": 0
+  },
+  "results": [
+    {
+      "test": "页面标题",
+      "status": "pass",
+      "title": "CScode - AI Coding Assistant"
+    },
+    {
+      "test": "顶部导航栏",
+      "status": "warn"
+    },
+    {
+      "test": "侧边栏",
+      "status": "warn"
+    },
+    {
+      "test": "主内容区",
+      "status": "pass"
+    },
+    {
+      "test": "消息输入框",
+      "status": "pass"
+    },
+    {
+      "test": "会话列表项",
+      "status": "warn",
+      "count": 0
+    },
+    {
+      "test": "新建按钮",
+      "status": "pass",
+      "count": 1
+    },
+    {
+      "test": "搜索/过滤按钮",
+      "status": "pass"
+    },
+    {
+      "test": "设置按钮",
+      "status": "pass"
+    },
+    {
+      "test": "帮助按钮",
+      "status": "pass"
+    },
+    {
+      "test": "设置面板标题",
+      "status": "pass"
+    },
+    {
+      "test": "Provider 下拉",
+      "status": "pass"
+    },
+    {
+      "test": "Model 下拉",
+      "status": "pass"
+    },
+    {
+      "test": "API Base URL",
+      "status": "pass"
+    },
+    {
+      "test": "API Key 输入框",
+      "status": "pass",
+      "has_input": true
+    },
+    {
+      "test": "API Key 掩码",
+      "status": "pass",
+      "type": "password"
+    },
+    {
+      "test": "Temperature 滑块",
+      "status": "pass"
+    },
+    {
+      "test": "Max Tokens",
+      "status": "pass"
+    },
+    {
+      "test": "System Prompt",
+      "status": "pass",
+      "textarea_count": 2
+    },
+    {
+      "test": "主题切换",
+      "status": "pass"
+    },
+    {
+      "test": "MCP Servers",
+      "status": "pass"
+    },
+    {
+      "test": "插件系统",
+      "status": "pass"
+    },
+    {
+      "test": "关闭设置面板",
+      "status": "pass"
+    },
+    {
+      "test": "发送按钮",
+      "status": "pass"
+    },
+    {
+      "test": "快捷键提示",
+      "status": "pass"
+    },
+    {
+      "test": "@提及提示",
+      "status": "pass"
+    },
+    {
+      "test": "模型信息显示",
+      "status": "pass"
+    },
+    {
+      "test": "控制台错误",
+      "status": "pass",
+      "errors": []
+    },
+    {
+      "test": "API 正常响应",
+      "status": "pass",
+      "ok": 8,
+      "error_4xx": 0,
+      "error_5xx": 0
+    },
+    {
+      "test": "新端点: /api/credentials",
+      "status": "pass"
+    },
+    {
+      "test": "新端点: /api/permission-rules",
+      "status": "pass"
+    },
+    {
+      "test": "新端点: /api/sync/events",
+      "status": "pass"
+    }
+  ],
+  "issues": [],
+  "api_requests": [
+    "http://127.0.0.1:8080/api/credentials",
+    "http://127.0.0.1:8080/api/share",
+    "http://127.0.0.1:8080/api/sessions",
+    "http://127.0.0.1:8080/api/permission-rules",
+    "http://127.0.0.1:8080/api/session",
+    "http://127.0.0.1:8080/api/config",
+    "http://127.0.0.1:8080/api/health",
+    "http://127.0.0.1:8080/api/sync/events"
+  ]
+}
