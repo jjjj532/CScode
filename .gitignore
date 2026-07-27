@@ -72,3 +72,9 @@ todo-app.html
 cscode-desktop.icns
 *.xlsx
 github/
+app-local/
+dogfood-output/
+*.log
+dist/
+build/
+
