@@ -10,6 +10,46 @@ cd "$ROOT"
 echo "=== CScode Desktop DMG Build ==="
 echo "Root: $ROOT"
 
+# --- Git status check: ensure clean working directory ---
+echo ""
+echo "=== Git status check ==="
+if [ -d "$ROOT/.git" ]; then
+    cd "$ROOT"
+    # Check for uncommitted changes
+    if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+        echo "ERROR: You have uncommitted changes. Commit or stash before building."
+        echo ""
+        echo "Uncommitted changes:"
+        git status --short
+        exit 1
+    fi
+    
+    # Check if branch is ahead of remote
+    LOCAL_HEAD=$(git rev-parse HEAD)
+    if git rev-parse @{u} >/dev/null 2>&1; then
+        REMOTE_HEAD=$(git rev-parse @{u})
+        if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+            echo "WARNING: Local commits not pushed to remote."
+            echo "  Local:  $LOCAL_HEAD"
+            echo "  Remote: $REMOTE_HEAD"
+            echo "  Commit(s) ahead: $(git rev-list --count @{u}..HEAD)"
+            echo ""
+            echo "Push before building? (y/n)"
+            read -r confirm
+            if [ "$confirm" != "y" ]; then
+                echo "Aborting build."
+                exit 1
+            fi
+        fi
+    fi
+    
+    echo "Git status OK - working directory is clean"
+    echo "Current commit: $(git rev-parse --short HEAD)"
+    echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+else
+    echo "WARNING: Not a git repository, skipping git check"
+fi
+
 # Activate venv if exists
 if [ -f "$ROOT/.venv/bin/activate" ]; then
     source "$ROOT/.venv/bin/activate"

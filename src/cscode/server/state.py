@@ -10,11 +10,11 @@ from cscode.core.sharing import ShareStore
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
 from cscode.lsp.manager import LSPManager
+from cscode.server.audit_log import AuditLogStore, ErrorLogStore
 from cscode.server.compactor import Compactor
 from cscode.server.integration import IntegrationTokenStore, WebSocketManager
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
-from cscode.server.audit_log import AuditLogStore, ErrorLogStore
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
 from cscode.tools2.pty import PTYSessionManager
