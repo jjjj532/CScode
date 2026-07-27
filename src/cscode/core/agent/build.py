@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from cscode.core.agent.base import AgentMode, BaseAgent
+from cscode.core.agent.system_prompts import BUILD_SYSTEM_PROMPT
 
 
 class BuildAgent(BaseAgent):
@@ -71,8 +72,8 @@ class BuildAgent(BaseAgent):
         async for event in agent.run_stream(user_input, session=session, generation_options=generation_options):
             yield event
 
-    def get_system_prompt(self) -> str | None:
-        return self._system_prompt
+    def get_system_prompt(self) -> str:
+        return self._system_prompt or BUILD_SYSTEM_PROMPT
 
     def get_allowed_tools(self) -> list[str] | None:
         return None

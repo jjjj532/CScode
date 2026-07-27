@@ -8,6 +8,11 @@ from cscode.core.agent.factory import create_agent
 from cscode.core.agent.plan import PlanAgent
 from cscode.core.agent.registry import AgentDef, AgentRegistry
 from cscode.core.agent.subagent import SubAgentAgent
+from cscode.core.agent.system_prompts import (
+    BUILD_SYSTEM_PROMPT,
+    PLAN_SYSTEM_PROMPT,
+    SUBAGENT_SYSTEM_PROMPT,
+)
 from cscode.core.agent.tab import TabManager
 
 __all__ = [
@@ -15,9 +20,12 @@ __all__ = [
     "AgentMode",
     "AgentRegistry",
     "AgentTab",
+    "BUILD_SYSTEM_PROMPT",
     "BaseAgent",
     "BuildAgent",
+    "PLAN_SYSTEM_PROMPT",
     "PlanAgent",
+    "SUBAGENT_SYSTEM_PROMPT",
     "SubAgentAgent",
     "TabManager",
     "create_agent",
