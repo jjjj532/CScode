@@ -48,6 +48,8 @@ from cscode.schema.messages import (
     ToolResultPart,
 )
 from cscode.schema.options import CachePolicy, GenerationOptions, ProviderOptions
+from cscode.schema.session import SessionInfo, SessionState
+from cscode.schema.session_input import AdmittedInput, DeliveryMode
 from cscode.schema.tool import ToolChoice, ToolDefinition
 
 __all__ = [
@@ -95,4 +97,10 @@ __all__ = [
     # tool
     "ToolDefinition",
     "ToolChoice",
+    # session
+    "SessionInfo",
+    "SessionState",
+    # session input
+    "AdmittedInput",
+    "DeliveryMode",
 ]

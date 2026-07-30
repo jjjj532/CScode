@@ -580,3 +580,269 @@ class TestPluginDiscoverer:
         assert len(manifests) == 1
         assert manifests[0].id == "git:cscode-plugin"
         assert manifests[0].source == "https://github.com/user/cscode-plugin.git"
+
+
+class TestPluginHostBuildPluginContext:
+    """Tests for PluginHost.build_plugin_context()."""
+
+    async def test_no_active_plugins_returns_empty_context(self) -> None:
+        """No active plugins → empty SystemContext."""
+        host = PluginHost()
+        ctx = await host.build_plugin_context()
+        assert len(ctx.sources) == 0
+
+    async def test_active_plugin_without_sources_returns_empty(self) -> None:
+        """Active plugin with no context sources → empty SystemContext."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "no_src"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+def activate(api: PluginAPI) -> None:
+    pass  # no context sources registered
+""")
+            pid = "no_src"
+            host.registry.register(PluginManifest(
+                id=pid, name="NoSrc", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            ctx = await host.build_plugin_context()
+            assert len(ctx.sources) == 0
+
+    async def test_single_plugin_with_context_source(self) -> None:
+        """Single plugin with one context source → SystemContext with that source."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "src_plugin"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load() -> str:
+    return "active"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/status",
+        load=_load,
+        baseline=lambda v: f"Status: {v}",
+        update=lambda old, new: f"Status: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            pid = "src_plugin"
+            host.registry.register(PluginManifest(
+                id=pid, name="SrcPlugin", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+
+            ctx = await host.build_plugin_context()
+            assert len(ctx.sources) == 1
+            from cscode.core.system_context import ContextKey
+            assert ContextKey("plugin/status") in ctx.sources
+
+    async def test_multiple_plugins_aggregated(self) -> None:
+        """Multiple plugins with context sources → all sources in SystemContext."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Plugin A
+            pa = Path(tmp) / "plugin_a"
+            pa.mkdir()
+            _write_init(pa, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load_a() -> str:
+    return "a"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/a",
+        load=_load_a,
+        baseline=lambda v: f"a: {v}",
+        update=lambda old, new: f"a: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            # Plugin B
+            pb = Path(tmp) / "plugin_b"
+            pb.mkdir()
+            _write_init(pb, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load_b() -> str:
+    return "b"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/b",
+        load=_load_b,
+        baseline=lambda v: f"b: {v}",
+        update=lambda old, new: f"b: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            host.registry.register(PluginManifest(
+                id="plugin_a", name="PluginA", version="1.0", source=str(pa),
+            ))
+            host.registry.register(PluginManifest(
+                id="plugin_b", name="PluginB", version="1.0", source=str(pb),
+            ))
+            await host.activate("plugin_a")
+            await host.activate("plugin_b")
+
+            ctx = await host.build_plugin_context()
+            assert len(ctx.sources) == 2
+            from cscode.core.system_context import ContextKey
+            assert ContextKey("plugin/a") in ctx.sources
+            assert ContextKey("plugin/b") in ctx.sources
+
+    async def test_context_after_plugin_deactivation(self) -> None:
+        """Deactivating a plugin should remove its context sources."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "deact_src"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load() -> str:
+    return "active"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/temp",
+        load=_load,
+        baseline=lambda v: f"Status: {v}",
+        update=lambda old, new: f"Status: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            pid = "deact_src"
+            host.registry.register(PluginManifest(
+                id=pid, name="DeactSrc", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            ctx_active = await host.build_plugin_context()
+            assert len(ctx_active.sources) == 1
+
+            await host.deactivate(pid)
+            ctx_deact = await host.build_plugin_context()
+            assert len(ctx_deact.sources) == 0
+
+
+class TestPluginHostRenderPluginContext:
+    """Tests for PluginHost.render_plugin_context()."""
+
+    async def test_no_active_plugins_returns_empty_string(self) -> None:
+        """No active plugins → empty string."""
+        host = PluginHost()
+        text = await host.render_plugin_context()
+        assert text == ""
+
+    async def test_active_plugin_without_sources_returns_empty(self) -> None:
+        """Active plugin with no context sources → empty string."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "no_src_render"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+
+def activate(api: PluginAPI) -> None:
+    pass
+""")
+            pid = "no_src_render"
+            host.registry.register(PluginManifest(
+                id=pid, name="NoSrcRender", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            text = await host.render_plugin_context()
+            assert text == ""
+
+    async def test_plugin_with_context_source_returns_baseline(self) -> None:
+        """Plugin with context source → baseline text returned."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "render_src"
+            p.mkdir()
+            _write_init(p, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load() -> str:
+    return "ready"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/status",
+        load=_load,
+        baseline=lambda v: f"Plugin status: {v}",
+        update=lambda old, new: f"Plugin status: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            pid = "render_src"
+            host.registry.register(PluginManifest(
+                id=pid, name="RenderSrc", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            text = await host.render_plugin_context()
+            assert "Plugin status: ready" in text
+
+    async def test_multiple_plugins_aggregated_baseline(self) -> None:
+        """Multiple plugins → merged baseline text."""
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            pa = Path(tmp) / "rpa"
+            pa.mkdir()
+            _write_init(pa, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load_a() -> str:
+    return "value_a"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/a",
+        load=_load_a,
+        baseline=lambda v: f"Source A: {v}",
+        update=lambda old, new: f"A: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            pb = Path(tmp) / "rpb"
+            pb.mkdir()
+            _write_init(pb, """
+from cscode.core.plugin.api import PluginAPI
+from cscode.plugins.context_source import PluginContextSource
+
+async def _load_b() -> str:
+    return "value_b"
+
+def activate(api: PluginAPI) -> None:
+    src = PluginContextSource(
+        key="plugin/b",
+        load=_load_b,
+        baseline=lambda v: f"Source B: {v}",
+        update=lambda old, new: f"B: {old} -> {new}",
+    )
+    api.register_context_source(src)
+""")
+            host.registry.register(PluginManifest(
+                id="rpa", name="RPA", version="1.0", source=str(pa),
+            ))
+            host.registry.register(PluginManifest(
+                id="rpb", name="RPB", version="1.0", source=str(pb),
+            ))
+            await host.activate("rpa")
+            await host.activate("rpb")
+            text = await host.render_plugin_context()
+            assert "Source A: value_a" in text
+            assert "Source B: value_b" in text

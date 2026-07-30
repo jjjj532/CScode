@@ -174,3 +174,72 @@ class TestOutputStore:
         # Pydantic Literal validation catches invalid actions at construction
         with pytest.raises(ValueError, match="Input should be"):
             OutputStoreInput(action="unknown")
+
+
+class TestToolOutputStoreBounded:
+    """Tests for BoundedOutput and bounded storage features."""
+
+    @pytest.fixture(autouse=True)
+    def reset_store(self) -> None:
+        ToolOutputStore().clear()
+
+    def test_bounded_output_small(self) -> None:
+        """Output under threshold returns preview without truncation."""
+        store = ToolOutputStore()
+        text = "Hello, world!"
+        result = store.save("test-key", text)
+        assert result.preview == text
+        assert not result.truncated
+        assert result.managed_path is None
+
+    def test_bounded_output_large_lines(self) -> None:
+        """Output exceeding MAX_LINES is truncated and stored to disk."""
+        store = ToolOutputStore(data_dir="/tmp/test-output-store")
+        lines = [f"line {i}" for i in range(600)]
+        text = "\n".join(lines)
+        result = store.save("large-key", text)
+        assert result.truncated
+        assert result.managed_path is not None
+        # Preview should have first 500 lines
+        preview_lines = result.preview.split("\n")
+        assert len(preview_lines) == 500
+
+    def test_bounded_output_large_bytes(self) -> None:
+        """Output exceeding MAX_BYTES is truncated."""
+        store = ToolOutputStore()
+        # Create a string larger than 512KB
+        large = "x" * (600 * 1024)
+        result = store.save("big-key", large)
+        assert result.truncated
+        assert len(result.preview.encode("utf-8")) <= 512 * 1024
+
+    def test_bounded_output_no_file_backed_in_memory(self) -> None:
+        """Without data_dir, large output is still bounded in memory."""
+        store = ToolOutputStore()
+        lines = [f"line {i}" for i in range(600)]
+        text = "\n".join(lines)
+        result = store.save("mem-key", text)
+        assert result.truncated
+        # Without data_dir, managed_path may be None (in-memory only)
+        assert result.managed_path is None
+
+    def test_cleanup_removes_session_entries(self) -> None:
+        """Cleanup removes entries for a specific session."""
+        store = ToolOutputStore()
+        store.save("s1-key1", "data1", session_id="session-1")
+        store.save("s1-key2", "data2", session_id="session-1")
+        store.save("s2-key1", "data3", session_id="session-2")
+        store.cleanup("session-1")
+        assert store.get("s1-key1", session_id="session-1") is None
+        assert store.get("s1-key2", session_id="session-1") is None
+        # Other session should remain
+        assert store.get("s2-key1", session_id="session-2") is not None
+
+    def test_get_returns_bounded_data(self) -> None:
+        """get() returns the stored metadata including saved_at."""
+        store = ToolOutputStore()
+        store.save("test-key", "test data")
+        entry = store.get("test-key")
+        assert entry is not None
+        assert entry["data"] == "test data"
+        assert "saved_at" in entry

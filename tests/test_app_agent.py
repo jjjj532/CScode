@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ from cscode.app.factory import create_agent_v2, create_tool_registry
 from cscode.core.config import Config
 from cscode.llm.client import LLMClient
 from cscode.llm.route import Route
-from cscode.llm.types import LLMRequest
+from cscode.llm.types import LLMRequest, LLMResponse
 from cscode.schema.events import (
     Finish,
     LLMEvent,
@@ -28,6 +29,8 @@ from cscode.schema.events import (
     ToolCallEnded,
 )
 from cscode.schema.ids import ModelID, ToolCallID
+from cscode.schema.messages import Message
+from cscode.core.session import SessionV2
 from cscode.core.tool_registry import ToolRegistryV2
 from cscode.tools2 import Tool, ToolResult
 
@@ -46,15 +49,16 @@ class MockLLMClient(LLMClient):
         self._call_count = 0
         self._requests: list[LLMRequest] = []
         # Route is required by LLMClient.__init__, create a minimal one
-        from cscode.llm.route import Auth, Endpoint, ProtocolID
+        from cscode.llm.route import AuthInfo, AuthScheme, EndpointInfo, ProtocolID
 
         super().__init__(
             route=Route(
                 id="mock/test",
+                provider="mock",
+                model="test-model",
                 protocol=ProtocolID.OPENAI_CHAT,
-                endpoint=Endpoint.from_base("https://mock.test"),
-                auth=Auth.none(),
-                model=ModelID("test-model"),
+                endpoint=EndpointInfo(url="https://mock.test"),
+                auth=AuthInfo(scheme=AuthScheme.NONE, value=""),
             )
         )
 
@@ -410,6 +414,270 @@ async def test_run_empty_input(echo_registry: ToolRegistryV2) -> None:
 
     result = await agent.run("")
     assert result == ""
+
+
+# ─── Test: run() — empty stream fallback ────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_empty_stream_fallback(echo_registry: ToolRegistryV2) -> None:
+    """_run_loop should try non-streaming fallback when stream returns empty."""
+    from cscode.llm.route import AuthInfo, AuthScheme, EndpointInfo, ProtocolID
+
+    class _EmptyStreamClient(LLMClient):
+        """Mock that returns empty stream then falls back to generate()."""
+
+        def __init__(self) -> None:
+            super().__init__(
+                route=Route(
+                    id="mock/test",
+                    provider="mock",
+                    model="test-model",
+                    protocol=ProtocolID.OPENAI_CHAT,
+                    endpoint=EndpointInfo(url="https://mock.test"),
+                    auth=AuthInfo(scheme=AuthScheme.NONE, value=""),
+                )
+            )
+            self.stream_called = False
+            self.generate_called = False
+
+        async def stream(self, request: LLMRequest) -> AsyncIterator[LLMEvent]:
+            self.stream_called = True
+            if False:
+                yield  # pragma: no cover — make this an async generator
+
+        async def generate(self, request: LLMRequest) -> LLMResponse:
+            self.generate_called = True
+            return LLMResponse(content="Fallback response", finish_reason="stop")
+
+    client = _EmptyStreamClient()
+    agent = AgentV2(llm_client=client, tool_registry=echo_registry)
+
+    result = await agent.run("Test empty stream")
+
+    assert result == "Fallback response"
+    assert client.stream_called, "stream() should have been called"
+    assert client.generate_called, "generate() fallback should have been called"
+
+
+# ─── Test: run() — fallback also fails ──────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_fallback_also_fails(echo_registry: ToolRegistryV2) -> None:
+    """_run_loop should handle gracefully when both stream and generate fail."""
+    from cscode.llm.route import AuthInfo, AuthScheme, EndpointInfo, ProtocolID
+
+    class _DoubleFailClient(LLMClient):
+        """Mock where stream returns empty and generate() raises."""
+
+        def __init__(self) -> None:
+            super().__init__(
+                route=Route(
+                    id="mock/test", provider="mock", model="test-model",
+                    protocol=ProtocolID.OPENAI_CHAT,
+                    endpoint=EndpointInfo(url="https://mock.test"),
+                    auth=AuthInfo(scheme=AuthScheme.NONE, value=""),
+                )
+            )
+            self.stream_called = False
+            self.generate_called = False
+
+        async def stream(self, request: LLMRequest) -> AsyncIterator[LLMEvent]:
+            self.stream_called = True
+            if False:
+                yield
+
+        async def generate(self, request: LLMRequest) -> LLMResponse:
+            self.generate_called = True
+            raise RuntimeError("Network failure")
+
+    client = _DoubleFailClient()
+    agent = AgentV2(llm_client=client, tool_registry=echo_registry)
+
+    result = await agent.run("Test double failure")
+
+    assert result == "", "Should return empty string when both paths fail"
+    assert client.stream_called
+    assert client.generate_called
+
+
+# ─── Test: run() — session persistence ──────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_text_persists_to_session(
+    text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2
+) -> None:
+    """AgentV2.run() should persist assistant text to SessionV2 if provided."""
+    session = AsyncMock(spec=SessionV2)
+    session.state.messages = []
+
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    result = await agent.run("Say hello", session=session)
+
+    assert result == "Hello world"
+    session.add_text.assert_awaited_once_with("Hello world")
+    session.add_tool_call.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_run_tool_call_persists_to_session(echo_registry: ToolRegistryV2) -> None:
+    """AgentV2.run() should persist tool calls and text to SessionV2."""
+    session = AsyncMock(spec=SessionV2)
+    session.state.messages = []
+
+    batch1: list[LLMEvent] = [
+        TextDelta(text="Checking..."),
+        TextEnded(full_text="Checking..."),
+        ToolCallEnded(tool_call_id=ToolCallID("call_1"), name="echo", args={"message": "hi"}),
+        Finish(finish_reason="tool_use"),
+    ]
+    batch2: list[LLMEvent] = [
+        TextDelta(text="Done"),
+        TextEnded(full_text="Done"),
+        Finish(finish_reason="stop"),
+    ]
+    mock_client = MockLLMClient([batch1, batch2])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    result = await agent.run("Echo", session=session)
+
+    assert result == "Checking...Done"
+    session.add_text.assert_any_await("Checking...")
+    session.add_tool_call.assert_awaited_once_with("echo", {"message": "hi"})
+
+
+@pytest.mark.asyncio
+async def test_run_no_session_does_not_persist(
+    text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2
+) -> None:
+    """AgentV2.run() should not call session methods when session is None."""
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    result = await agent.run("Say hello", session=None)
+
+    assert result == "Hello world"
+
+
+# ─── Test: run_with_messages() ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_with_messages(text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2) -> None:
+    """run_with_messages() should process pre-built message list and extend it."""
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    prebuilt = [Message.user("Hello from prebuilt")]
+    original_len = len(prebuilt)
+    result = await agent.run_with_messages(prebuilt)
+
+    assert result == "Hello world"
+    assert len(prebuilt) == original_len
+
+
+@pytest.mark.asyncio
+async def test_run_with_messages_system_prompt(
+    text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2
+) -> None:
+    """run_with_messages() with system prompt should not inject extra system message."""
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(
+        llm_client=mock_client,
+        tool_registry=echo_registry,
+        system_prompt="Custom system prompt",
+    )
+
+    prebuilt = [Message.user("Hello")]
+    await agent.run_with_messages(prebuilt)
+
+    # run_with_messages bypasses _build_messages so no system prompt injected
+    assert prebuilt[0].role == "user"
+
+
+# ─── Test: run() — async on_event ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_async_on_event(text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2) -> None:
+    """_run_loop should support async (coroutine) on_event callbacks."""
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    collected: list[str] = []
+
+    async def async_on_event(event: LLMEvent) -> None:
+        collected.append(event.type)
+
+    result = await agent.run("Say hello", on_event=async_on_event)
+
+    assert result == "Hello world"
+    assert "pending" in collected
+    assert "text-delta" in collected
+    assert "text-ended" in collected
+
+
+# ─── Test: run() — multiple tool calls in one round ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_multiple_tool_calls(echo_registry: ToolRegistryV2) -> None:
+    """_run_loop should handle multiple tool calls in a single LLM round."""
+    batch1: list[LLMEvent] = [
+        TextDelta(text="Calling tools..."),
+        TextEnded(full_text="Calling tools..."),
+        ToolCallEnded(tool_call_id=ToolCallID("call_1"), name="echo", args={"message": "first"}),
+        ToolCallEnded(tool_call_id=ToolCallID("call_2"), name="echo", args={"message": "second"}),
+        Finish(finish_reason="tool_use"),
+    ]
+    batch2: list[LLMEvent] = [
+        TextDelta(text="All done"),
+        TextEnded(full_text="All done"),
+        Finish(finish_reason="stop"),
+    ]
+    mock_client = MockLLMClient([batch1, batch2])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    result = await agent.run("Call two tools")
+
+    assert result == "Calling tools...All done"
+    assert mock_client.call_count == 2
+
+
+# ─── Test: run() — @tool mention processing ──────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_with_tool_mention(text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2) -> None:
+    """_run_loop should process @tool:ToolName mentions via SubAgentOrchestrator."""
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    result = await agent.run("Echo @tool:echo message=hello")
+
+    assert result == "Hello world"
+    assert mock_client.call_count == 1
+    req = mock_client.requests[0]
+    user_msg = [m for m in req.messages if m.role == "user"][0]
+    assert "Tool echo result:" in user_msg.content
+
+
+@pytest.mark.asyncio
+async def test_run_with_unknown_tool_mention(text_only_batch: list[LLMEvent], echo_registry: ToolRegistryV2) -> None:
+    """_run_loop should handle unknown @tool mentions with inline error."""
+    mock_client = MockLLMClient([text_only_batch])
+    agent = AgentV2(llm_client=mock_client, tool_registry=echo_registry)
+
+    result = await agent.run("Use @tool:unknown_tool x=1")
+
+    assert result == "Hello world"
+    req = mock_client.requests[0]
+    user_msg = [m for m in req.messages if m.role == "user"][0]
+    assert "Tool unknown_tool error:" in user_msg.content
 
 
 # ─── Test: run() — max tool rounds ─────────────────────────────────

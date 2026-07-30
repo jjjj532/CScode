@@ -33,7 +33,7 @@ TEXT_EXTENSIONS: set[str] = {
     ".zig", ".nim", "ex", ".exs",
 }
 
-IMAGE_EXTENSIONS: set[str] = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico"}
+IMAGE_EXTENSIONS: set[str] = {".png", ".jpg", ".jpeg", ".jpe", ".gif", ".bmp", ".webp", ".svg", ".ico"}
 
 
 @dataclass
@@ -113,10 +113,15 @@ class Attachment:
             size = path_obj.stat().st_size
         ext = path_obj.suffix.lower()
         is_img = ext in IMAGE_EXTENSIONS
+        mime: str | None = None
+        if is_img:
+            guessed, _ = mimetypes.guess_type(f"a{ext}")
+            mime = guessed or f"image/{ext[1:]}"
         return cls(
             path=str(path_obj.resolve()),
             name=name,
             content=content,
             size=size,
+            mime_type=mime or "text/plain",
             is_image=is_img,
         )

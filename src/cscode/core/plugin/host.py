@@ -20,6 +20,9 @@ from cscode.core.plugin.api import (
 )
 from cscode.core.plugin.discovery import PluginDiscoverer
 from cscode.core.plugin.registry import PluginManifest, PluginRegistry, PluginState
+from cscode.plugins.context_source import PluginContextSource
+from cscode.core.system_context import SystemContext
+from cscode.plugins.lifecycle import PluginLifecycle
 from cscode.plugins.sdk import PluginSDK
 from cscode.tools.base import BaseTool
 from cscode.utils.logging import get_logger
@@ -278,6 +281,16 @@ class PluginHost:
 
                 activate_fn = build_activate_func(sdk_instances)
                 activate_fn(api)
+                # Invoke lifecycle on_activate hooks
+                for lc_hook in api.get_lifecycle_hooks():
+                    if lc_hook.on_activate is not None:
+                        try:
+                            await lc_hook.on_activate()
+                        except Exception:
+                            logger.exception(
+                                "PluginHost.activate: on_activate hook failed for plugin %s",
+                                plugin_id,
+                            )
 
         self._registry.update_state(plugin_id, PluginState.ACTIVE)
 
@@ -307,6 +320,19 @@ class PluginHost:
         if manifest.state != PluginState.ACTIVE:
             msg = f"Plugin '{plugin_id}' is not active (state={manifest.state.value})"
             raise ValueError(msg)
+
+        # Invoke lifecycle on_deactivate hooks
+        api = self._plugin_apis.get(plugin_id)
+        if api is not None:
+            for lc_hook in api.get_lifecycle_hooks():
+                if lc_hook.on_deactivate is not None:
+                    try:
+                        await lc_hook.on_deactivate()
+                    except Exception:
+                        logger.exception(
+                            "PluginHost.deactivate: on_deactivate hook failed for plugin %s",
+                            plugin_id,
+                        )
 
         # Notify plugin of deactivation
         module = self._loaded_modules.get(plugin_id)
@@ -394,3 +420,79 @@ class PluginHost:
                     extensions.append(e)
                     seen.add(key)
         return extensions
+
+    async def render_plugin_context(self) -> str:
+        """Initialize all plugin context sources and return the baseline text.
+
+        Calls build_plugin_context() to get a SystemContext, then calls
+        initialize() to render the baseline. Returns empty string if no
+        sources are registered.
+
+        Returns:
+            The rendered baseline text from all plugin context sources,
+            or empty string if no sources exist.
+        """
+        from cscode.core.system_context import initialize
+
+        ctx = await self.build_plugin_context()
+        if not ctx.sources:
+            return ""
+        gen = await initialize(ctx)
+        return gen.baseline
+
+    async def build_plugin_context(self) -> SystemContext:
+        """Aggregate all active plugin context sources into a SystemContext.
+
+        Returns:
+            A SystemContext containing all plugin context sources.
+            Returns an empty SystemContext if no active plugins have sources.
+        """
+        from cscode.plugins.context_source import to_system_context
+
+        return await to_system_context(self.get_context_sources())
+
+    def get_context_sources(self) -> list[PluginContextSource]:
+        """Collect context sources from all active plugin APIs."""
+        sources: list[PluginContextSource] = []
+        seen: set[str] = set()
+        for api in self._plugin_apis.values():
+            for s in api.get_context_sources():
+                if s.key not in seen:
+                    sources.append(s)
+                    seen.add(s.key)
+        return sources
+
+    def get_lifecycle_hooks(self) -> list[PluginLifecycle]:
+        """Collect lifecycle hooks from all active plugin APIs."""
+        hooks: list[PluginLifecycle] = []
+        for api in self._plugin_apis.values():
+            hooks.extend(api.get_lifecycle_hooks())
+        return hooks
+
+    # ── Session Lifecycle ────────────────────────────────────────────
+
+    async def emit_session_start(self, session_id: str) -> None:
+        """Emit a session start event to all active plugin lifecycle hooks."""
+        for api in self._plugin_apis.values():
+            for lc_hook in api.get_lifecycle_hooks():
+                if lc_hook.on_session_start is not None:
+                    try:
+                        await lc_hook.on_session_start(session_id)
+                    except Exception:
+                        logger.exception(
+                            "PluginHost.emit_session_start: hook failed for session %s",
+                            session_id,
+                        )
+
+    async def emit_session_end(self, session_id: str) -> None:
+        """Emit a session end event to all active plugin lifecycle hooks."""
+        for api in self._plugin_apis.values():
+            for lc_hook in api.get_lifecycle_hooks():
+                if lc_hook.on_session_end is not None:
+                    try:
+                        await lc_hook.on_session_end(session_id)
+                    except Exception:
+                        logger.exception(
+                            "PluginHost.emit_session_end: hook failed for session %s",
+                            session_id,
+                        )

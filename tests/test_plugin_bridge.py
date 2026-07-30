@@ -23,7 +23,6 @@ from cscode.plugins.sdk import PluginSDK
 from cscode.schema.tool import ToolResult
 from cscode.tools.base import BaseTool
 
-
 # ── Helper Tools ──────────────────────────────────────────────────────
 
 
@@ -51,9 +50,9 @@ class TestDetectSDKInstances:
 
     def test_detects_sdk_instance_in_module(self) -> None:
         """detect_sdk_instances finds PluginSDK instances in a module."""
-        from cscode.plugins import bridge
-
         import types
+
+        from cscode.plugins import bridge
         mod = types.ModuleType("test_mod")
         sdk = PluginSDK(name="test-p", version="1.0.0")
         mod.sdk = sdk
@@ -64,9 +63,9 @@ class TestDetectSDKInstances:
 
     def test_detects_multiple_sdk_instances(self) -> None:
         """Multiple PluginSDK instances are all detected."""
-        from cscode.plugins import bridge
-
         import types
+
+        from cscode.plugins import bridge
         mod = types.ModuleType("test_mod")
         sdk1 = PluginSDK(name="p1")
         sdk2 = PluginSDK(name="p2")
@@ -78,9 +77,9 @@ class TestDetectSDKInstances:
 
     def test_no_sdk_instances_returns_empty(self) -> None:
         """Module without SDK instances returns empty list."""
-        from cscode.plugins import bridge
-
         import types
+
+        from cscode.plugins import bridge
         mod = types.ModuleType("test_mod")
         mod.some_attr = 42
         mod.other = "hello"
@@ -90,9 +89,9 @@ class TestDetectSDKInstances:
 
     def test_empty_module_returns_empty(self) -> None:
         """Module with no attributes returns empty list."""
-        from cscode.plugins import bridge
-
         import types
+
+        from cscode.plugins import bridge
         mod = types.ModuleType("empty_mod")
 
         result = bridge.detect_sdk_instances(mod)
@@ -100,9 +99,9 @@ class TestDetectSDKInstances:
 
     def test_skips_non_sdk_objects(self) -> None:
         """Non-SDK objects are skipped during detection."""
-        from cscode.plugins import bridge
-
         import types
+
+        from cscode.plugins import bridge
         mod = types.ModuleType("test_mod")
         mod.not_sdk = "string"
         mod.also_not = 123
@@ -332,3 +331,295 @@ sdk = PluginSDK(name="uninstall-p")
             await host.activate(pid)
             await host.uninstall(pid)
             assert host.registry.get(pid) is None
+
+
+class TestBuildActivateFuncContextSources:
+    """Tests for build_activate_func registering PluginContextSource."""
+
+    def test_registers_context_sources_from_sdk(self) -> None:
+        from cscode.plugins import bridge
+
+        sdk = PluginSDK(name="cs-test", version="1.0.0")
+
+        @sdk.context_source(key="plugin/status")
+        async def load_status() -> str:
+            return "running"
+
+        activate = bridge.build_activate_func([sdk])
+        api = PluginAPI()
+        activate(api)
+
+        sources = api.get_context_sources()
+        assert len(sources) == 1
+        assert sources[0].key == "plugin/status"
+
+    def test_registers_multiple_context_sources(self) -> None:
+        from cscode.plugins import bridge
+
+        sdk = PluginSDK(name="multi-cs")
+
+        @sdk.context_source(key="plugin/a")
+        async def load_a() -> str:
+            return "a"
+
+        @sdk.context_source(key="plugin/b")
+        async def load_b() -> str:
+            return "b"
+
+        activate = bridge.build_activate_func([sdk])
+        api = PluginAPI()
+        activate(api)
+
+        assert len(api.get_context_sources()) == 2
+
+    def test_no_context_sources_empty_list(self) -> None:
+        from cscode.plugins import bridge
+
+        sdk = PluginSDK(name="no-cs")
+        activate = bridge.build_activate_func([sdk])
+        api = PluginAPI()
+        activate(api)
+
+        assert api.get_context_sources() == []
+
+    def test_registers_lifecycle_from_sdk(self) -> None:
+        from cscode.plugins import bridge
+
+        sdk = PluginSDK(name="lc-test")
+
+        @sdk.on_activate
+        async def activate() -> None:
+            pass
+
+        @sdk.on_deactivate
+        async def deactivate() -> None:
+            pass
+
+        activate_fn = bridge.build_activate_func([sdk])
+        api = PluginAPI()
+        activate_fn(api)
+
+        hooks = api.get_lifecycle_hooks()
+        assert len(hooks) == 1
+        assert hooks[0].on_activate is not None
+        assert hooks[0].on_deactivate is not None
+
+    def test_no_lifecycle_empty_hooks(self) -> None:
+        from cscode.plugins import bridge
+
+        sdk = PluginSDK(name="no-lc")
+        activate = bridge.build_activate_func([sdk])
+        api = PluginAPI()
+        activate(api)
+
+        hooks = api.get_lifecycle_hooks()
+        # SDK always creates a PluginLifecycle — verify all fields are None
+        assert len(hooks) == 1
+        assert hooks[0].on_activate is None
+        assert hooks[0].on_deactivate is None
+        assert hooks[0].on_session_start is None
+        assert hooks[0].on_session_end is None
+
+    def test_registers_both_tools_and_context_sources_and_lifecycle(self) -> None:
+        from cscode.plugins import bridge
+
+        sdk = PluginSDK(name="all-in-one")
+
+        class _MyTool:
+            name = "mytool"
+            description = "My tool"
+
+        sdk.tools["mytool"] = _MyTool
+
+        @sdk.context_source(key="plugin/mytool")
+        async def load_mytool() -> str:
+            return "ready"
+
+        @sdk.on_activate
+        async def on_activate() -> None:
+            pass
+
+        activate = bridge.build_activate_func([sdk])
+        api = PluginAPI()
+        activate(api)
+
+        assert len(api.get_tools()) == 1
+        assert len(api.get_context_sources()) == 1
+        assert len(api.get_lifecycle_hooks()) == 1
+
+
+class TestPluginHostSDKLifecycle:
+    """SDK lifecycle hooks invoked through PluginHost activate/deactivate."""
+
+    async def test_host_activate_invokes_on_activate(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_activate_lc"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+
+sdk = PluginSDK(name="activate-lc")
+_called = False
+
+@sdk.on_activate
+async def on_activate():
+    global _called
+    _called = True
+""")
+            pid = "activate_lc"
+            host.registry.register(PluginManifest(
+                id=pid, name="ActivateLC", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+
+            mod = sys.modules.get("sdk_activate_lc")
+            assert mod is not None
+            assert mod._called is True
+
+    async def test_host_deactivate_invokes_on_deactivate(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_deactivate_lc"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+
+sdk = PluginSDK(name="deactivate-lc")
+_called = False
+
+@sdk.on_deactivate
+async def on_deactivate():
+    global _called
+    _called = True
+""")
+            pid = "deactivate_lc"
+            host.registry.register(PluginManifest(
+                id=pid, name="DeactivateLC", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            await host.deactivate(pid)
+
+            mod = sys.modules.get("sdk_deactivate_lc")
+            assert mod is not None
+            assert mod._called is True
+
+    async def test_host_get_context_sources_from_active_sdk_plugin(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_cs_query"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+
+sdk = PluginSDK(name="cs-query")
+
+@sdk.context_source(key="plugin/status")
+async def load_status():
+    return "running"
+""")
+            pid = "cs_query"
+            host.registry.register(PluginManifest(
+                id=pid, name="CSQuery", version="1.0", source=str(p),
+            ))
+            api = await host.activate(pid)
+
+            sources = api.get_context_sources()
+            assert len(sources) == 1
+            assert sources[0].key == "plugin/status"
+
+    async def test_host_get_lifecycle_hooks_from_active_sdk_plugin(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_lc_query"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+
+sdk = PluginSDK(name="lc-query")
+
+@sdk.on_activate
+async def on_activate():
+    pass
+""")
+            pid = "lc_query"
+            host.registry.register(PluginManifest(
+                id=pid, name="LCQuery", version="1.0", source=str(p),
+            ))
+            api = await host.activate(pid)
+
+            hooks = api.get_lifecycle_hooks()
+            assert len(hooks) == 1
+            assert hooks[0].on_activate is not None
+
+    async def test_emit_session_start_calls_lifecycle_hooks(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_sess_start"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+
+sdk = PluginSDK(name="sess-start")
+_called = None
+
+@sdk.on_session_start
+async def on_session_start(session_id: str):
+    global _called
+    _called = session_id
+""")
+            pid = "sess_start"
+            host.registry.register(PluginManifest(
+                id=pid, name="SessStart", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            await host.emit_session_start("session-1")
+
+            mod = sys.modules.get("sdk_sess_start")
+            assert mod is not None
+            assert mod._called == "session-1"
+
+    async def test_emit_session_end_calls_lifecycle_hooks(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_sess_end"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+
+sdk = PluginSDK(name="sess-end")
+_called = None
+
+@sdk.on_session_end
+async def on_session_end(session_id: str):
+    global _called
+    _called = session_id
+""")
+            pid = "sess_end"
+            host.registry.register(PluginManifest(
+                id=pid, name="SessEnd", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            await host.emit_session_end("session-1")
+
+            mod = sys.modules.get("sdk_sess_end")
+            assert mod is not None
+            assert mod._called == "session-1"
+
+    async def test_emit_session_start_no_hooks_no_crash(self) -> None:
+        host = PluginHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sdk_no_hook"
+            p.mkdir()
+            _write_init(p, """
+from cscode.plugins.sdk import PluginSDK
+sdk = PluginSDK(name="no-hook")
+""")
+            pid = "no_hook"
+            host.registry.register(PluginManifest(
+                id=pid, name="NoHook", version="1.0", source=str(p),
+            ))
+            await host.activate(pid)
+            # Should not raise
+            await host.emit_session_start("session-1")
+            await host.emit_session_end("session-1")

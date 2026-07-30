@@ -8,6 +8,8 @@ from typing import Any
 
 from cscode.core.events import EventBus
 from cscode.core.plugin.hooks import HookPoint, HookRegistry
+from cscode.plugins.context_source import PluginContextSource
+from cscode.plugins.lifecycle import PluginLifecycle
 from cscode.tools.base import BaseTool
 
 
@@ -64,6 +66,8 @@ class PluginAPI:
         self._providers: dict[str, ProviderDef] = {}
         self._skills: dict[str, SkillDef] = {}
         self._ui_extensions: dict[str, UIExtension] = {}
+        self._context_sources: dict[str, PluginContextSource] = {}
+        self._lifecycle_hooks: list[PluginLifecycle] = []
 
     # ── Registration ──────────────────────────────────────────────────
 
@@ -141,6 +145,34 @@ class PluginAPI:
         """Register a handler for message events."""
         if self._hook_registry:
             self._hook_registry.register(HookPoint.MESSAGE, handler)
+
+    def on_session_end(self, handler: Callable[..., Any]) -> None:
+        """Register a handler for session end events."""
+        if self._hook_registry:
+            self._hook_registry.register(HookPoint.SESSION_END, handler)
+
+    # ── Context Sources ───────────────────────────────────────────────
+
+    def register_context_source(self, source: PluginContextSource) -> None:
+        """Register a system context source contributed by this plugin."""
+        if source.key in self._context_sources:
+            msg = f"Context source '{source.key}' already registered"
+            raise ValueError(msg)
+        self._context_sources[source.key] = source
+
+    def get_context_sources(self) -> list[PluginContextSource]:
+        """Return all registered context sources."""
+        return list(self._context_sources.values())
+
+    # ── Lifecycle Hooks ───────────────────────────────────────────────
+
+    def register_lifecycle(self, lifecycle: PluginLifecycle) -> None:
+        """Register a PluginLifecycle to receive lifecycle events."""
+        self._lifecycle_hooks.append(lifecycle)
+
+    def get_lifecycle_hooks(self) -> list[PluginLifecycle]:
+        """Return all registered lifecycle hooks."""
+        return list(self._lifecycle_hooks)
 
     # ── Queries ───────────────────────────────────────────────────────
 

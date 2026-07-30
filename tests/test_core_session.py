@@ -420,6 +420,56 @@ class TestSessionCoordinator:
         barrier.set()
         await task
 
+    async def test_run_processor_raises_exception(self) -> None:
+        """_process_loop: processor.process() raises → exception propagates, state reset."""
+        coord = SessionCoordinator()
+
+        async def failing_processor(session_id: str) -> str:
+            raise RuntimeError("Internal processor error")
+
+        with pytest.raises(RuntimeError, match="Internal processor error"):
+            await coord.run("fail", _ProcAdapter(failing_processor))
+
+        assert coord.get_state("fail") == SessionState.IDLE
+
+    async def test_run_interrupt_wins_over_processor(self) -> None:
+        """_process_loop: interrupt() wins → _wait_interrupt completes → run() returns empty."""
+        coord = SessionCoordinator()
+        barrier = asyncio.Event()
+
+        async def slow_processor(session_id: str) -> str:
+            await barrier.wait()
+            return "should not complete"
+
+        task = asyncio.create_task(
+            coord.run("interrupt", _ProcAdapter(slow_processor))
+        )
+        await asyncio.sleep(0.05)
+
+        await coord.interrupt("interrupt")
+        # Do NOT set barrier — let processor stay blocked so it gets
+        # cancelled when _process_loop cancels pending tasks.
+
+        result = await task
+        assert result == ""
+        assert coord.get_state("interrupt") == SessionState.IDLE
+
+    async def test_run_interrupt_noop_when_idle(self) -> None:
+        """interrupt() before run() is safe — does not affect subsequent run()."""
+        coord = SessionCoordinator()
+        ran: list[bool] = []
+
+        async def quick_processor(session_id: str) -> str:
+            ran.append(True)
+            return "done"
+
+        await coord.interrupt("quick")
+        result = await coord.run("quick", _ProcAdapter(quick_processor))
+
+        assert result == "done"
+        assert ran == [True]
+        assert coord.get_state("quick") == SessionState.IDLE
+
 
 class _ProcAdapter:
     """Adapter to wrap a simple async function as a processor."""
@@ -427,8 +477,9 @@ class _ProcAdapter:
     def __init__(self, process_func: Any) -> None:
         self._process = process_func
 
-    async def process(self, session_id: str) -> None:
-        await self._process(session_id)
+    async def process(self, session_id: str) -> str:
+        result = await self._process(session_id)
+        return result or ""
 
 
 # ─── SessionRunner Contract Tests ────────────────────────────────────

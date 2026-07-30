@@ -9,8 +9,6 @@ Tests cover:
 
 from __future__ import annotations
 
-import time
-
 import httpx
 import pytest
 from fastapi import FastAPI
@@ -21,9 +19,6 @@ from cscode.schema.ids import SessionID
 from cscode.schema.messages import MessageRole
 from cscode.storage.db import Database
 from cscode.storage.event_store import Event, EventStore
-
-
-
 
 # ═══════════════════════════════════════════════════════════════════
 # Fixtures
@@ -187,6 +182,66 @@ class TestBuildContextInstruction:
         await session.prompt("Hello")
         context = SessionProjector.build_context(session.state)
         assert not any(m.role == MessageRole.SYSTEM for m in context)
+
+
+class TestBuildContextPluginContext:
+    """Tests for SessionProjector.build_context() with plugin_context_text."""
+
+    async def test_plugin_context_injected_as_system_message(
+        self, session: SessionV2
+    ) -> None:
+        """plugin_context_text appears as a system message."""
+        await session.prompt("Hello")
+        context = SessionProjector.build_context(
+            session.state,
+            plugin_context_text="Plugin info: active",
+        )
+        assert any(m.role == MessageRole.SYSTEM for m in context)
+        sys_msgs = [m for m in context if m.role == MessageRole.SYSTEM]
+        assert any("Plugin info: active" in str(m.parts[0].text) for m in sys_msgs)
+
+    async def test_plugin_context_after_instruction(
+        self, session: SessionV2
+    ) -> None:
+        """Instruction system message appears before plugin context."""
+        await session.set_instruction("Be concise.")
+        await session.prompt("Hello")
+        context = SessionProjector.build_context(
+            session.state,
+            plugin_context_text="Plugin context text",
+        )
+        assert len(context) >= 2
+        assert context[0].role == MessageRole.SYSTEM
+        # First system message should be the instruction
+        assert "Be concise." in str(context[0].parts[0].text)
+        # Second should be the plugin context
+        assert "Plugin context text" in str(context[1].parts[0].text)
+
+    async def test_plugin_context_empty_no_extra_message(
+        self, session: SessionV2
+    ) -> None:
+        """Empty plugin_context_text does not inject extra system message."""
+        await session.set_instruction("Do X.")
+        await session.prompt("Hello")
+        context = SessionProjector.build_context(session.state, plugin_context_text="")
+        sys_count = sum(1 for m in context if m.role == MessageRole.SYSTEM)
+        assert sys_count == 1  # Only the instruction system message
+
+    async def test_plugin_context_combined_with_instruction(
+        self, session: SessionV2
+    ) -> None:
+        """Plugin context and instruction both present as separate system messages."""
+        await session.set_instruction("Speak in French.")
+        await session.prompt("Bonjour")
+        context = SessionProjector.build_context(
+            session.state,
+            plugin_context_text="Plugin: weather v1.0",
+        )
+        sys_msgs = [m for m in context if m.role == MessageRole.SYSTEM]
+        assert len(sys_msgs) == 2
+        # Instruction is first (primary system prompt), then plugin context
+        assert "Speak in French." in str(sys_msgs[0].parts[0].text)
+        assert "Plugin: weather v1.0" in str(sys_msgs[1].parts[0].text)
 
 
 # ═══════════════════════════════════════════════════════════════════

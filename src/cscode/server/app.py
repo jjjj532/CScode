@@ -68,7 +68,7 @@ from cscode.server.integration import IntegrationTokenStore, WebSocketManager
 from cscode.server.projector import Projector
 from cscode.server.question_registry import QuestionRegistry
 from cscode.server.rate_limiter import RateLimiter
-from cscode.server.routes import permissions_router, sessions_router
+from cscode.server.routes import config_router, permissions_router, sessions_router, tools_router
 from cscode.server.state import state
 from cscode.storage.db import Database
 from cscode.storage.event_store import EventStore
@@ -267,7 +267,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _ws_manager, \
         _token_store, \
         _pty_manager, \
-        _share_store
+        _share_store, \
+        _plugin_host
 
     from cscode.server.state import state as app_state
 
@@ -344,6 +345,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app_state.audit_log = AuditLogStore(_db) if _db else None
     app_state.error_log = ErrorLogStore(_db) if _db else None
 
+    # Plugin host (SDK-based plugins)
+    from cscode.core.events import EventBus
+    from cscode.core.plugin.host import PluginHost
+
+    _plugin_host = PluginHost(event_bus=EventBus())
+    app_state.plugin_host = _plugin_host
+    logger.debug("PluginHost initialized for server")
+
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     (OUTPUTS_DIR / "evidence").mkdir(parents=True, exist_ok=True)
     template_path = OUTPUTS_DIR / "xlsx_template.py"
@@ -376,6 +385,8 @@ app.add_middleware(
 # Route modules (split from app.py for maintainability)
 app.include_router(sessions_router)
 app.include_router(permissions_router)
+app.include_router(tools_router)
+app.include_router(config_router)
 
 
 @app.middleware("http")
@@ -520,10 +531,22 @@ async def _build_context_messages(
     session_v2: SessionV2,
     user_message: str,
     file_context: str = "",
+    plugin_context_text: str = "",
 ) -> list[NewMessage]:
-    """Build message list for LLM from session state + new user input."""
+    """Build message list for LLM from session state + new user input.
+
+    Args:
+        session_v2: The session to build context for.
+        user_message: The user's input message.
+        file_context: Optional file/attachment context to include.
+        plugin_context_text: Optional plugin-rendered context to inject
+            as a system message.
+    """
     # Get messages from session state (reconstructed from events)
-    messages = list(SessionProjector.build_context(session_v2.state))
+    messages = list(SessionProjector.build_context(
+        session_v2.state,
+        plugin_context_text=plugin_context_text,
+    ))
 
     if not messages or messages[0].role != MessageRole.SYSTEM:
         # Merge file_context into system prompt (some providers ignore 2+ system messages)
@@ -788,9 +811,14 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 )
                 t0 = time.time()
                 try:
-                    # Build context messages
+                    # Build context messages (with plugin context if available)
+                    plugin_text = (
+                        await _plugin_host.render_plugin_context()
+                        if _plugin_host is not None else ""
+                    )
                     new_messages = await _build_context_messages(
-                        session_v2, user_text, file_context
+                        session_v2, user_text, file_context,
+                        plugin_context_text=plugin_text,
                     )
 
                     result = await agent.run_with_messages(
@@ -1265,25 +1293,6 @@ async def list_workspace_sessions(workspace_id: str) -> list[dict[str, object]]:
     ]
 
 
-@api_router.post("/sessions/{session_id}/move-workspace")
-async def move_session_workspace(
-    session_id: str,
-    body: dict[str, str],
-) -> dict[str, str]:
-    """P2-4: Move a session to another workspace."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    to_ws = body.get("to_workspace_id", "")
-    if not to_ws:
-        raise HTTPException(status_code=400, detail="to_workspace_id is required")
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-    await session_v2.move_workspace(to_ws)
-    return {"status": "ok"}
-
-
 @api_router.get("/worktrees")
 async def list_worktrees() -> list[dict[str, object]]:
     """P2-4: List all git worktrees."""
@@ -1337,7 +1346,7 @@ async def remove_worktree(body: dict[str, str]) -> dict[str, str]:
 async def _handle_chat(
     message: str, session_id: str | None, files: list[tuple[str, bytes]] | None = None
 ) -> ChatResponse:
-    global _event_store, _tool_registry, _db
+    global _event_store, _tool_registry, _db, _plugin_host
     if _event_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
@@ -1397,7 +1406,14 @@ async def _handle_chat(
 
         # Build messages for LLM
         user_text = message.strip() if message else "请分析附件内容"
-        messages = await _build_context_messages(session_v2, user_text, file_context)
+        plugin_text = (
+            await _plugin_host.render_plugin_context()
+            if _plugin_host is not None else ""
+        )
+        messages = await _build_context_messages(
+            session_v2, user_text, file_context,
+            plugin_context_text=plugin_text,
+        )
 
         _compressor = ContextCompressor(threshold=50_000, keep_recent=10)
         if _compressor.needs_compression(messages):
@@ -1568,45 +1584,6 @@ async def update_config(config: ConfigRequest) -> dict[str, str]:
     return await save_config(config)
 
 
-@api_router.post("/sessions/{session_id}/export")
-async def export_session(session_id: str) -> Response:
-    global _event_store, _projector
-    if _event_store is None or _projector is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    # Load session for validation (events are used for state projection)
-    await SessionV2.load(_event_store, SessionID(session_id))  # noqa: F841
-    events = await _event_store.read(session_id)
-    state = SessionProjector.project(events)
-
-    import json
-
-    data = {
-        "session_id": str(state.session_id),
-        "title": state.title,
-        "provider": state.provider,
-        "model": state.model,
-        "created_at": state.created_at,
-        "updated_at": state.updated_at,
-        "messages": [
-            {
-                "role": msg.role,
-                "content": msg.content,
-            }
-            for msg in state.messages
-        ],
-    }
-    from urllib.parse import quote
-
-    safe_filename = state.title.replace(" ", "_")
-    encoded_filename = quote(safe_filename, safe="", encoding="utf-8")
-    return Response(
-        content=json.dumps(data, indent=2, ensure_ascii=False),
-        media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}.json"},
-    )
-
-
 @api_router.post("/sessions/import")
 async def import_session(request: Request) -> dict[str, str]:
     global _event_store
@@ -1775,254 +1752,6 @@ async def get_oauth_token(state: str) -> dict[str, str]:
     return data
 
 
-@api_router.get("/sessions/{session_id}/messages")
-async def get_session_messages(session_id: str) -> list[dict[str, object]]:
-    """P0-1: Return messages for a session (used by sidebar session switching)."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    messages = SessionProjector.build_context(session_v2.state)
-    return [
-        {
-            "role": msg.role,
-            "content": msg.content,
-            "id": str(msg.id) if msg.id is not None else _make_msg_id(msg.role, msg.content, i),
-        }
-        for i, msg in enumerate(messages)
-    ]
-
-
-def _make_msg_id(role: str, content: str, index: int) -> str:
-    """Generate a stable synthetic message ID from role + content hash."""
-    import hashlib
-
-    raw = f"{role}:{content}:{index}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
-
-@api_router.get("/sessions/{session_id}/context")
-async def get_session_context(session_id: str) -> list[dict[str, object]]:
-    """P1-2: Return LLM context messages for a session (with system prompts)."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    messages = SessionProjector.build_context(session_v2.state)
-    return [{"role": msg.role, "content": msg.content} for msg in messages]
-
-
-@api_router.get("/sessions/{session_id}/summary")
-async def get_session_summary(session_id: str) -> dict[str, object]:
-    """P1-8: Return a statistical summary of a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    from cscode.core.session_summary import SessionSummary
-
-    return SessionSummary(session_v2).generate()
-
-
-@api_router.post("/sessions/{session_id}/model")
-async def switch_model(session_id: str, body: dict[str, object]) -> dict[str, str]:
-    """P1-5: Switch the model/provider for a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    model = body.get("model", session_v2.state.model)
-    provider = body.get("provider", session_v2.state.provider)
-    await session_v2.update_metadata(model=str(model))
-    logger.info("Session %s model switched to %s (provider=%s)", session_id, model, provider)
-    return {"status": "ok"}
-
-
-@api_router.post("/sessions/{session_id}/agent")
-async def switch_agent(session_id: str, body: dict[str, object]) -> dict[str, str]:
-    """P1-5: Switch the agent for a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    agent = body.get("agent", "auto")
-    await session_v2.update_metadata(agent=str(agent))
-    logger.info("Session %s agent switched to %s", session_id, agent)
-    return {"status": "ok"}
-
-
-@api_router.post("/sessions/{session_id}/workspace")
-async def associate_session_workspace(
-    session_id: str,
-    body: dict[str, str],
-) -> dict[str, str]:
-    """P2-3: Associate a session with a workspace."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    ws_id = body.get("workspace_id", "")
-    if not ws_id:
-        raise HTTPException(status_code=400, detail="workspace_id is required")
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-    await session_v2.associate_workspace(ws_id)
-    return {"status": "ok"}
-
-
-@api_router.get("/sessions/{session_id}/info")
-async def get_session_info(session_id: str) -> dict[str, object]:
-    """P2-7: Return full session metadata."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    st = session_v2.state
-    return {
-        "session_id": str(st.session_id),
-        "title": st.title,
-        "model": st.model,
-        "provider": st.provider,
-        "agent": st.agent,
-        "status": st.status,
-        "workspace_id": st.workspace_id,
-        "message_count": len(st.messages),
-        "event_count": st.seq,
-        "tool_rounds": st.tool_rounds,
-        "created_at": st.created_at,
-        "updated_at": st.updated_at,
-        "seq": st.seq,
-    }
-
-
-@api_router.get("/sessions/{session_id}/instruction")
-async def get_session_instruction(session_id: str) -> dict[str, str]:
-    """P2-6: Get the per-session custom instruction."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    return {"instruction": session_v2.state.instruction}
-
-
-@api_router.put("/sessions/{session_id}/instruction")
-async def set_session_instruction(session_id: str, body: dict[str, object]) -> dict[str, str]:
-    """P2-6: Set or update the per-session custom instruction."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    instruction = str(body.get("instruction", ""))
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    await session_v2.set_instruction(instruction)
-    return {"instruction": session_v2.state.instruction}
-
-
-@api_router.delete("/sessions/{session_id}/instruction")
-async def delete_session_instruction(session_id: str) -> dict[str, bool]:
-    """P2-6: Remove the per-session custom instruction."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    await session_v2.delete_instruction()
-    return {"deleted": True}
-
-
-@api_router.get("/sessions/{session_id}/run-state")
-async def get_session_run_state(session_id: str) -> dict[str, str]:
-    """P2-9: Get the current run state of a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    return {
-        "status": session_v2.state.run_status,
-        "error": session_v2.state.run_error,
-    }
-
-
-@api_router.put("/sessions/{session_id}/run-state")
-async def set_session_run_state(session_id: str, body: dict[str, str]) -> dict[str, str]:
-    """P2-9: Set the run state of a session.
-
-    Valid status values: running, stopped, errored, completed.
-    """
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    status = body.get("status", "")
-    if status not in ("running", "stopped", "errored", "completed"):
-        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    method_map = {
-        "running": session_v2.mark_run_start,
-        "stopped": session_v2.mark_run_stop,
-        "errored": lambda: session_v2.mark_run_error(error=body.get("error", "")),
-        "completed": session_v2.mark_run_complete,
-    }
-    fn = method_map[status]
-    await fn()
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    return {
-        "status": session_v2.state.run_status,
-        "error": session_v2.state.run_error,
-    }
-
-
-@api_router.get("/config/reference")
-async def get_config_reference() -> list[dict[str, str]]:
-    """P2-10: Return schema of all known config keys with types, defaults, descriptions."""
-    from cscode.core.config import CONFIG_KEY_META
-
-    return [
-        {
-            "key": k,
-            "type": v.get("type", "string"),
-            "default": v.get("default", ""),
-            "description": v.get("description", ""),
-        }
-        for k, v in sorted(CONFIG_KEY_META.items())
-    ]
-
-
-@api_router.get("/tools/application")
-async def list_application_tools() -> dict[str, list[str]]:
-    """List all application-level tools (safe, read-only tools)."""
-    from cscode.core.application_tools import get_application_tools
-
-    return {"tools": get_application_tools()}
-
-
-@api_router.get("/tools")
-async def list_all_tools() -> dict[str, list[str]]:
-    """Alias for /tools/application — list all available tools."""
-    from cscode.core.application_tools import get_application_tools
-
-    return {"tools": get_application_tools()}
-
-
 @api_router.post("/logs/error")
 async def log_frontend_error(body: dict[str, object]) -> dict[str, str]:
     """Ingest a frontend JavaScript error for monitoring."""
@@ -2056,81 +1785,6 @@ async def get_version() -> dict[str, str]:
     from cscode import __version__
 
     return {"version": __version__, "app": "CScode"}
-
-
-@api_router.get("/sessions/{session_id}/overflow")
-async def get_session_overflow(session_id: str) -> dict[str, bool | int]:
-    """P2-12: Check if a session is overflowing (too many messages)."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    info = session_v2.check_overflow()
-    return {
-        "overflowing": info["overflowing"],
-        "near_overflow": info["near_overflow"],
-        "message_count": info["message_count"],
-        "threshold": info["threshold"],
-    }
-
-
-@api_router.post("/sessions/{session_id}/retry")
-async def retry_session(session_id: str) -> dict[str, bool | str | int]:
-    """P2-13: Retry the last prompt in a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    last = session_v2.get_last_prompt()
-    if last is None:
-        raise HTTPException(status_code=400, detail="No prompt to retry")
-
-    events = await session_v2.retry()
-    return {
-        "retried": True,
-        "last_prompt": last,
-        "event_count": len(events),
-    }
-
-
-@api_router.get("/sessions/{session_id}/reminders")
-async def list_reminders(session_id: str) -> dict[str, list[dict[str, object]]]:
-    """P2-14: List all reminders for a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    return {"reminders": session_v2.state.reminders}
-
-
-@api_router.post("/sessions/{session_id}/reminders")
-async def add_reminder(session_id: str, body: dict[str, str]) -> dict[str, object]:
-    """P2-14: Add a reminder to a session."""
-    global _event_store
-    if _event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-
-    text = body.get("text", "")
-    if not text:
-        raise HTTPException(status_code=400, detail="text is required")
-
-    session_v2 = await SessionV2.load(_event_store, SessionID(session_id))
-    if session_v2.state.seq == 0:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    return await session_v2.add_reminder(text)
 
 
 @api_router.get("/directories/external")
@@ -2184,60 +1838,6 @@ async def check_external_directory(path: str = "") -> dict[str, bool]:
     return {"approved": _external_dir_store.is_approved(path)}
 
 
-@api_router.get("/sessions/{session_id}/questions")
-async def list_questions(session_id: str) -> list[dict[str, object]]:
-    """P0-2: List pending questions for a session (used by frontend polling)."""
-    global _question_registry
-    if _question_registry is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    return await _question_registry.list_pending(session_id)
-
-
-@api_router.post("/sessions/{session_id}/questions/{request_id}/reply")
-async def reply_question(
-    session_id: str, request_id: str, body: dict[str, object]
-) -> dict[str, str]:
-    """P0-2: Reply to a pending question."""
-    global _question_registry
-    if _question_registry is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    answers = body.get("answers", [])
-    if isinstance(answers, list):
-        str_answers = [str(a) for a in answers]
-    else:
-        str_answers = [str(answers)]
-    ok = await _question_registry.resolve(request_id, str_answers)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Question not found or already answered")
-
-    # P2-3: If always_allow is true, auto-save a global allow-all permission rule (SQLite)
-    if body.get("always_allow") and state.db is not None:
-        logger.info("always_allow triggered for session=%s request=%s", session_id, request_id)
-        try:
-            from cscode.core.permission_v2 import Rule as PermissionRule
-            from cscode.core.permission_v2 import RuleEffect
-            from cscode.core.permission_v2 import SavedRules as PermissionSavedRules
-
-            saved = PermissionSavedRules(state.db)
-            await saved.save(PermissionRule(action="*", resource="*", effect=RuleEffect.ALLOW))
-        except Exception:
-            logger.exception("Failed to save always_allow rule")
-
-    return {"status": "ok"}
-
-
-@api_router.post("/sessions/{session_id}/questions/{request_id}/reject")
-async def reject_question(session_id: str, request_id: str) -> dict[str, str]:
-    """P0-2: Reject a pending question."""
-    global _question_registry
-    if _question_registry is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    ok = await _question_registry.reject(request_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Question not found or already answered")
-    return {"status": "ok"}
-
-
 @api_router.get("/files/search")
 async def search_files(q: str = "") -> list[str]:
     try:
@@ -2258,19 +1858,6 @@ async def search_files(q: str = "") -> list[str]:
 # ---------------------------------------------------------------------------
 # P2-4: Session compact API
 # ---------------------------------------------------------------------------
-
-
-@api_router.post("/sessions/{session_id}/compact")
-async def compact_session(session_id: str) -> dict[str, object]:
-    """Compress a session by replacing old events with a summary."""
-    global _compactor
-    if _compactor is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
-    try:
-        baseline_seq = await _compactor.compact(session_id)
-        return {"status": "ok", "baseline_seq": baseline_seq}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ---------------------------------------------------------------------------

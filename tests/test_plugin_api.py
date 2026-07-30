@@ -15,6 +15,8 @@ from cscode.core.plugin.api import (
     SkillDef,
     UIExtension,
 )
+from cscode.plugins.context_source import PluginContextSource
+from cscode.plugins.lifecycle import PluginLifecycle
 from cscode.schema.tool import ToolResult
 from cscode.tools.base import BaseTool
 
@@ -213,3 +215,114 @@ class TestPluginAPIHooks:
         assert api.get_providers() == []
         assert api.get_skills() == []
         assert api.get_ui_extensions() == []
+
+    @pytest.mark.asyncio
+    async def test_on_session_end(self) -> None:
+        bus = EventBus()
+        api = PluginAPI(event_bus=bus)
+        received: list[str] = []
+
+        async def handler(event: object) -> None:
+            received.append("ended")
+
+        api.on_session_end(handler)
+        await bus.emit("session.end", Event(type="session.end"))
+
+        assert received == ["ended"]
+
+    @pytest.mark.asyncio
+    async def test_no_event_bus_session_end(self) -> None:
+        api = PluginAPI(event_bus=None)
+
+        async def handler(event: object) -> None:
+            pass
+
+        api.on_session_end(handler)
+
+
+class TestPluginAPIContextSources:
+    def test_register_context_source(self) -> None:
+        api = PluginAPI()
+
+        async def load_fn() -> str:
+            return "value"
+
+        src = PluginContextSource(
+            key="plugin/test",
+            load=load_fn,
+            baseline=lambda v: f"test: {v}",
+            update=lambda old, new: f"test: {old} -> {new}",
+        )
+        api.register_context_source(src)
+        sources = api.get_context_sources()
+        assert len(sources) == 1
+        assert sources[0].key == "plugin/test"
+
+    def test_register_duplicate_raises(self) -> None:
+        api = PluginAPI()
+
+        async def load_fn() -> str:
+            return "v"
+
+        src = PluginContextSource(
+            key="plugin/test",
+            load=load_fn,
+            baseline=lambda v: f"test: {v}",
+            update=lambda old, new: f"test: {old} -> {new}",
+        )
+        api.register_context_source(src)
+        with pytest.raises(ValueError, match="already registered"):
+            api.register_context_source(src)
+
+    def test_context_sources_empty(self) -> None:
+        api = PluginAPI()
+        assert api.get_context_sources() == []
+
+    def test_multiple_context_sources(self) -> None:
+        api = PluginAPI()
+
+        async def load_a() -> str:
+            return "a"
+
+        async def load_b() -> str:
+            return "b"
+
+        api.register_context_source(
+            PluginContextSource(
+                key="plugin/a",
+                load=load_a,
+                baseline=lambda v: f"a: {v}",
+                update=lambda old, new: f"a: {old} -> {new}",
+            )
+        )
+        api.register_context_source(
+            PluginContextSource(
+                key="plugin/b",
+                load=load_b,
+                baseline=lambda v: f"b: {v}",
+                update=lambda old, new: f"b: {old} -> {new}",
+            )
+        )
+        assert len(api.get_context_sources()) == 2
+
+
+class TestPluginAPILifecycle:
+    def test_register_lifecycle(self) -> None:
+        api = PluginAPI()
+        lc = PluginLifecycle()
+        api.register_lifecycle(lc)
+        hooks = api.get_lifecycle_hooks()
+        assert len(hooks) == 1
+        assert hooks[0] is lc
+
+    def test_lifecycle_hooks_empty(self) -> None:
+        api = PluginAPI()
+        assert api.get_lifecycle_hooks() == []
+
+    def test_multiple_lifecycle_hooks(self) -> None:
+        api = PluginAPI()
+        lc1 = PluginLifecycle()
+        lc2 = PluginLifecycle()
+        api.register_lifecycle(lc1)
+        api.register_lifecycle(lc2)
+        assert len(api.get_lifecycle_hooks()) == 2

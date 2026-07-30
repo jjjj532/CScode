@@ -289,15 +289,21 @@ class SessionProjector:
         return state
 
     @staticmethod
-    def build_context(state: SessionState) -> list[Message]:
+    def build_context(
+        state: SessionState,
+        plugin_context_text: str = "",
+    ) -> list[Message]:
         """Build the LLM context message list from session state.
 
-        If the session has a custom instruction, it is injected as the
-        first system message.
+        If ``plugin_context_text`` is non-empty, it is injected as the
+        first system message. If the session has a custom instruction,
+        it follows the plugin context (second system message).
 
         Returns messages suitable for passing to LLMClient.generate/stream.
         """
         messages = list(state.messages)
+        if plugin_context_text:
+            messages.insert(0, Message.system(plugin_context_text))
         if state.instruction:
             messages.insert(0, Message.system(state.instruction))
         return messages

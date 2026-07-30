@@ -37,6 +37,7 @@ def _get_migration_registry() -> MigrationRegistry:
         reg.register(Migration(10, "cleanup historical text.delta events", _migration_010, _noop))
         reg.register(Migration(11, "create audit_logs table", _migration_011, _noop))
         reg.register(Migration(12, "create error_logs table", _migration_012, _noop))
+        reg.register(Migration(13, "add baseline column to context_epochs", _migration_013, _noop))
         _migration_registry = reg
     return _migration_registry
 
@@ -284,6 +285,14 @@ async def _migration_012(conn: aiosqlite.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
         ON error_logs(created_at DESC)
     """)
+
+
+async def _migration_013(conn: aiosqlite.Connection) -> None:
+    """Add baseline column to context_epochs for SPEC §2.2 SessionContextEpoch."""
+    try:
+        await conn.execute("ALTER TABLE context_epochs ADD COLUMN baseline TEXT NOT NULL DEFAULT ''")
+    except Exception:
+        pass  # column already exists
 
 
 async def _migration_008(conn: aiosqlite.Connection) -> None:

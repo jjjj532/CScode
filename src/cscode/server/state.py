@@ -6,6 +6,7 @@ from typing import Any
 
 from cscode.core.coordinator import SessionCoordinator
 from cscode.core.external_directory import ExternalDirectoryStore
+from cscode.core.plugin.host import PluginHost
 from cscode.core.sharing import ShareStore
 from cscode.core.tracker import TaskTracker
 from cscode.core.workspace import WorkspaceStore
@@ -42,6 +43,7 @@ class AppState:
     active_agent_tasks: dict[str, asyncio.Task[Any]] = field(default_factory=dict)
     session_queues: dict[str, asyncio.Queue[dict[str, object]]] = field(default_factory=dict)
     permission_store: dict[str, dict[str, object]] = field(default_factory=dict)
+    plugin_host: PluginHost | None = None
 
 
 state = AppState()

@@ -254,6 +254,51 @@ class TestBackgroundJobQueue:
         assert queue._running is True
         await queue.stop()
 
+    async def test_execute_job_cancelled(self, queue: BackgroundJobQueue) -> None:
+        """_execute_job should handle CancelledError gracefully."""
+        async def handler(job: Job) -> str:
+            raise asyncio.CancelledError()
+
+        queue.register_handler("cancel", handler)
+        await queue.start()
+
+        job = await queue.enqueue("cancel")
+
+        for _ in range(20):
+            current = await queue.get_job(job.id)
+            if current and current.status != JobStatus.PENDING:
+                break
+            await asyncio.sleep(0.05)
+
+        await queue.stop()
+
+        finished = await queue.get_job(job.id)
+        assert finished is not None
+        assert finished.status == JobStatus.CANCELLED
+
+    async def test_execute_job_handler_none_result(self, queue: BackgroundJobQueue) -> None:
+        """_execute_job should store None result without error."""
+        async def handler(job: Job) -> None:
+            return None
+
+        queue.register_handler("none", handler)
+        await queue.start()
+
+        job = await queue.enqueue("none")
+
+        for _ in range(20):
+            current = await queue.get_job(job.id)
+            if current and current.status != JobStatus.PENDING:
+                break
+            await asyncio.sleep(0.05)
+
+        await queue.stop()
+
+        finished = await queue.get_job(job.id)
+        assert finished is not None
+        assert finished.status == JobStatus.COMPLETED
+        assert finished.result is None
+
     async def test_concurrent_jobs(self, queue: BackgroundJobQueue) -> None:
         """Test that multiple jobs are processed sequentially."""
         execution_order: list[int] = []
@@ -274,3 +319,65 @@ class TestBackgroundJobQueue:
 
         await queue.stop()
         assert execution_order == [0, 1, 2]
+
+    # ─── _worker_loop direct tests ──────────────────────────────────
+
+    async def test_worker_loop_processes_job(self, queue: BackgroundJobQueue) -> None:
+        """_worker_loop dequeues a pending job and runs _execute_job."""
+        results: list[str] = []
+
+        async def handler(job: Job) -> str:
+            results.append("executed")
+            return "ok"
+
+        queue.register_handler("test_direct", handler)
+        # Inject job directly into pending queue (bypass enqueue)
+        job = Job(job_type="test_direct")
+        queue._pending.put_nowait(job)
+        queue._running = True
+
+        # Run worker loop until it processes the job, then stop
+        async def run_until_done() -> None:
+            while queue._running:
+                await asyncio.sleep(0.01)
+                if job.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                    queue._running = False
+
+        task = asyncio.create_task(run_until_done())
+        await queue._worker_loop()
+        await task
+
+        assert results == ["executed"]
+        assert job.status == JobStatus.COMPLETED
+
+    async def test_worker_loop_timeout_continues(self, queue: BackgroundJobQueue) -> None:
+        """_worker_loop handles TimeoutError and continues polling."""
+        queue._running = True
+        poll_count: list[int] = [0]
+
+        orig_get = queue._pending.get
+        async def tracking_get() -> Job:
+            poll_count[0] += 1
+            return await orig_get()
+
+        queue._pending.get = tracking_get  # type: ignore[assignment]
+
+        # Run loop for a short time, observe at least one timeout cycle
+        async def stop_after_timeout() -> None:
+            await asyncio.sleep(0.05)
+            # The get() call should have been attempted at least once
+            queue._running = False
+
+        stop_task = asyncio.create_task(stop_after_timeout())
+        await queue._worker_loop()
+        await stop_task
+
+        # get() was called (the wait_for wrapping it may have hit timeout)
+        assert poll_count[0] >= 1
+
+    async def test_worker_loop_exits_when_stopped(self, queue: BackgroundJobQueue) -> None:
+        """_worker_loop exits when _running is set to False."""
+        queue._running = False
+        # Should return immediately without blocking
+        await queue._worker_loop()
+        assert queue._running is False

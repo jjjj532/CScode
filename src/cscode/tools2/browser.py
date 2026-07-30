@@ -116,7 +116,7 @@ class BrowserTool(Tool[BrowserInput, BrowserOutput]):
 
         elif input.action == "click":
             if not input.selector:
-                return ToolResult(success=False, error="selector is required for click")
+                return ToolResult(success=False, error="selector is required for click", metadata={"task_id": input.task_id})
             assert _page is not None
             await _page.click(input.selector, timeout=10000)
             return ToolResult(
@@ -127,7 +127,7 @@ class BrowserTool(Tool[BrowserInput, BrowserOutput]):
 
         elif input.action == "type":
             if not input.selector:
-                return ToolResult(success=False, error="selector is required for type")
+                return ToolResult(success=False, error="selector is required for type", metadata={"task_id": input.task_id})
             assert _page is not None
             await _page.fill(input.selector, input.text or "")
             return ToolResult(
@@ -161,7 +161,7 @@ class BrowserTool(Tool[BrowserInput, BrowserOutput]):
 
         elif input.action == "get_text":
             if not input.selector:
-                return ToolResult(success=False, error="selector is required for get_text")
+                return ToolResult(success=False, error="selector is required for get_text", metadata={"task_id": input.task_id})
             assert _page is not None
             text = await _page.locator(input.selector).text_content()
             evidence["html"] = bool(text)

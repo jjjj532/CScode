@@ -108,6 +108,9 @@ class LLMClient:
             case ProtocolID.ANTHROPIC_MESSAGES:
                 from cscode.llm.protocols.anthropic_messages import AnthropicProtocolAdapter
                 return AnthropicProtocolAdapter()
+            case ProtocolID.OPENAI_RESPONSES:
+                from cscode.llm.protocols.openai_responses import OpenAIResponsesProtocolAdapter
+                return OpenAIResponsesProtocolAdapter()
             case ProtocolID.GEMINI:
                 msg = f"Gemini protocol not yet implemented: {self._route.protocol}"
                 raise NotImplementedError(msg)
