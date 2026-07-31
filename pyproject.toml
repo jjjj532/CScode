@@ -56,6 +56,12 @@ ignore = ["E501"]
 known-first-party = ["cscode"]
 
 [project.optional-dependencies]
+desktop = [
+    # keyring: store API keys in the system keychain (macOS/Windows).
+    # Packaged into the desktop DMG; not a runtime requirement for CLI/dev,
+    # so kept out of core `dependencies` to avoid Linux dbus/SecretService needs.
+    "keyring>=24.0.0",
+]
 test = [
     "respx>=0.23.0",
     "pytest>=8.0",

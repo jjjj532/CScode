@@ -101,7 +101,7 @@ TMP_PYTHON="$ROOT/build/python-resources"
 rm -rf "$TMP_PYTHON"
 mkdir -p "$TMP_PYTHON"
 
-pip install --target="$TMP_PYTHON" --quiet "$ROOT" 2>&1 | tail -2
+pip install --target="$TMP_PYTHON" --quiet "$ROOT[desktop]" 2>&1 | tail -2
 
 # Clean up cache and compile artifacts
 find "$TMP_PYTHON" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
