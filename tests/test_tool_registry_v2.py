@@ -111,7 +111,9 @@ class TestMaterialize:
         reg.register("read", _ReadTool(), Scope.APPLICATION)
         mat = reg.materialize()
         read_def = next(d for d in mat.definitions if d.name == "read")
-        assert "path" in read_def.input_schema.get("properties", {})
+        props = read_def.input_schema.get("properties", {})
+        assert isinstance(props, dict)
+        assert "path" in props
 
     @pytest.mark.asyncio
     async def test_settle_executes_tool(self) -> None:
