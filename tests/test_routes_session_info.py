@@ -76,6 +76,21 @@ class TestSessionInfoEndpoint:
             resp = client.get("/api/sessions/nonexistent-session-id/info")
             assert resp.status_code == 404
 
+    def test_get_session_404_for_nonexistent(self) -> None:
+        """P1-1 regression: GET /api/sessions/{id} must return 404 for unknown ids.
+
+        Previously SessionV2.load() returned a fresh (seq=0) state for
+        unknown ids, and get_session only checked status=="deleted" —
+        so non-existent sessions returned 200 with empty defaults.
+        """
+        from cscode.server.app import app
+
+        with TestClient(app) as client:
+            resp = client.get("/api/sessions/nonexistent-session-id")
+            assert resp.status_code == 404, (
+                f"Expected 404 for unknown session, got {resp.status_code}: {resp.text}"
+            )
+
     def test_get_session_info_counts_match_messages(self) -> None:
         """message_count reflects actual messages in session."""
         from cscode.server.app import app

@@ -1580,8 +1580,43 @@ async def save_config(config: ConfigRequest) -> dict[str, str]:
 
 @api_router.put("/config")
 async def update_config(config: ConfigRequest) -> dict[str, str]:
-    """Alias for POST /config — accepts PUT for cross-tool compatibility."""
-    return await save_config(config)
+    """Partial update — merge provided fields with existing config.
+
+    Unlike POST (full replace), PUT only overwrites the fields present
+    in the request body, preserving all other stored values.
+    """
+    global _db
+    if _db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    from cscode.core.config import ConfigStore
+    from cscode.core.keychain import KeychainStore
+
+    kc = KeychainStore()
+    updates = config.model_dump(exclude_unset=True)
+    api_key = updates.pop("api_key", None)
+
+    if api_key:
+        kc.set_api_key("default", api_key)
+    elif "api_key" in config.model_fields_set:
+        kc.delete_api_key("default")
+
+    try:
+        store = ConfigStore(_db)
+        existing = await store.get() or {}
+        existing.update(updates)
+        await store.save(existing)
+    except Exception:
+        logger.debug("DB unavailable for config write")
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    if state.audit_log:
+        await state.audit_log.record(
+            action_type="config.update",
+            resource_type="config",
+            detail={k: v for k, v in existing.items() if k != "api_key"},
+        )
+    return {"status": "ok"}
 
 
 @api_router.post("/sessions/import")

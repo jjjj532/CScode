@@ -91,10 +91,10 @@ def _resolve_api_key(config: Config) -> str:
     return ""
 
 
-async def load_permission_rules(database: Database) -> list[Ruleset]:
+async def load_permission_rules(database: Database) -> list[Ruleset] | None:
     """Load permission rules from the database via SavedRules.
 
-    Returns an empty list when no rules exist (→ all tools allowed).
+    Returns None when no rules exist (→ all tools allowed).
 
     Usage:
         database = Database()
@@ -106,7 +106,7 @@ async def load_permission_rules(database: Database) -> list[Ruleset]:
     rules = await saved.load()
     if not rules:
         logger.debug("load_permission_rules: no rules found")
-        return []
+        return None
     ruleset = Ruleset(name="saved", rules=rules)
     logger.info("load_permission_rules: loaded %d rule(s)", len(rules))
     return [ruleset]

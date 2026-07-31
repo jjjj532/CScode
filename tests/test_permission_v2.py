@@ -552,6 +552,7 @@ async def test_load_permission_rules_with_rules() -> None:
 
     from cscode.app.factory import load_permission_rules
     rulesets = await load_permission_rules(db)
+    assert rulesets is not None
     assert len(rulesets) == 1
     assert rulesets[0].name == "saved"
     assert len(rulesets[0].rules) == 1
@@ -562,14 +563,19 @@ async def test_load_permission_rules_with_rules() -> None:
 
 
 async def test_load_permission_rules_empty() -> None:
-    """load_permission_rules returns [] when no rules exist."""
+    """load_permission_rules returns None when no rules exist (P0-1 regression).
+
+    Previously returned [] which, combined with materialize's
+    `permissions is not None` check, denied ALL tools and broke
+    LLM tool calling. None means "no restrictions".
+    """
     from cscode.storage.db import Database
     db = Database(":memory:")
     await db.init()
 
     from cscode.app.factory import load_permission_rules
     rulesets = await load_permission_rules(db)
-    assert rulesets == []
+    assert rulesets is None
 
     await db.close()
 

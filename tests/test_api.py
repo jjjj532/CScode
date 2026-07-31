@@ -30,6 +30,46 @@ def test_get_config():
             db_path.unlink()
 
 
+def test_put_config_partial_update_preserves_unprovided_fields():
+    """P0-2 regression: PUT /api/config must merge, not replace.
+
+    Previously PUT aliased POST (save_config) which ran model_dump()
+    with ALL defaults — so a partial update like {"temperature": 0.1}
+    reset model→gpt-4o, api_base→None, provider→openai, etc.
+    """
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            seed = {
+                "provider": "scnet",
+                "model": "MiniMax-M2.5",
+                "api_base": "https://api.scnet.cn/api/llm/v1",
+                "temperature": 0.7,
+            }
+            resp = client.post("/api/config", json=seed)
+            assert resp.status_code == 200, resp.text
+
+            resp = client.put("/api/config", json={"temperature": 0.1})
+            assert resp.status_code == 200, resp.text
+
+            data = client.get("/api/config").json()
+            assert data["temperature"] == 0.1
+            assert data["model"] == "MiniMax-M2.5", (
+                f"model was reset by partial PUT: {data.get('model')}"
+            )
+            assert data["provider"] == "scnet", (
+                f"provider was reset by partial PUT: {data.get('provider')}"
+            )
+            assert data["api_base"] == "https://api.scnet.cn/api/llm/v1", (
+                f"api_base was reset by partial PUT: {data.get('api_base')}"
+            )
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
 def test_create_session():
     db_path = _get_temp_db_path()
     os.environ["CSCODE_DB_PATH"] = str(db_path)

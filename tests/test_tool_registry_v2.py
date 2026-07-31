@@ -154,6 +154,24 @@ class TestMaterialize:
 class TestMaterializeWithPermissions:
     """Verify permission-filtered materialize."""
 
+    def test_empty_permissions_returns_all_tools(self) -> None:
+        """An empty permissions list means NO filtering (all tools allowed).
+
+        Regression: P0-1 — `load_permission_rules()` returned [] when no
+        rules existed, and materialize(permissions=[]) denied ALL tools,
+        so the LLM received zero tool definitions and tool calls never
+        executed. Empty list must behave like None (no filtering).
+        """
+        from cscode.core.tool_registry import Scope, ToolRegistryV2
+        reg = ToolRegistryV2()
+        reg.register("read", _ReadTool(), Scope.APPLICATION)
+        reg.register("bash", _BashTool(), Scope.LOCATION)
+
+        mat = reg.materialize(permissions=[])
+        names = [d.name for d in mat.definitions]
+        assert "read" in names
+        assert "bash" in names
+
     def test_allow_all_returns_all_tools(self) -> None:
         from cscode.core.tool_registry import Scope, ToolRegistryV2
         reg = ToolRegistryV2()

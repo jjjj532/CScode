@@ -135,3 +135,53 @@ class TestBuildFullToolRegistry:
         registry = await build_full_tool_registry(plugin_dirs=[str(tmp_path)])
         names = registry.list_tools()
         assert "working" in names
+
+
+class TestLoadPermissionRules:
+    """Regression (P0-1): load_permission_rules must return None when no rules exist.
+
+    Previously it returned [] which — combined with materialize's
+    `permissions is not None` check — filtered ALL tools out, so the LLM
+    received zero tool definitions and tool calls never executed.
+    """
+
+    async def test_no_rules_returns_none(self) -> None:
+        """No saved rules → None (NOT []), so all tools stay enabled."""
+        import tempfile
+        from pathlib import Path
+
+        from cscode.app.factory import load_permission_rules
+        from cscode.storage.db import Database
+
+        tmp = Path(tempfile.mkdtemp(prefix="cscode_test_rules_")) / "test.db"
+        db = Database(str(tmp))
+        await db.init()
+        try:
+            rules = await load_permission_rules(db)
+            assert rules is None, f"Expected None, got {rules!r}"
+        finally:
+            await db.close()
+
+    async def test_with_rules_returns_ruleset(self) -> None:
+        """Saved rules → a single Ruleset wrapping them."""
+        import tempfile
+        from pathlib import Path
+
+        from cscode.app.factory import load_permission_rules
+        from cscode.core.permission_v2 import Rule, RuleEffect, SavedRules
+        from cscode.storage.db import Database
+
+        tmp = Path(tempfile.mkdtemp(prefix="cscode_test_rules_")) / "test.db"
+        db = Database(str(tmp))
+        await db.init()
+        try:
+            saved = SavedRules(db)
+            await saved.save(Rule(action="*", resource="*", effect=RuleEffect.ALLOW))
+
+            rules = await load_permission_rules(db)
+            assert rules is not None
+            assert len(rules) == 1
+            assert rules[0].name == "saved"
+            assert len(rules[0].rules) == 1
+        finally:
+            await db.close()

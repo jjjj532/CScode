@@ -112,7 +112,7 @@ class ToolRegistryV2:
 
         # Filter by permissions — keep denied names for better error messages
         denied: set[str] = set()
-        if permissions is not None:
+        if permissions:
             filtered: dict[str, Tool[Any, Any]] = {}
             for name, tool in tools.items():
                 if PermissionV2.is_allowed(name, "*", permissions):

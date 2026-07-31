@@ -69,6 +69,8 @@ async def get_session(session_id: str) -> dict[str, Any]:
     try:
         session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
         s = session_v2.state
+        if s.seq == 0:
+            raise HTTPException(status_code=404, detail="Session not found")
         if s.status == "deleted":
             raise HTTPException(status_code=404, detail="Session not found")
         return {

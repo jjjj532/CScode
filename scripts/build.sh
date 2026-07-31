@@ -73,9 +73,9 @@ EOF
     <key>CFBundleIdentifier</key>
     <string>com.cscode.app</string>
     <key>CFBundleVersion</key>
-    <string>0.3.4</string>
+    <string>0.3.5</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.4</string>
+    <string>0.3.5</string>
     <key>CFBundleExecutable</key>
     <string>CScode</string>
     <key>CFBundlePackageType</key>
@@ -93,17 +93,17 @@ EOF
     hdiutil create -volname "CScode" \
         -srcfolder "$APP_DIR" \
         -ov -format UDZO \
-        "$DIST/CScode-0.3.4-macos.dmg" 2>/dev/null || \
+        "$DIST/CScode-0.3.5-macos.dmg" 2>/dev/null || \
         echo "DMG creation skipped (requires macOS)"
 
-    echo "macOS package: $DIST/CScode-0.3.4-macos.dmg"
+    echo "macOS package: $DIST/CScode-0.3.5-macos.dmg"
 }
 
 package_linux() {
     echo ""
     echo "--- Packaging for Linux ---"
 
-    local PKG_DIR="$DIST/linux/cscode-0.3.4"
+    local PKG_DIR="$DIST/linux/cscode-0.3.5"
     mkdir -p "$PKG_DIR/usr/local/bin"
     mkdir -p "$PKG_DIR/usr/share/applications"
     mkdir -p "$PKG_DIR/usr/share/icons/hicolor/256x256/apps"
@@ -123,10 +123,10 @@ EOF
 
     # Create tar.gz
     cd "$DIST/linux"
-    tar -czf "$DIST/CScode-0.3.4-linux-x64.tar.gz" "cscode-0.3.4"
+    tar -czf "$DIST/CScode-0.3.5-linux-x64.tar.gz" "cscode-0.3.5"
     cd "$ROOT"
 
-    echo "Linux package: $DIST/CScode-0.3.4-linux-x64.tar.gz"
+    echo "Linux package: $DIST/CScode-0.3.5-linux-x64.tar.gz"
 }
 
 package_windows() {
@@ -137,11 +137,11 @@ package_windows() {
     cp "$DIST/windows/cscode" "$DIST/windows/cscode.exe" 2>/dev/null || true
 
     cd "$DIST/windows"
-    zip -r "$DIST/CScode-0.3.4-windows-x64.zip" cscode.exe 2>/dev/null || \
+    zip -r "$DIST/CScode-0.3.5-windows-x64.zip" cscode.exe 2>/dev/null || \
         echo "zip failed (install zip utility)"
     cd "$ROOT"
 
-    echo "Windows package: $DIST/CScode-0.3.4-windows-x64.zip"
+    echo "Windows package: $DIST/CScode-0.3.5-windows-x64.zip"
 }
 
 case "$PLATFORM" in

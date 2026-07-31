@@ -128,3 +128,52 @@ class TestToolRegistry:
 
         with pytest.raises(ValueError, match="already registered"):
             registry.register(ToolB())
+
+
+class TestToolsApiEndpoint:
+    """Regression (P1-2): GET /api/tools must list the full tool registry.
+
+    Previously /api/tools was an alias for /tools/application which only
+    returns safe read-only tools — so execution tools (bash, write, edit)
+    never appeared and the LLM never learned they existed.
+    """
+
+    def test_tools_endpoint_lists_execution_tools(self):
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from fastapi.testclient import TestClient
+
+        db_path = Path(tempfile.mkdtemp(prefix="cscode_test_tools_")) / "test.db"
+        os.environ["CSCODE_DB_PATH"] = str(db_path)
+        try:
+            from cscode.server.app import app
+
+            with TestClient(app) as client:
+                resp = client.get("/api/tools")
+                assert resp.status_code == 200
+                data = resp.json()
+                assert "tools" in data
+                names = set(data["tools"])
+                assert "read" in names
+                assert "bash" in names, "bash missing from /api/tools"
+                assert "write" in names, "write missing from /api/tools"
+                assert "edit" in names, "edit missing from /api/tools"
+                assert "grep" in names
+        finally:
+            if db_path.exists():
+                db_path.unlink()
+
+    def test_application_tools_endpoint_still_readonly(self):
+        """GET /api/tools/application keeps returning only safe tools."""
+        from fastapi.testclient import TestClient
+
+        from cscode.server.app import app
+
+        with TestClient(app) as client:
+            resp = client.get("/api/tools/application")
+            assert resp.status_code == 200
+            names = set(resp.json()["tools"])
+            assert "read" in names
+            assert "bash" not in names
