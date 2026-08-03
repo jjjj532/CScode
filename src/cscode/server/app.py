@@ -671,12 +671,13 @@ async def chat_stream(request: Request) -> StreamingResponse:
             # Load or create session
             config_data = None
             if _db is not None:
-                from cscode.core.config import ConfigStore
+                from cscode.core.config import ConfigStore, load_config
 
                 store = ConfigStore(_db)
                 saved_config_dict = await store.get()
                 if saved_config_dict:
-                    config_data = saved_config_dict
+                    cfg = load_config(db_config=saved_config_dict)
+                    config_data = cfg.to_dict()
 
             session_v2, is_new = await _get_or_create_session(session_id, _event_store, config_data)
 
@@ -788,14 +789,11 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
             # Create agent for this request
             if _db is not None:
-                from cscode.core.config import Config, ConfigStore, load_config
+                from cscode.core.config import ConfigStore, load_config
 
                 store = ConfigStore(_db)
                 saved_config_raw = await store.get()
-                if saved_config_raw is not None:
-                    saved_config = Config.from_dict(saved_config_raw)
-                else:
-                    saved_config = load_config()
+                saved_config = load_config(db_config=saved_config_raw)
             else:
                 from cscode.core.config import load_config
 
@@ -898,14 +896,11 @@ async def chat_stream(request: Request) -> StreamingResponse:
                                 "You give very short session titles. Reply with ONLY 3-6 words."
                             )
                             if _db is not None:
-                                from cscode.core.config import Config, ConfigStore, load_config
+                                from cscode.core.config import ConfigStore, load_config
 
                                 store = ConfigStore(_db)
                                 saved_config_raw = await store.get()
-                                if saved_config_raw is not None:
-                                    saved_config = Config.from_dict(saved_config_raw)
-                                else:
-                                    saved_config = load_config()
+                                saved_config = load_config(db_config=saved_config_raw)
                             else:
                                 from cscode.core.config import load_config
 
@@ -1364,12 +1359,13 @@ async def _handle_chat(
         # Load or create session
         config_data = None
         if _db is not None:
-            from cscode.core.config import ConfigStore
+            from cscode.core.config import ConfigStore, load_config
 
             store = ConfigStore(_db)
             saved_config_dict = await store.get()
             if saved_config_dict:
-                config_data = saved_config_dict
+                cfg = load_config(db_config=saved_config_dict)
+                config_data = cfg.to_dict()
 
         session_v2, is_new = await _get_or_create_session(session_id, _event_store, config_data)
 
@@ -1434,14 +1430,11 @@ async def _handle_chat(
 
         # Create agent for this request
         if _db is not None:
-            from cscode.core.config import Config, ConfigStore, load_config
+            from cscode.core.config import ConfigStore, load_config
 
             store = ConfigStore(_db)
             saved_config_raw = await store.get()
-            if saved_config_raw is not None:
-                saved_config = Config.from_dict(saved_config_raw)
-            else:
-                saved_config = load_config()
+            saved_config = load_config(db_config=saved_config_raw)
         else:
             from cscode.core.config import load_config
 
@@ -1517,11 +1510,15 @@ async def get_config() -> dict[str, Any]:
 
     if _db is not None:
         try:
-            from cscode.core.config import ConfigStore
+            from cscode.core.config import Config, ConfigStore, load_config
             store = ConfigStore(_db)
             saved_config = await store.get()
             if saved_config:
-                cfg_dict = saved_config
+                cfg = load_config(db_config=saved_config)
+                cfg_dict = cfg.to_dict()
+                for k, v in saved_config.items():
+                    if k not in Config.__dataclass_fields__:
+                        cfg_dict[k] = v
         except Exception:
             logger.debug("DB unavailable for config read, falling back to file config")
 
