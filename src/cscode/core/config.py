@@ -379,8 +379,8 @@ def load_config(
     """Load config from multiple sources, in order of priority (lowest to highest):
     1. Default values
     2. YAML config files
-    3. Environment variables
-    4. Database (user saved config) - NEW
+    3. Database (user saved config)
+    4. Environment variables - runtime override (launchctl/launchd env)
     5. CLI overrides
     """
     config = Config()
@@ -396,13 +396,12 @@ def load_config(
         if yaml_path.exists():
             config = config.merge(Config.from_yaml(yaml_path))
 
+    if db_config:
+        config = config.merge(Config.from_dict(db_config))
+
     env_config = Config.from_env()
     if env_config is not None:
         config = config.merge(env_config)
-
-    # Database config has higher priority than file/env
-    if db_config:
-        config = config.merge(Config.from_dict(db_config))
 
     if cli_overrides:
         config = config.merge(Config.from_dict(cli_overrides))

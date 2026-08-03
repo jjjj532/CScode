@@ -7,6 +7,22 @@ use tauri::Manager;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{Menu, MenuItem};
 
+/// Resolve the bundle's `Contents/Resources` directory.
+///
+/// `app.path().resource_dir()` refuses to work when any ancestor of the
+/// executable path is a symlink (e.g. `/tmp` -> `/private/tmp` on macOS),
+/// which makes it unusable when the app is launched from such a location.
+/// Deriving from `std::env::current_exe()` has no such limitation.
+fn resolve_resource_dir() -> Option<PathBuf> {
+    if let Some(exe) = std::env::current_exe().ok() {
+        let resources = exe.parent()?.parent()?.join("Resources");
+        if resources.join("resources").join("python").join("cscode").join("server").join("app.py").exists() {
+            return Some(resources);
+        }
+    }
+    None
+}
+
 struct BackendState {
     child: Option<Child>,
     port: u16,
@@ -430,7 +446,7 @@ pub fn run() {
             .build())
         .invoke_handler(tauri::generate_handler![open_output_file])
         .setup(move |app| {
-            let resource_dir = app.path().resource_dir().ok();
+            let resource_dir = resolve_resource_dir().or_else(|| app.path().resource_dir().ok());
             let resource_dir_clone = resource_dir.clone();
             let arc_for_restart = backend_arc.clone();
 

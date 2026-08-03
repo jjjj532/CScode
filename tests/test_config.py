@@ -88,6 +88,47 @@ def test_config_env_none_when_unset():
     assert cfg is None
 
 
+def test_load_config_env_overrides_db(monkeypatch: pytest.MonkeyPatch):
+    """BUG-003 retest: 运行时环境变量必须覆盖 DB 保存的用户配置。
+    设计意图是 launchctl/launchd env 可作为运行时强制覆盖。
+    """
+    monkeypatch.setenv("CSCODE_MODEL", "env-override-model-X99")
+    monkeypatch.setenv("CSCODE_API_BASE", "https://env-test.example.com/v99")
+
+    db_config = {
+        "provider": "openai",
+        "model": "MiniMax-M2.5",
+        "api_base": "https://api.scnet.cn/api/llm/v1",
+        "api_key": "sk-db-saved-key",
+    }
+    cfg = load_config(db_config=db_config)
+    assert cfg.model == "env-override-model-X99"
+    assert cfg.api_base == "https://env-test.example.com/v99"
+    # env 未设置的字段仍从 DB 继承
+    assert cfg.api_key == "sk-db-saved-key"
+    assert cfg.provider == "openai"
+
+
+def test_load_config_db_when_env_unset(db_config: dict[str, str] | None = None):
+    """没有设置环境变量时，DB 配置正常生效（UI 保存不被覆盖）。"""
+    db_cfg = {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-5",
+        "api_base": "https://api.anthropic.com",
+    }
+    cfg = load_config(db_config=db_cfg)
+    assert cfg.provider == "anthropic"
+    assert cfg.model == "claude-sonnet-4-5"
+    assert cfg.api_base == "https://api.anthropic.com"
+
+
+def test_load_config_cli_overrides_env(monkeypatch: pytest.MonkeyPatch):
+    """CLI 优先级最高，覆盖 env。"""
+    monkeypatch.setenv("CSCODE_MODEL", "env-model")
+    cfg = load_config(db_config=None, cli_overrides={"model": "cli-model"})
+    assert cfg.model == "cli-model"
+
+
 def test_from_dict_filters_empty_string():
     """BUG-003: from_dict treats empty string as None (frontend sends '' for unset fields).
     Regression test: empty strings must NOT overwrite defaults.
