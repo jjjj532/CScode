@@ -32,14 +32,20 @@ class ExperimentalConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ExperimentalConfig:
         valid = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in valid})
+        filtered = {k: v for k, v in data.items() if k in valid}
+        config = cls(**filtered)
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def merge(self, other: ExperimentalConfig) -> ExperimentalConfig:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             merged[k] = v
         return ExperimentalConfig(**merged)
 
@@ -59,14 +65,20 @@ class FormatterConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FormatterConfig:
         valid = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in valid})
+        filtered = {k: v for k, v in data.items() if k in valid}
+        config = cls(**filtered)
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def merge(self, other: FormatterConfig) -> FormatterConfig:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             merged[k] = v
         return FormatterConfig(**merged)
 
@@ -81,14 +93,20 @@ class MarkdownConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MarkdownConfig:
         valid = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in valid})
+        filtered = {k: v for k, v in data.items() if k in valid}
+        config = cls(**filtered)
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def merge(self, other: MarkdownConfig) -> MarkdownConfig:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             merged[k] = v
         return MarkdownConfig(**merged)
 
@@ -103,14 +121,20 @@ class ToolOutputConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ToolOutputConfig:
         valid = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in valid})
+        filtered = {k: v for k, v in data.items() if k in valid}
+        config = cls(**filtered)
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def merge(self, other: ToolOutputConfig) -> ToolOutputConfig:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             merged[k] = v
         return ToolOutputConfig(**merged)
 
@@ -126,14 +150,20 @@ class LSPConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> LSPConfig:
         valid = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in valid})
+        filtered = {k: v for k, v in data.items() if k in valid}
+        config = cls(**filtered)
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def merge(self, other: LSPConfig) -> LSPConfig:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             merged[k] = v
         return LSPConfig(**merged)
 
@@ -148,14 +178,20 @@ class ReferenceConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReferenceConfig:
         valid = set(cls.__dataclass_fields__)
-        return cls(**{k: v for k, v in data.items() if k in valid})
+        filtered = {k: v for k, v in data.items() if k in valid}
+        config = cls(**filtered)
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def merge(self, other: ReferenceConfig) -> ReferenceConfig:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             merged[k] = v
         return ReferenceConfig(**merged)
 
@@ -309,7 +345,12 @@ class Config:
                     filtered[k] = _SUB_CONFIG_CLASSES[k].from_dict(v)  # type: ignore[attr-defined]
             else:
                 filtered[k] = v
-        return cls(**filtered)
+        config = cls(**filtered)
+        # Track which fields were explicitly provided so merge() only overrides
+        # those and never clobbers lower-priority values with dataclass defaults
+        # (e.g. env CSCODE_MODEL set but temperature unset must not reset DB's 0.55 to 0.3).
+        object.__setattr__(config, "_explicit_fields", set(filtered))
+        return config
 
     @classmethod
     def from_yaml(cls, path: Path | str) -> Config:
@@ -351,7 +392,10 @@ class Config:
 
     def merge(self, other: Config) -> Config:
         merged = asdict(self)
+        other_explicit: set[str] | None = getattr(other, "_explicit_fields", None)
         for k, v in asdict(other).items():
+            if other_explicit is not None and k not in other_explicit:
+                continue
             if v is None:
                 continue
             if isinstance(v, str) and not v:
@@ -360,8 +404,15 @@ class Config:
             if k in _SUB_CONFIG_CLASSES and isinstance(v, dict) and merged.get(k) is not None:
                 base_sub = merged[k]
                 if isinstance(base_sub, dict):
+                    other_sub = getattr(other, k, None)
+                    sub_explicit: set[str] | None = getattr(other_sub, "_explicit_fields", None) if other_sub is not None else None
                     base_sub_cls = _SUB_CONFIG_CLASSES[k]
-                    merged[k] = base_sub_cls(**{**base_sub, **v})
+                    if sub_explicit is not None:
+                        merged[k] = base_sub_cls(
+                            **{**base_sub, **{sk: sv for sk, sv in v.items() if sk in sub_explicit}}
+                        )
+                    else:
+                        merged[k] = base_sub_cls(**{**base_sub, **v})
                 else:
                     # should not happen after asdict, but guard
                     merged[k] = v

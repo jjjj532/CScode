@@ -129,6 +129,23 @@ def test_load_config_cli_overrides_env(monkeypatch: pytest.MonkeyPatch):
     assert cfg.model == "cli-model"
 
 
+def test_load_config_env_does_not_clobber_db_defaults(monkeypatch: pytest.MonkeyPatch):
+    """已知问题修复: env 只覆盖显式设置的字段，DB 保存的其他字段
+    （如 temperature/max_tokens）不被 env Config 的 dataclass 默认值覆盖。
+    """
+    monkeypatch.setenv("CSCODE_MODEL", "env-model")
+    db_config = {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "temperature": 0.55,
+        "max_tokens": 8192,
+    }
+    cfg = load_config(db_config=db_config)
+    assert cfg.model == "env-model"  # env 覆盖 model
+    assert cfg.temperature == 0.55  # DB 的 temperature 保留（不被 env 默认 0.3 覆盖）
+    assert cfg.max_tokens == 8192  # DB 的 max_tokens 保留
+
+
 def test_from_dict_filters_empty_string():
     """BUG-003: from_dict treats empty string as None (frontend sends '' for unset fields).
     Regression test: empty strings must NOT overwrite defaults.

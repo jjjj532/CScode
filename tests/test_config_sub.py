@@ -243,6 +243,42 @@ class TestConfigSubModules:
         assert merged.reference is not None
         assert merged.reference.max_results == 5
 
+    def test_merge_sub_config_from_dict_partial(self) -> None:
+        """Known-issue fix: from_dict-produced sub-config must only override
+        explicitly provided sub-fields (defaults must not clobber base values).
+        """
+        base = Config(
+            formatter=FormatterConfig(enabled=True, line_length=120, python="black"),
+        )
+        override = Config.from_dict({"formatter": {"line_length": 88}})
+        merged = base.merge(override)
+        assert merged.formatter is not None
+        assert merged.formatter.line_length == 88  # overridden
+        assert merged.formatter.enabled is True  # preserved from base
+        assert merged.formatter.python == "black"  # preserved from base
+
+    def test_load_config_sub_config_env_no_clobber(self) -> None:
+        """Known-issue fix: env vars can't set sub-configs, so sub-configs
+        loaded from DB must not be clobbered by env defaults.
+        """
+        import os
+        env_copy = os.environ.copy()
+        try:
+            os.environ["CSCODE_MODEL"] = "env-model"
+            db_config: dict[str, Any] = {
+                "model": "db-model",
+                "formatter": {"line_length": 120, "python": "black"},
+            }
+            from cscode.core.config import load_config
+            cfg = load_config(db_config=db_config)
+            assert cfg.model == "env-model"  # env overrides explicit key
+            assert cfg.formatter is not None
+            assert cfg.formatter.line_length == 120  # DB sub-config preserved
+            assert cfg.formatter.python == "black"
+        finally:
+            os.environ.clear()
+            os.environ.update(env_copy)
+
     def test_from_dict_rich_yaml(self) -> None:
         """Simulate realistic YAML loading with all sub-configs."""
         data: dict[str, Any] = {
