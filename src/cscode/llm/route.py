@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from cscode.schema.ids import ModelID
+
 
 class ProtocolID(Enum):
     """Identifies the LLM wire protocol format.
@@ -89,7 +91,7 @@ class Route:
     provider: str
     """Provider name (openai, anthropic, ollama, …)."""
 
-    model: str
+    model: ModelID
     """Model identifier (gpt-4o, claude-3-5-sonnet, …)."""
 
     protocol: ProtocolID
@@ -133,7 +135,7 @@ _PROVIDER_PROTOCOLS: dict[str, ProtocolID] = {
 
 def resolve_route(
     provider: str,
-    model: str,
+    model: ModelID,
     api_key: str,
     api_base: str = "",
 ) -> Route:

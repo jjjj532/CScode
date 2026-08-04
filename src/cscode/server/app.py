@@ -400,7 +400,8 @@ async def rate_limit_middleware(request: Request, call_next: Any) -> Response:
                 status_code=429,
                 content={"detail": "Too many requests. Try again later."},
             )
-    return await call_next(request)
+    response: Response = await call_next(request)
+    return response
 
 
 @app.middleware("http")
@@ -430,7 +431,8 @@ async def localhost_only(request: Request, call_next: Any) -> Response:
                 status_code=403,
                 content={"error": "Only localhost requests are allowed for security. Use --host 0.0.0.0 to expose externally."},
             )
-    return await call_next(request)
+    response: Response = await call_next(request)
+    return response
 
 
 _db: Database | None = None
@@ -441,6 +443,7 @@ _compactor: Compactor | None = None
 _tracker: TaskTracker | None = None
 _question_registry: QuestionRegistry | None = None
 _tool_registry: Any = None
+_plugin_host: Any = None
 _workspace_store: WorkspaceStore | None = None
 _share_store: ShareStore | None = None
 _external_dir_store: ExternalDirectoryStore | None = None
