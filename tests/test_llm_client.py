@@ -27,7 +27,7 @@ def openai_route() -> Route:
     return Route(
         id="test/openai",
         provider="openai",
-        model="gpt-4o",
+        model=ModelID("gpt-4o"),
         protocol=ProtocolID.OPENAI_CHAT,
         endpoint=EndpointInfo(url="https://api.openai.com/v1/chat/completions"),
         auth=AuthInfo(scheme=AuthScheme.BEARER, value="sk-test"),
@@ -39,7 +39,7 @@ def anthropic_route() -> Route:
     return Route(
         id="test/anthropic",
         provider="anthropic",
-        model="claude-3-5-sonnet",
+        model=ModelID("claude-3-5-sonnet"),
         protocol=ProtocolID.ANTHROPIC_MESSAGES,
         endpoint=EndpointInfo(url="https://api.anthropic.com/v1/messages"),
         auth=AuthInfo(scheme=AuthScheme.HEADER, value="sk-ant-test", header_name="x-api-key"),
@@ -51,7 +51,7 @@ def responses_route() -> Route:
     return Route(
         id="test/responses",
         provider="openai",
-        model="gpt-4o",
+        model=ModelID("gpt-4o"),
         protocol=ProtocolID.OPENAI_RESPONSES,
         endpoint=EndpointInfo(url="https://api.openai.com/v1/responses"),
         auth=AuthInfo(scheme=AuthScheme.BEARER, value="sk-test"),
@@ -63,7 +63,7 @@ def gemini_route() -> Route:
     return Route(
         id="test/gemini",
         provider="google",
-        model="gemini-2.0-flash",
+        model=ModelID("gemini-2.0-flash"),
         protocol=ProtocolID.GEMINI,
         endpoint=EndpointInfo(url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"),
         auth=AuthInfo(scheme=AuthScheme.NONE, value=""),
@@ -112,7 +112,7 @@ class TestGetAdapter:
         route = Route(
             id="test/ollama",
             provider="ollama",
-            model="llama3",
+            model=ModelID("llama3"),
             protocol=ProtocolID.OPENAI_COMPATIBLE,
             endpoint=EndpointInfo(url="http://localhost:11434/api/chat"),
             auth=AuthInfo(scheme=AuthScheme.NONE, value=""),
@@ -142,7 +142,7 @@ class TestGetAdapter:
         route = Route(
             id="test/unknown",
             provider="unknown",
-            model="unknown",
+            model=ModelID("unknown"),
             protocol=ProtocolID.OPENAI_CHAT,  # valid enum but unknown provider string
             endpoint=EndpointInfo(url="http://localhost:9999/v1/chat"),
             auth=AuthInfo(scheme=AuthScheme.NONE, value=""),
@@ -387,6 +387,35 @@ class TestStream:
             assert isinstance(events[1], LLMEventError)
             assert "Connection refused" in events[1].error.message
             assert events[1].error.reason == LLMErrorReason.TRANSPORT
+
+    @pytest.mark.asyncio
+    async def test_stream_real_http_401_yields_error_event_not_crash(
+        self, openai_route: Route, llm_request: LLMRequest
+    ) -> None:
+        """Regression (Bug 6): a streaming HTTP 401 must yield LLMEventError,
+        not crash with ResponseNotRead when accessing response.text.
+        """
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                401,
+                request=request,
+                stream=httpx.ByteStream(b'{"error": {"message": "Authentication Failed"}}'),
+                headers={"content-type": "application/json"},
+            )
+
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as http:
+            client = LLMClient(openai_route, http)
+            events: list[object] = []
+            async for event in client.stream(llm_request):
+                events.append(event)
+
+        assert len(events) == 2
+        assert isinstance(events[0], Pending)
+        assert isinstance(events[1], LLMEventError)
+        assert "401" in events[1].error.message
+        assert "Authentication Failed" in events[1].error.message
+        assert events[1].error.retryable is False
 
 
 # ─── Helpers ────────────────────────────────────────────────────────

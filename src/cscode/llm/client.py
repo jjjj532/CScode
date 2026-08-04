@@ -71,13 +71,17 @@ class LLMClient:
             logger.error("LLM stream error: %s", e)
             yield LLMEventError(error=e)
         except httpx.HTTPStatusError as e:
-            logger.error("LLM stream HTTP %d: %s", e.response.status_code, e.response.text[:200])
+            try:
+                err_text = e.response.text[:500]
+            except Exception:
+                err_text = f"HTTP {e.response.status_code}"
+            logger.error("LLM stream HTTP %d: %s", e.response.status_code, err_text[:200])
             yield LLMEventError(
                 error=LLMError(
                     module="LLMClient",
                     method="stream",
                     reason=LLMErrorReason.PROVIDER_INTERNAL,
-                    message=f"HTTP {e.response.status_code}: {e.response.text[:500]}",
+                    message=f"HTTP {e.response.status_code}: {err_text}",
                     retryable=e.response.status_code >= 500,
                 )
             )

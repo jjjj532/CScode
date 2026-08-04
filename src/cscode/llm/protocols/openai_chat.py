@@ -75,6 +75,8 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
         url = f"{route.endpoint.url.rstrip('/')}/chat/completions"
 
         async with client.stream("POST", url, json=payload, headers=headers) as response:
+            if response.status_code >= 400:
+                await response.aread()
             response.raise_for_status()
             content_type = (response.headers.get("content-type") or "").lower()
 

@@ -80,6 +80,8 @@ class AnthropicProtocolAdapter(_ProtocolAdapter):
         block_type: str = ""
 
         async with client.stream("POST", url, json=payload, headers=headers) as response:
+            if response.status_code >= 400:
+                await response.aread()
             response.raise_for_status()
 
             buffer = ""

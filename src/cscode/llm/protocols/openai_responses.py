@@ -73,6 +73,8 @@ class OpenAIResponsesProtocolAdapter(_ProtocolAdapter):
         url = f"{route.endpoint.url.rstrip('/')}/responses"
 
         async with client.stream("POST", url, json=payload, headers=headers) as response:
+            if response.status_code >= 400:
+                await response.aread()
             response.raise_for_status()
 
             accumulated_text = ""
