@@ -226,3 +226,34 @@ class TestRunStateAPI:
                 json={"status": "invalid_status"},
             )
         assert resp.status_code == 400
+
+
+class TestStopEndpointRunState:
+    """P6: POST /api/sessions/{id}/stop must mark run state as stopped."""
+
+    async def test_stop_marks_run_state_stopped(
+        self, session: SessionV2, event_store: EventStore, monkeypatch
+    ) -> None:
+        """A session that is running becomes 'stopped' after /stop."""
+        from cscode.server.routes.sessions import router as sessions_router
+        from cscode.server.state import state
+
+        monkeypatch.setattr(state, "event_store", event_store)
+        monkeypatch.setattr(state, "active_agent_tasks", {})
+        monkeypatch.setattr(state, "session_queues", {})
+        monkeypatch.setattr(state, "question_registry", None)
+
+        _app = FastAPI()
+        _app.include_router(sessions_router)
+
+        await session.mark_run_start()
+        reloaded = await SessionV2.load(event_store, session.session_id)
+        assert reloaded.state.run_status == "running"
+
+        transport = ASGITransport(app=_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(f"/api/sessions/{session.session_id}/stop")
+        assert resp.status_code == 200
+
+        after = await SessionV2.load(event_store, session.session_id)
+        assert after.state.run_status == "stopped"

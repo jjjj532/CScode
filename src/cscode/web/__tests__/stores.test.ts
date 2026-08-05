@@ -98,6 +98,7 @@ describe('useSessionStore', () => {
       sessionToolCalls: {},
       sessionThinking: {},
       sessionAttachments: {},
+      sessionFiles: {},
       activeSessionId: null,
     });
   });
@@ -260,5 +261,95 @@ describe('useSessionStore', () => {
     });
     
     expect(result.current.sessionLoading['session_1']).toBe(true);
+  });
+
+  test('addSessionFile appends unique filenames per session', () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.addSessionFile('session_1', '/tmp/cscode-outputs/a.xlsx');
+      result.current.addSessionFile('session_1', '/tmp/cscode-outputs/b.xlsx');
+      result.current.addSessionFile('session_1', '/tmp/cscode-outputs/a.xlsx');
+      result.current.addSessionFile('session_2', '/tmp/cscode-outputs/c.xlsx');
+    });
+
+    expect(result.current.sessionFiles['session_1']).toEqual([
+      '/tmp/cscode-outputs/a.xlsx',
+      '/tmp/cscode-outputs/b.xlsx',
+    ]);
+    expect(result.current.sessionFiles['session_2']).toEqual([
+      '/tmp/cscode-outputs/c.xlsx',
+    ]);
+  });
+
+  test('clearSessionFiles empties the list for a session', () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.addSessionFile('session_1', '/tmp/cscode-outputs/a.xlsx');
+      result.current.clearSessionFiles('session_1');
+    });
+
+    expect(result.current.sessionFiles['session_1']).toEqual([]);
+  });
+
+  test('removeSession cleans up sessionFiles', () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.addSessionFile('session_1', '/tmp/cscode-outputs/a.xlsx');
+      result.current.removeSession('session_1');
+    });
+
+    expect(result.current.sessionFiles['session_1']).toBeUndefined();
+  });
+
+  test('applyEvent step.started does not create an empty assistant placeholder', () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.appendMessage({ role: 'user', content: 'Hello' }, 'session_1');
+    });
+    act(() => {
+      result.current.applyEvent('session_1', { type: 'step.started', data: {} });
+    });
+
+    const msgs = result.current.sessionMessages['session_1'] || [];
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('user');
+  });
+
+  test('applyEvent text.delta lazily creates an assistant message when none exists', () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.appendMessage({ role: 'user', content: 'Hello' }, 'session_1');
+    });
+    act(() => {
+      result.current.applyEvent('session_1', { type: 'text.delta', data: { content: 'Hi' } });
+    });
+
+    const msgs = result.current.sessionMessages['session_1'] || [];
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].role).toBe('assistant');
+    expect(msgs[1].content).toBe('Hi');
+  });
+
+  test('applyEvent step.started after a delta keeps the assistant message intact', () => {
+    const { result } = renderHook(() => useSessionStore());
+
+    act(() => {
+      result.current.appendMessage({ role: 'user', content: 'Hello' }, 'session_1');
+    });
+    act(() => {
+      result.current.applyEvent('session_1', { type: 'text.delta', data: { content: 'Partial' } });
+    });
+    act(() => {
+      result.current.applyEvent('session_1', { type: 'step.started', data: {} });
+    });
+
+    const msgs = result.current.sessionMessages['session_1'] || [];
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1].content).toBe('Partial');
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Message } from './Message';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import { SessionFilesPanel } from './SessionFilesPanel';
 import { ToolCallDisplay } from '../ui/ToolCallDisplay';
 import { useSessionStore } from '../../stores/useSessionStore';
 
@@ -60,6 +61,7 @@ export function MessageList() {
         <ToolCallDisplay key={`tc-${tc.name}-${i}`} {...tc} />
       ))}
       {showProcessing && toolCalls.length === 0 && <ThinkingIndicator />}
+      {activeSessionId && <SessionFilesPanel sessionId={activeSessionId} />}
       <div ref={endRef} />
     </div>
   );

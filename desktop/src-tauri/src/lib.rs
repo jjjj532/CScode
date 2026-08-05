@@ -285,7 +285,16 @@ fn which_simple(cmd: &str) -> bool {
 
 #[tauri::command]
 async fn open_output_file(filename: String) -> Result<String, String> {
-    let safe_name = Path::new(&filename)
+    let raw = Path::new(&filename);
+
+    // Backend reports absolute paths (OUTPUTS_DIR or /tmp); reveal them directly
+    if raw.is_absolute() && raw.exists() {
+        reveal_in_file_manager(raw)
+            .map_err(|e| format!("Failed to reveal: {e}"))?;
+        return Ok(String::new());
+    }
+
+    let safe_name = raw
         .file_name()
         .ok_or_else(|| "Invalid filename".to_string())?
         .to_string_lossy()

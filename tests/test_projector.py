@@ -63,3 +63,25 @@ async def test_build_context_skips_empty_prompt(db):
     ])
     msgs = await projector.build_context("s1", store)
     assert msgs == []
+
+
+@pytest.mark.asyncio
+async def test_step_events_do_not_create_empty_assistant_messages(db):
+    """P3: step.started / step.ended must not project empty assistant rows."""
+    projector = Projector(db)
+    store = EventStore(db)
+    sid = "s3"
+    events = [
+        {"type": "step.started", "data": {}},
+        {"type": "step.ended", "data": {}},
+        {"type": "text.ended", "data": {"content": ""}},
+        {"type": "tool.success", "data": {"name": "bash", "result": "ok"}},
+    ]
+    appended = await store.append(sid, events)
+    for evt in appended:
+        await projector.on_event(evt)
+    msgs = await projector.get_messages(sid)
+    # Only the tool.success row survives; step.started/ended + empty text.ended are skipped.
+    assert len(msgs) == 1
+    assert msgs[0]["role"] == "tool"
+    assert msgs[0]["content"] == "ok"

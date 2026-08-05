@@ -83,6 +83,43 @@ api_router = APIRouter(prefix="/api")
 
 OUTPUTS_DIR = Path("/tmp/cscode-outputs")
 
+# Top-level /tmp is scanned for artifacts too (extension whitelist below),
+# because the LLM sometimes writes generated files directly to /tmp.
+TMP_SCAN_DIR = Path("/tmp")
+
+# File extensions treated as user-visible artifacts when LLM writes outside OUTPUTS_DIR.
+OUTPUT_ARTIFACT_EXTENSIONS = frozenset({
+    ".xlsx", ".xls", ".docx", ".doc", ".pdf", ".csv",
+    ".zip", ".pptx", ".png", ".jpg", ".jpeg",
+})
+
+
+def _collect_new_artifacts(since: float) -> list[str]:
+    """Return artifact filenames created at or after `since` (epoch seconds).
+
+    Scans OUTPUTS_DIR (all files) and the top level of /tmp (extension
+    whitelist only), so LLM-generated files like /tmp/报告.xlsx are
+    surfaced to the frontend even when written outside the outputs dir.
+    """
+    found: list[str] = []
+    try:
+        for f in OUTPUTS_DIR.iterdir():
+            if f.is_file() and f.stat().st_mtime >= since:
+                found.append(f.name)
+    except OSError:
+        pass
+    try:
+        for f in TMP_SCAN_DIR.iterdir():
+            if (
+                f.is_file()
+                and f.suffix.lower() in OUTPUT_ARTIFACT_EXTENSIONS
+                and f.stat().st_mtime >= since
+            ):
+                found.append(f.name)
+    except OSError:
+        pass
+    return sorted(set(found))
+
 # Event types that are persisted to EventStore for message history.
 # text.delta is intentionally excluded: streaming deltas are real-time only via SSE.
 # text.ended (final complete text) is persisted for session history replay.
@@ -236,7 +273,10 @@ def _build_system_prompt(file_context: str = "") -> NewMessage:
     base += "   [SKIPPED]    TC-003 — Payment test — reason: no test credentials\n"
     base += "   [UNVERIFIED] TC-004 — Empty page — re-run needed\n"
     base += "7. The verification report is generated from the database, not from your text.\n"
-    base += "   You cannot convince the system — only real tool calls count."
+    base += "   You cannot convince the system — only real tool calls count.\n"
+    base += "8. When you generate file artifacts (Excel, PDF, CSV, scripts, reports), write them\n"
+    base += f"   to {OUTPUTS_DIR}/ using absolute paths — never bare relative paths. The output\n"
+    base += "   directory is surfaced to the user in the UI, so files written elsewhere may be inaccessible."
     return NewMessage.system(base)
 
 
@@ -868,6 +908,8 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 finally:
                     await _emit_step_ended()
 
+            await session_v2.mark_run_start()
+
             agent_task = asyncio.create_task(stepped_agent_runner())
             _active_agent_tasks[str(session_v2.session_id)] = agent_task
             _session_queues[str(session_v2.session_id)] = queue
@@ -884,6 +926,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                     if _question_registry is not None:
                         await _question_registry.cancel_session(str(session_v2.session_id))
                     agent_task.cancel()
+                    await session_v2.mark_run_stop()
                     break
 
                 if agent_task.done():
@@ -939,9 +982,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
 
                     try:
                         response = agent_task.result()
-                        for f in OUTPUTS_DIR.iterdir():
-                            if f.is_file() and f.stat().st_mtime >= before:
-                                yield _e({"type": "file_created", "data": {"filename": f.name}})
+                        await session_v2.mark_run_complete()
+                        for fname in _collect_new_artifacts(before):
+                            yield _e({"type": "file_created", "data": {"filename": fname}})
                         if not response:
                             logger.warning(
                                 "[DIAG] Empty response from agent for session=%s",
@@ -961,6 +1004,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         logger.warning(
                             "[DIAG] agent task error session=%s error=%s", session_v2.session_id, e
                         )
+                        await session_v2.mark_run_error(str(e)[:200])
                         detail = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
                         yield _e({"type": "error", "data": {"content": detail}})
 
@@ -1007,6 +1051,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         await asyncio.wait_for(agent_task, timeout=5.0)
                     except (asyncio.CancelledError, asyncio.TimeoutError):
                         pass
+                    await session_v2.mark_run_stop()
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

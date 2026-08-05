@@ -48,3 +48,14 @@ def test_plugin_host_has_module_level_declaration():
     finally:
         if db_path.exists():
             db_path.unlink()
+
+
+def test_build_system_prompt_guides_output_dir() -> None:
+    """P5: system prompt must steer file artifacts to OUTPUTS_DIR with absolute paths."""
+    from cscode.server.app import _build_system_prompt
+
+    prompt = _build_system_prompt()
+    text = prompt.content
+    assert "/tmp/cscode-outputs/" in text
+    assert "absolute paths" in text
+    assert "never bare relative paths" in text

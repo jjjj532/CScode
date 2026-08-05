@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -12,6 +13,7 @@ from cscode.tools2.base import Tool, ToolResult
 class WriteInput(BaseModel):
     path: str
     content: str
+    cwd: str | None = None
 
 
 class WriteOutput(BaseModel):
@@ -27,7 +29,12 @@ class WriteTool(Tool[WriteInput, WriteOutput]):
     output_schema = WriteOutput
 
     async def execute(self, input: WriteInput) -> ToolResult[WriteOutput]:
-        path = Path(input.path)
+        raw = input.path
+        path = Path(os.path.expanduser(raw))
+        if not path.is_absolute():
+            base = Path(input.cwd) if input.cwd else Path.cwd()
+            path = base / path
+        path = path.resolve()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(input.content, encoding="utf-8")

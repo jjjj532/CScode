@@ -6,6 +6,15 @@ import { api } from '../lib/api';
 const streamControllers: Record<string, AbortController> = {};
 // Prevent concurrent streams for the same session
 const activeStreams = new Set<string>();
+// Per-session send cooldown: blocks duplicate sends within 1s (double-stream guard)
+const lastSendAt: Record<string, number> = {};
+const SEND_COOLDOWN_MS = 1000;
+
+export function __resetSendCooldownForTests(): void {
+  for (const k of Object.keys(lastSendAt)) {
+    delete lastSendAt[k];
+  }
+}
 
 export function abortSession(sessionId: string) {
   const ctrl = streamControllers[sessionId];
@@ -85,6 +94,13 @@ export function useChat() {
       useToastStore.getState().addToast('Session is already generating a response', 'warning');
       return undefined;
     }
+
+    const now = Date.now();
+    if (lastSendAt[sid] && now - lastSendAt[sid] < SEND_COOLDOWN_MS) {
+      useToastStore.getState().addToast('发送太快，请稍候再试', 'warning');
+      return undefined;
+    }
+    lastSendAt[sid] = now;
 
     abortSession(sid);
 
@@ -179,8 +195,13 @@ export function useChat() {
                   setSessionThinking(capturedSid, true);
                 }
                 break;
-              case 'file_created':
+              case 'file_created': {
+                const filename = d.filename || (event as any).filename;
+                if (filename && isCurrentStream()) {
+                  useSessionStore.getState().addSessionFile(capturedSid, filename);
+                }
                 break;
+              }
               case 'complete':
                 if (isCurrentStream()) {
                   setSessionThinking(capturedSid, false);

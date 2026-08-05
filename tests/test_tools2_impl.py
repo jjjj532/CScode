@@ -79,6 +79,44 @@ class TestWriteTool:
             assert result.success
             assert path.read_text() == "deep"
 
+    async def test_write_relative_path_resolves_against_cwd(self) -> None:
+        """P5: relative path resolves against the provided cwd, not process CWD."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cwd = Path(tmpdir)
+            result = await self.tool.execute(
+                WriteInput(path="outputs/rel.txt", content="rel", cwd=str(cwd))
+            )
+            assert result.success
+            resolved = cwd / "outputs" / "rel.txt"
+            assert resolved.read_text() == "rel"
+            assert result.data is not None
+            assert result.data.path == str(resolved.resolve())
+
+    async def test_write_tilde_expands_to_home(self) -> None:
+        """P5: ~ prefix expands to the user's home directory."""
+        import os
+
+        home = Path(os.path.expanduser("~"))
+        result = await self.tool.execute(
+            WriteInput(path="~/cscode_write_test_tmp.txt", content="home")
+        )
+        assert result.success
+        resolved = home / "cscode_write_test_tmp.txt"
+        try:
+            assert resolved.read_text() == "home"
+        finally:
+            resolved.unlink(missing_ok=True)
+
+    async def test_write_absolute_path_unchanged(self) -> None:
+        """P5: absolute paths are used as-is."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = Path(tmpdir) / "abs.txt"
+            result = await self.tool.execute(WriteInput(path=str(target), content="abs"))
+            assert result.success
+            assert target.read_text() == "abs"
+            assert result.data is not None
+            assert result.data.path == str(target.resolve())
+
 
 # ---------------------------------------------------------------------------
 # EditTool

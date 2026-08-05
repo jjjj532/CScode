@@ -143,6 +143,10 @@ async def stop_session(session_id: str) -> dict[str, str]:
             await asyncio.wait_for(task, timeout=5.0)
         except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
+    if state.event_store is not None:
+        session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
+        if session_v2.state.seq > 0:
+            await session_v2.mark_run_stop()
     return {"status": "ok"}
 
 

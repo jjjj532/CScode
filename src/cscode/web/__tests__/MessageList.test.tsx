@@ -40,6 +40,7 @@ jest.mock('../src/stores/useSessionStore', () => ({
       sessionToolCalls: {},
       sessionThinking: {},
       sessionAttachments: {},
+      sessionFiles: {},
       sessionLastSeq: {},
       activeSessionId: 'session_1',
       applyEvent: jest.fn(),

@@ -122,6 +122,7 @@ interface SessionState {
   sessionToolCalls: Record<string, ToolCallItem[]>;
   sessionThinking: Record<string, boolean>;
   sessionAttachments: Record<string, File[]>;
+  sessionFiles: Record<string, string[]>;
   sessionLastSeq: Record<string, number>;
   pendingQuestions: Record<string, QuestionItem[]>;
   setSessions: (sessions: Session[]) => void;
@@ -143,6 +144,8 @@ interface SessionState {
   addSessionAttachment: (sessionId: string, file: File) => void;
   removeSessionAttachment: (sessionId: string, index: number) => void;
   clearSessionAttachments: (sessionId: string) => void;
+  addSessionFile: (sessionId: string, filename: string) => void;
+  clearSessionFiles: (sessionId: string) => void;
   truncateMessages: (sessionId: string, toIndex: number) => void;
   dismissQuestion: (sessionId: string) => void;
   updatePendingQuestionRequestId: (sessionId: string, questionText: string, requestId: string) => void;
@@ -157,6 +160,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   sessionToolCalls: {},
   sessionThinking: {},
   sessionAttachments: {},
+  sessionFiles: {},
   sessionLastSeq: {},
   pendingQuestions: {},
   setSessions: (sessions) => set({ sessions }),
@@ -199,27 +203,12 @@ export const useSessionStore = create<SessionState>((set) => ({
         };
       }
       case 'step.started': {
-        const msgs = s.sessionMessages[sessionId] || [];
-        // Only add placeholder if last message isn't already an empty assistant message
-        const last = msgs[msgs.length - 1];
-        if (last?.role === 'assistant' && !last.content?.trim()) {
-          return {
-            ...bumpVersion(),
-            sessionThinking: { ...s.sessionThinking, [sessionId]: true },
-            sessionToolCalls: { ...s.sessionToolCalls, [sessionId]: [] },
-          };
-        }
+        // Do NOT create an empty assistant placeholder: text.delta already
+        // creates the assistant message lazily when the first delta arrives.
         return {
           ...bumpVersion(),
           sessionThinking: { ...s.sessionThinking, [sessionId]: true },
           sessionToolCalls: { ...s.sessionToolCalls, [sessionId]: [] },
-          sessionMessages: {
-            ...s.sessionMessages,
-            [sessionId]: [
-              ...msgs,
-              { role: 'assistant' as const, content: '', created_at: new Date().toISOString() },
-            ],
-          },
         };
       }
       case 'text.ended': {
@@ -395,6 +384,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     const { [id]: tcs, ...restTc } = s.sessionToolCalls;
     const { [id]: th, ...restTh } = s.sessionThinking;
     const { [id]: att, ...restAtt } = s.sessionAttachments;
+    const { [id]: files, ...restFiles } = s.sessionFiles;
     const { [id]: ld, ...restLd } = s.sessionLoading;
     const { [id]: seq, ...restSeq } = s.sessionLastSeq;
     return {
@@ -404,6 +394,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       sessionToolCalls: restTc,
       sessionThinking: restTh,
       sessionAttachments: restAtt,
+      sessionFiles: restFiles,
       sessionLoading: restLd,
       sessionLastSeq: restSeq,
     };
@@ -456,6 +447,19 @@ export const useSessionStore = create<SessionState>((set) => ({
   })),
   clearSessionAttachments: (sessionId) => set((s) => ({
     sessionAttachments: { ...s.sessionAttachments, [sessionId]: [] },
+  })),
+  addSessionFile: (sessionId, filename) => set((s) => {
+    const existing = s.sessionFiles[sessionId] || [];
+    if (existing.includes(filename)) return s;
+    return {
+      sessionFiles: {
+        ...s.sessionFiles,
+        [sessionId]: [...existing, filename],
+      },
+    };
+  }),
+  clearSessionFiles: (sessionId) => set((s) => ({
+    sessionFiles: { ...s.sessionFiles, [sessionId]: [] },
   })),
   truncateMessages: (sessionId, toIndex) => set((s) => ({
     sessionMessages: {

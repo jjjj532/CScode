@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useChat } from '../src/hooks/useChat';
+import { useChat, __resetSendCooldownForTests } from '../src/hooks/useChat';
 
 // Polyfill TextEncoder/TextDecoder for jsdom
 if (typeof TextDecoder === 'undefined') {
@@ -16,6 +16,7 @@ const mockState: Record<string, any> = {
   updateSessionTitle: jest.fn(),
   setSessionThinking: jest.fn(),
   applyEvent: jest.fn(),
+  addSessionFile: jest.fn(),
   sessions: [],
   sessionMessages: {},
   sessionLoading: {},
@@ -49,6 +50,7 @@ const mockFetch = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
+  __resetSendCooldownForTests();
   global.fetch = mockFetch;
   // Default: mock POST /api/sessions returns a session
   mockFetch.mockImplementation((url: string) => {
@@ -155,6 +157,57 @@ describe('useChat Hook', () => {
       type: 'tool.called',
       data: expect.objectContaining({ name: 'browser', round: 1 }),
     }));
+  });
+
+  test('sendMessage tracks file_created events via addSessionFile', async () => {
+    class MockFileStream {
+      getReader() {
+        let calls = 0;
+        return {
+          read: async () => {
+            if (calls >= 2) return { done: true, value: undefined };
+            const data = calls === 0
+              ? 'data: {"type":"file_created","data":{"filename":"/tmp/cscode-outputs/report.xlsx"}}\n\n'
+              : 'data: {"type":"complete","content":"Done"}\n\n';
+            calls++;
+            return { done: false, value: new TextEncoder().encode(data) };
+          },
+        };
+      }
+    }
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/session' || url.includes('/api/session')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'session_file', title: 'Test' }) });
+      }
+      return Promise.resolve({ ok: true, body: new MockFileStream() });
+    });
+    const { result } = renderHook(() => useChat());
+    await act(async () => {
+      await result.current.sendMessage('Hello');
+    });
+    expect(mockState.addSessionFile).toHaveBeenCalledWith(
+      expect.any(String),
+      '/tmp/cscode-outputs/report.xlsx',
+    );
+  });
+
+  test('sendMessage blocks a duplicate send to the same session within the cooldown window', async () => {
+    const { result } = renderHook(() => useChat());
+    mockState.appendMessage.mockClear();
+    mockState.setLoading.mockClear();
+    await act(async () => {
+      await result.current.sendMessage('First', 'session_cool');
+    });
+    expect(mockState.appendMessage).toHaveBeenCalledWith(expect.objectContaining({ content: 'First' }), 'session_cool');
+    const fetchAfterFirst = mockFetch.mock.calls.length;
+    mockState.appendMessage.mockClear();
+    mockState.setLoading.mockClear();
+    await act(async () => {
+      const ret = await result.current.sendMessage('Second', 'session_cool');
+      expect(ret).toBeUndefined();
+    });
+    expect(mockState.appendMessage).not.toHaveBeenCalled();
+    expect(mockFetch.mock.calls.length).toBe(fetchAfterFirst);
   });
 
   test('stop calls abort on the controller', async () => {
