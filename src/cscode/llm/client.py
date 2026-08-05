@@ -92,7 +92,7 @@ class LLMClient:
                     module="LLMClient",
                     method="stream",
                     reason=LLMErrorReason.TRANSPORT,
-                    message=f"Request failed: {e}",
+                    message=f"Request failed: {type(e).__name__}: {e!r}",
                 )
             )
 

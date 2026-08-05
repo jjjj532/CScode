@@ -389,6 +389,31 @@ class TestStream:
             assert events[1].error.reason == LLMErrorReason.TRANSPORT
 
     @pytest.mark.asyncio
+    async def test_stream_request_error_empty_str_includes_type_and_repr(
+        self, openai_route: Route, llm_request: LLMRequest
+    ) -> None:
+        """Regression: a RequestError with an empty str(e) must still yield a
+        diagnosable message (type name + repr), not an empty detail.
+        """
+        client = LLMClient(openai_route)
+
+        req_error = httpx.RequestError("", request=MagicMock(spec=httpx.Request))
+
+        with patch.object(client, "_get_adapter") as mock_factory:
+            mock_adapter = MagicMock()
+            mock_adapter.stream.side_effect = req_error
+            mock_factory.return_value = mock_adapter
+
+            events: list[object] = []
+            async for event in client.stream(llm_request):
+                events.append(event)
+
+            assert len(events) == 2
+            assert isinstance(events[1], LLMEventError)
+            assert "RequestError" in events[1].error.message
+            assert events[1].error.reason == LLMErrorReason.TRANSPORT
+
+    @pytest.mark.asyncio
     async def test_stream_real_http_401_yields_error_event_not_crash(
         self, openai_route: Route, llm_request: LLMRequest
     ) -> None:

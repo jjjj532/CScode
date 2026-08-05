@@ -395,9 +395,9 @@ def test_config_mcp_plugins_fields():
     db_path = _get_temp_db_path()
     os.environ["CSCODE_DB_PATH"] = str(db_path)
     try:
-        from cscode.server.app import app, ConfigRequest
         # Verify the model schema supports the new fields
-        import pydantic
+
+        from cscode.server.app import ConfigRequest, app
         schema = ConfigRequest.model_json_schema()
         props = schema.get("properties", {})
         assert "mcp_servers" in props, "mcp_servers field missing from ConfigRequest"
@@ -439,7 +439,7 @@ def test_config_keybindings():
     db_path = _get_temp_db_path()
     os.environ["CSCODE_DB_PATH"] = str(db_path)
     try:
-        from cscode.server.app import app, ConfigRequest
+        from cscode.server.app import ConfigRequest, app
         schema = ConfigRequest.model_json_schema()
         props = schema.get("properties", {})
         assert "keybindings" in props, "keybindings field missing from ConfigRequest"
@@ -895,9 +895,10 @@ def test_config_does_not_expose_raw_api_key():
     db_path = _get_temp_db_path()
     os.environ["CSCODE_DB_PATH"] = str(db_path)
     try:
-        from cscode.server.app import app
-        from cscode.core.config import ConfigStore, load_config
         import anyio
+
+        from cscode.core.config import ConfigStore, load_config
+        from cscode.server.app import app
         from cscode.storage.db import Database
 
         async def save_key():
@@ -985,6 +986,23 @@ def test_chat_invalid_session_id_returns_404():
             db_path.unlink()
 
 
+def test_chat_empty_message_returns_400():
+    """POST /api/chat with empty message and no files must return 400,
+    not trigger a pointless LLM call."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            resp = client.post("/api/chat", json={"message": ""})
+            assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.text[:200]}"
+            resp2 = client.post("/api/chat", json={"message": "   "})
+            assert resp2.status_code == 400, f"Expected 400 for whitespace, got {resp2.status_code}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
 def _make_mock_agent(response_text: str = "Mock response"):
     """Create a mock agent whose run_with_messages fires on_event and returns text."""
     from cscode.schema.events import TextEnded
@@ -1026,8 +1044,8 @@ def test_chat_persists_assistant_response(monkeypatch):
             assert msgs[1]["role"] == "assistant"
             assert "Hello from mock" in msgs[1]["content"]
 
-            from cscode.storage.event_store import EventStore
             from cscode.storage.db import Database
+            from cscode.storage.event_store import EventStore
             db = Database(db_path=db_path)
             import anyio
             async def check_events():

@@ -602,6 +602,9 @@ async def chat(request: Request) -> ChatResponse:
                     file_bytes = f.get("content", "").encode("utf-8")
                 files.append((f.get("name", "file"), file_bytes))
 
+    if not message.strip() and not files:
+        raise HTTPException(status_code=400, detail="Message must not be empty")
+
     if state.audit_log:
         await state.audit_log.record(
             action_type="chat.send",
@@ -647,6 +650,9 @@ async def chat_stream(request: Request) -> StreamingResponse:
                 except Exception:
                     file_bytes = f.get("content", "").encode("utf-8")
                 files.append((f.get("name", "file"), file_bytes))
+
+    if not message.strip() and not files:
+        raise HTTPException(status_code=400, detail="Message must not be empty")
 
     if state.audit_log:
         await state.audit_log.record(
