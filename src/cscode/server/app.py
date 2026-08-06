@@ -1399,10 +1399,12 @@ async def _handle_chat(
     if _event_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
 
+    had_session_id = session_id is not None
     session_id = session_id or str(uuid.uuid4())
 
-    # If session_id was explicitly provided, verify it exists
-    if session_id:
+    # Bug 9: only verify existence when the caller explicitly supplied a
+    # session_id. When omitted, auto-generate a NEW session (like chat/stream).
+    if had_session_id:
         from cscode.schema.ids import SessionID as _SessionID
 
         existing_events = await _event_store.read(_SessionID(session_id))
@@ -1554,7 +1556,7 @@ async def _handle_chat(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
-    return ChatResponse(response=response, session_id=session_id)
+    return ChatResponse(response=response, session_id=str(session_v2.session_id))
 
 
 @api_router.get("/config")

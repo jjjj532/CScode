@@ -17,7 +17,8 @@ function fileNameOf(path: string): string {
 }
 
 export function SessionFilesPanel({ sessionId }: SessionFilesPanelProps) {
-  const files = useSessionStore((s) => s.sessionFiles[sessionId] || []);
+  // No `|| []`: fresh array refs break zustand's Object.is snapshot compare → React #185 loop.
+  const files = useSessionStore((s) => s.sessionFiles[sessionId]);
   const addToast = useToastStore((s) => s.addToast);
 
   const openFile = useCallback(async (path: string) => {
@@ -34,7 +35,7 @@ export function SessionFilesPanel({ sessionId }: SessionFilesPanelProps) {
     }
   }, [addToast]);
 
-  if (files.length === 0) return null;
+  if (!files || files.length === 0) return null;
 
   return (
     <div className="flex gap-3 justify-start" data-testid="session-files-panel">

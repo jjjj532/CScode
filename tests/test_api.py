@@ -181,6 +181,28 @@ def test_stop_session_returns_ok():
             db_path.unlink()
 
 
+def test_patch_session_title_via_body():
+    """Bug 10: PATCH /api/sessions/{id} with JSON body {title} must update title.
+    Frontend api.ts sends body, backend previously only accepted query param."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            create_resp = client.post("/api/sessions", json={"title": "BeforeTitle"})
+            assert create_resp.status_code == 200
+            sid = create_resp.json()["id"]
+
+            resp = client.patch(f"/api/sessions/{sid}", json={"title": "AfterTitle"})
+            assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text[:200]}"
+
+            msgs = client.get(f"/api/sessions/{sid}").json()
+            assert msgs["title"] == "AfterTitle", f"Expected title updated, got {msgs.get('title')}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
 # ---------------------------------------------------------------------------
 # P1-6: Event persistence types include error
 # ---------------------------------------------------------------------------
@@ -998,6 +1020,31 @@ def test_chat_empty_message_returns_400():
             assert resp.status_code == 400, f"Expected 400, got {resp.status_code}: {resp.text[:200]}"
             resp2 = client.post("/api/chat", json={"message": "   "})
             assert resp2.status_code == 400, f"Expected 400 for whitespace, got {resp2.status_code}"
+    finally:
+        if db_path.exists():
+            db_path.unlink()
+
+
+def test_chat_without_session_id_creates_new_session(monkeypatch):
+    """Bug 9: POST /api/chat without session_id must create a new session,
+    NOT return 404 (regression: uuid generated, then existence check on a new uuid)."""
+    db_path = _get_temp_db_path()
+    os.environ["CSCODE_DB_PATH"] = str(db_path)
+    try:
+        from cscode.server import app as server_app
+        monkeypatch.setattr(
+            server_app, "create_agent_v2",
+            lambda config, tool_registry=None, permissions=None, **kwargs: _make_mock_agent("auto-created session ok"),
+        )
+        from cscode.server.app import app
+        with TestClient(app) as client:
+            resp = client.post("/api/chat", json={"message": "Hi"})
+            assert resp.status_code == 200, f"Expected 200 (auto-create), got {resp.status_code}: {resp.text[:300]}"
+            data = resp.json()
+            sid = data.get("session_id")
+            assert sid, f"Expected a session_id in response: {data}"
+            msgs = client.get(f"/api/sessions/{sid}/messages").json()
+            assert msgs and msgs[0]["role"] == "user", f"expected persisted user message, got {msgs}"
     finally:
         if db_path.exists():
             db_path.unlink()

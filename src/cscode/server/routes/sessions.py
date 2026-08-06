@@ -150,12 +150,21 @@ async def stop_session(session_id: str) -> dict[str, str]:
     return {"status": "ok"}
 
 
+class SessionUpdate(BaseModel):
+    title: str | None = None
+
+
 @router.patch("/sessions/{session_id}")
-async def update_session(session_id: str, title: str = "") -> dict[str, str]:
+async def update_session(
+    session_id: str,
+    body: SessionUpdate | None = None,
+    title: str = "",
+) -> dict[str, str]:
     if state.event_store is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
+        raise HTTPException(status_code=503, detail="Event store not initialized")
+    new_title = (body.title if body and body.title else None) or (title or None)
     session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
-    await session_v2.update_metadata(title=title if title else None)
+    await session_v2.update_metadata(title=new_title)
     return {"status": "ok"}
 
 
