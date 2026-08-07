@@ -32,6 +32,62 @@ function isLocalFilePath(href: string | undefined): boolean {
   return FILE_EXTS.some((ext) => lower.endsWith(ext));
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const PREFIX_PATTERN = '(?:\\/tmp\\/cscode-outputs|\\/outputs)';
+
+/**
+ * Convert local file references in a message into clickable links. Two forms:
+ *  1. bare absolute output paths (e.g. /tmp/cscode-outputs/report.xlsx) are
+ *     wrapped into [path](path);
+ *  2. bare artifact base names (a "文件名\treport.xlsx" row) are wrapped into
+ *     [report.xlsx](/tmp/cscode-outputs/report.xlsx) when the same message
+ *     already references that file by path.
+ * Existing markdown links ([text](url)) are protected so they are not wrapped
+ * a second time. Regex-heavy — kept here so MarkdownRenderer stays readable.
+ */
+export function autolinkFileNames(content: string): string {
+  const tokens: string[] = [];
+  const protectedText = content
+    .replace(/\[[^\]]*\]\([^\s)]+\)/g, (m) => {
+      tokens.push(m);
+      return `\u0000${tokens.length - 1}\u0000`;
+    })
+    .replace(/<https?:\/\/[^\s>]+>/g, (m) => {
+      tokens.push(m);
+      return `\u0000${tokens.length - 1}\u0000`;
+    });
+
+  const basePathRe = new RegExp(`${PREFIX_PATTERN}\\/([^\\s)\\]]+)`);
+  const basenames = new Set<string>();
+  const scan = (t: string) => {
+    let mm: RegExpExecArray | null;
+    const re = new RegExp(basePathRe.source, 'g');
+    while ((mm = re.exec(t))) basenames.add(mm[1].replace(/[.,;:!?，。]+$/, ''));
+  };
+  scan(protectedText);
+  for (const t of tokens) scan(t);
+  for (const name of [...basenames]) basenames.add(decodeFilePath(name));
+
+  let work = protectedText.replace(
+    new RegExp(`(?<!\\()(${PREFIX_PATTERN}\\/[^\\s)]+)`, 'g'),
+    (path) => {
+      const url = path.replace(/[.,;:!?，。]+$/, '');
+      return `[${url}](${url})${path.slice(url.length)}`;
+    }
+  );
+
+  for (const name of basenames) {
+    if (!name) continue;
+    const re = new RegExp(`(?<![\\w/\\[])${escapeRegExp(name)}(?![\\w/\\]])`, 'g');
+    work = work.replace(re, `[${name}](/tmp/cscode-outputs/${name})`);
+  }
+
+  return work.replace(/\u0000(\d+)\u0000/g, (_, i) => tokens[Number(i)]);
+}
+
 export const markdownComponents: Components = {
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '');

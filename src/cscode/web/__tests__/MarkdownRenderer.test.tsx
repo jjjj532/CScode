@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MarkdownRenderer } from '../src/components/markdown/MarkdownRenderer';
+import { autolinkFileNames } from '../src/lib/markdown';
 
 // Fake Tauri runtime so openOutputFile takes the invoke path.
 const mockInvoke = jest.fn().mockResolvedValue('');
@@ -84,5 +85,34 @@ describe('MarkdownRenderer file paths', () => {
     fireEvent.click(link);
     expect(mockInvoke).not.toHaveBeenCalled();
     expect(link.getAttribute('href')).toContain('/tmp/cscode-outputs/data.pdf');
+  });
+});
+
+describe('autolinkFileNames', () => {
+  test('wraps bare artifact base name into a link when a path exists in the message', () => {
+    const content = '文件名\t智转Pro_测试案例_v2.0.0.xlsx\n保存路径\t[/tmp/cscode-outputs/智转Pro_测试案例_v2.0.0.xlsx](/tmp/cscode-outputs/智转Pro_测试案例_v2.0.0.xlsx)';
+    const out = autolinkFileNames(content);
+    // bare name row → link to the same file
+    expect(out).toContain('[智转Pro_测试案例_v2.0.0.xlsx](/tmp/cscode-outputs/智转Pro_测试案例_v2.0.0.xlsx)');
+    // already-linked path is NOT double-wrapped
+    expect(out).toContain('[/tmp/cscode-outputs/智转Pro_测试案例_v2.0.0.xlsx](/tmp/cscode-outputs/智转Pro_测试案例_v2.0.0.xlsx)');
+  });
+
+  test('bare absolute path becomes a markdown link', () => {
+    const out = autolinkFileNames('路径: /tmp/cscode-outputs/报告.pdf');
+    expect(out).toContain('[/tmp/cscode-outputs/报告.pdf](/tmp/cscode-outputs/报告.pdf)');
+  });
+
+  test('bare name without any path in the message stays plain text', () => {
+    const out = autolinkFileNames('文件名\t孤立的文件.xlsx');
+    expect(out).toContain('孤立的文件.xlsx');
+    expect(out).not.toContain('[孤立的文件.xlsx]');
+  });
+
+  test('does not wrap a bare name when it is part of a longer token', () => {
+    const out = autolinkFileNames('参考 abc报告.pdf 和 /tmp/cscode-outputs/报告.pdf');
+    // 报告.pdf is embedded in abc报告.pdf → must not become its own link
+    expect(out).toContain('abc报告.pdf');
+    expect(out).toContain('[/tmp/cscode-outputs/报告.pdf](/tmp/cscode-outputs/报告.pdf)');
   });
 });

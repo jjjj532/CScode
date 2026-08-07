@@ -300,19 +300,23 @@ async fn open_output_file(filename: String) -> Result<String, String> {
         .to_string_lossy()
         .to_string();
 
-    let output_dir = std::env::temp_dir().join("cscode-outputs");
-    let file_path = output_dir.join(&safe_name);
+    // macOS temp_dir() = /var/folders/.../T ≠ /tmp; backend writes to /tmp/cscode-outputs.
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    for dir in ["/tmp/cscode-outputs", "/tmp"] {
+        candidates.push(PathBuf::from(dir).join(&safe_name));
+    }
+    candidates.push(std::env::temp_dir().join("cscode-outputs").join(&safe_name));
+    candidates.push(std::env::current_dir().unwrap_or_default().join(&safe_name));
 
-    if !file_path.exists() {
-        let _ = std::fs::create_dir_all(&output_dir);
-        let _ = open_in_file_manager(&output_dir);
-        return Err(format!("File not found: {safe_name}"));
+    if let Some(hit) = candidates.iter().find(|p| p.exists()) {
+        reveal_in_file_manager(hit)
+            .map_err(|e| format!("Failed to reveal: {e}"))?;
+        return Ok(String::new());
     }
 
-    reveal_in_file_manager(&file_path)
-        .map_err(|e| format!("Failed to reveal: {e}"))?;
-
-    Ok(String::new())
+    let _ = std::fs::create_dir_all("/tmp/cscode-outputs");
+    let _ = open_in_file_manager(Path::new("/tmp/cscode-outputs"));
+    Err(format!("File not found in /tmp/cscode-outputs or /tmp: {safe_name}"))
 }
 
 #[cfg(target_os = "macos")]
