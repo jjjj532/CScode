@@ -10,9 +10,21 @@ const FILE_EXTS = ['.xlsx', '.xls', '.pdf', '.doc', '.docx', '.csv', '.txt', '.p
 // these are treated as local files to open, not remote URLs to navigate to.
 const LOCAL_FILE_PREFIXES = ['/tmp/cscode-outputs/', '/outputs/', '/tmp/'];
 
+// react-markdown's defaultUrlTransform encodeURI()s hrefs, so a Chinese
+// filename arrives percent-encoded (/tmp/cscode-outputs/%E6%99%BA...).
+// Decode before passing to the backend or Path.exists() fails.
+export function decodeFilePath(href: string): string {
+  const raw = href.split('?')[0].split('#')[0];
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 function isLocalFilePath(href: string | undefined): boolean {
   if (!href) return false;
-  const path = href.split('?')[0].split('#')[0];
+  const path = decodeFilePath(href);
   const lower = path.toLowerCase();
   if (!path.startsWith('/')) return false;
   const inLocalDir = LOCAL_FILE_PREFIXES.some((p) => path.startsWith(p));
@@ -38,7 +50,7 @@ export const markdownComponents: Components = {
   },
   a({ href, children }) {
     if (isLocalFilePath(href)) {
-      const fullPath = href!.split('?')[0].split('#')[0];
+      const fullPath = decodeFilePath(href!);
       return (
         <a
           href={href}

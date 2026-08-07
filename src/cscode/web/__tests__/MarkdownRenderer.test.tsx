@@ -9,7 +9,10 @@ jest.mock('@tauri-apps/api/core', () => ({
 }));
 
 // react-markdown is ESM; MessageList.test mocks it. We render our
-// markdownComponents.a via a controlled mock renderer instead.
+// markdownComponents.a via a controlled mock renderer. Crucially, we mimic
+// react-markdown's defaultUrlTransform which encodeURI()s hrefs (中文路径 →
+// percent-encoded), exactly as the real lib does — this is what makes the
+// decodeFilePath fix observable in the test.
 jest.mock('react-markdown', () => {
   const ReactMock = require('react');
   const { markdownComponents } = require('../src/lib/markdown');
@@ -21,9 +24,10 @@ jest.mock('react-markdown', () => {
         const text = String(children);
         const href = (text.match(/\((.*?)\)/) || [])[1] || text;
         const A = a as any;
+        const encodedHref = encodeURI(href);
         return ReactMock.createElement(
           A,
-          { href, children: text.replace(/^\[|\]$/g, '').replace(/\]\((.*?)\)$/, '') },
+          { href: encodedHref, children: text.replace(/^\[|\]$/g, '').replace(/\]\((.*?)\)$/, '') },
           null
         );
       }
