@@ -29,6 +29,15 @@ export function abortSession(sessionId: string) {
   }
 }
 
+function ensureLoadingSync(sessionId: string) {
+  const shouldBeLoading = activeStreams.has(sessionId);
+  const store = useSessionStore.getState();
+  const currentLoading = store.sessionLoading[sessionId];
+  if (shouldBeLoading !== currentLoading) {
+    store.setLoading(sessionId, shouldBeLoading);
+  }
+}
+
 export function isSessionStreaming(sessionId: string): boolean {
   return activeStreams.has(sessionId);
 }
@@ -108,11 +117,10 @@ export function useChat() {
     const controller = new AbortController();
     streamControllers[capturedSid] = controller;
     activeStreams.add(capturedSid);
-
+    ensureLoadingSync(capturedSid);
     setSessionThinking(sid, false);
     console.log('[chat] sendMessage: appending user message sid=%s content_preview=%s', sid, JSON.stringify(displayContent.slice(0, 60)));
     appendMessage({ role: 'user', content: displayContent, created_at: new Date().toISOString() }, sid);
-    setLoading(sid, true);
 
     let intentionalAbort = false;
 
@@ -257,12 +265,14 @@ export function useChat() {
       if (streamControllers[capturedSid] === controller) {
         delete streamControllers[capturedSid];
         activeStreams.delete(capturedSid);
+        ensureLoadingSync(capturedSid);
         if (!intentionalAbort) {
           setSessionThinking(capturedSid, false);
           setLoading(capturedSid, false);
         }
       } else {
         activeStreams.delete(capturedSid);
+        ensureLoadingSync(capturedSid);
         console.log('[chat] stream finally: controller superseded for session=%s (another stream started)', capturedSid);
       }
     }

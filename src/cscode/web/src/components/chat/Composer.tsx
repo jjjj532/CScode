@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Paperclip, Send, Square, X, FileCode, FileImage, FileText } from 'lucide-react';
-import { useChat } from '../../hooks/useChat';
+import { useChat, isSessionStreaming } from '../../hooks/useChat';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useConfigStore } from '../../stores/useConfigStore';
 import { useToastStore } from '../../stores/useToastStore';
@@ -81,7 +81,7 @@ export function Composer() {
   const handleSend = useCallback(async () => {
     const text = input.trim();
     let sid = activeSessionId;
-    const isSessionLoading = sid ? (sessionLoading[sid] || false) : false;
+    const isSessionLoading = sid ? (sessionLoading[sid] || isSessionStreaming(sid)) : false;
     if ((!text && attachedFiles.length === 0) || isSessionLoading) return;
 
     if (!sid) {
@@ -209,7 +209,7 @@ export function Composer() {
             />
           )}
         </div>
-        {activeSessionId && sessionLoading[activeSessionId] ? (
+        {activeSessionId && (sessionLoading[activeSessionId] || isSessionStreaming(activeSessionId)) ? (
           <button onClick={stop} aria-label="Stop generation" className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors">
             <Square size={16} />
           </button>

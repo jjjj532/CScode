@@ -5,6 +5,8 @@ import { Composer } from '../src/components/chat/Composer';
 
 const mockSendMessage = jest.fn();
 const mockStop = jest.fn();
+let streamSessionOverride: string | null = null;
+let loadingSessionOverride: Record<string, boolean> = {};
 
 jest.mock('../src/hooks/useChat', () => ({
   useChat: () => ({
@@ -12,11 +14,12 @@ jest.mock('../src/hooks/useChat', () => ({
     stop: mockStop,
     subscribeToSessionEvents: () => jest.fn(),
   }),
+  isSessionStreaming: (sid: string) => sid === streamSessionOverride,
 }));
 
 jest.mock('../src/stores/useSessionStore', () => ({
   useSessionStore: (selector: any) => selector({
-    sessionLoading: {},
+    sessionLoading: loadingSessionOverride,
     sessionToolCalls: {},
     sessionThinking: {},
     sessionAttachments: {},
@@ -42,6 +45,8 @@ jest.mock('../src/stores/useConfigStore', () => ({
 describe('Composer Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    streamSessionOverride = null;
+    loadingSessionOverride = {};
   });
 
   test('renders input field', () => {
@@ -97,17 +102,24 @@ describe('Composer Component', () => {
     expect(attachButton).toBeTruthy();
   });
 
-  test('shows stop button when loading', () => {
-    jest.doMock('../src/stores/useSessionStore', () => ({
-      useSessionStore: (selector: any) => selector({
-        sessionLoading: { session_1: true },
-        sessionToolCalls: {},
-        sessionThinking: {},
-        sessionAttachments: {},
-        activeSessionId: 'session_1',
-      }),
-    }));
-    expect(mockStop).toBeDefined();
+  test('shows stop button while session is loading', () => {
+    loadingSessionOverride = { session_1: true };
+    render(<Composer />);
+    const stopButton = screen.queryByRole('button', { name: /Stop generation/i });
+    expect(stopButton).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Send message/i })).toBeNull();
+  });
+
+  test('shows stop button while session is streaming even when sessionLoading is false', () => {
+    // The bug: stop button only checked sessionLoading, so a session whose stream
+    // is running (activeStreams has the id) but whose loading flag was not set
+    // showed a blue send button instead of a red stop button.
+    streamSessionOverride = 'session_1';
+    loadingSessionOverride = { session_1: false };
+    render(<Composer />);
+    const stopButton = screen.queryByRole('button', { name: /Stop generation/i });
+    expect(stopButton).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Send message/i })).toBeNull();
   });
 
   test('renders with placeholder text', () => {
