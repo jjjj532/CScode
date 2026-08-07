@@ -8,9 +8,9 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const linkedContent = content.replace(
-    /(?<!\()\/outputs\/\S+/g,
-    (match) => {
-      const url = match.replace(/[.,;:!?]+$/, '');
+    /(?<!\()(\/tmp\/cscode-outputs\/\S+|\/outputs\/\S+)/g,
+    (match, path) => {
+      const url = path.replace(/[.,;:!?，。]+$/, '');
       return `[${url}](${url})${match.slice(url.length)}`;
     }
   );

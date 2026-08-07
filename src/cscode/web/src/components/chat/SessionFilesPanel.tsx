@@ -2,13 +2,10 @@ import { useCallback } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { useToastStore } from '../../stores/useToastStore';
+import { isTauriRuntime, openOutputFile } from '../../lib/openOutputFile';
 
 interface SessionFilesPanelProps {
   sessionId: string;
-}
-
-function isTauriRuntime(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 function fileNameOf(path: string): string {
@@ -22,16 +19,13 @@ export function SessionFilesPanel({ sessionId }: SessionFilesPanelProps) {
   const addToast = useToastStore((s) => s.addToast);
 
   const openFile = useCallback(async (path: string) => {
-    if (isTauriRuntime()) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('open_output_file', { filename: path });
-      } catch (err) {
-        addToast(`无法打开文件: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
+    try {
+      const opened = await openOutputFile(path);
+      if (!opened) {
+        addToast(`路径已复制: ${path}`, 'success');
       }
-    } else {
-      await navigator.clipboard.writeText(path);
-      addToast(`路径已复制: ${path}`, 'success');
+    } catch (err) {
+      addToast(`无法打开文件: ${err instanceof Error ? err.message : '未知错误'}`, 'error');
     }
   }, [addToast]);
 

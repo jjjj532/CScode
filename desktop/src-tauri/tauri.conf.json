@@ -1,6 +1,6 @@
 {
   "productName": "CScode",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "identifier": "com.cscode.desktop",
   "build": {
     "frontendDist": "../dist",

@@ -1,23 +1,23 @@
 import type { Components } from 'react-markdown';
 import { CodeBlock } from '../components/markdown/CodeBlock';
+import { openOutputFile } from './openOutputFile';
 
-const DOWNLOAD_EXTS = ['.xlsx', '.xls', '.pdf', '.doc', '.docx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.tar', '.gz', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.toml', '.md', '.log'];
+// Artifact extensions surfaced by the backend (see OUTPUT_ARTIFACT_EXTENSIONS
+// in src/cscode/server/app.py) plus source-ish files the LLM may write.
+const FILE_EXTS = ['.xlsx', '.xls', '.pdf', '.doc', '.docx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.tar', '.gz', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.toml', '.md', '.log'];
 
-function isDownloadLink(href: string | undefined): boolean {
+// Directories the LLM writes generated artifacts into. Links pointing into
+// these are treated as local files to open, not remote URLs to navigate to.
+const LOCAL_FILE_PREFIXES = ['/tmp/cscode-outputs/', '/outputs/', '/tmp/'];
+
+function isLocalFilePath(href: string | undefined): boolean {
   if (!href) return false;
-  const path = href.split('?')[0].split('#')[0].toLowerCase();
-  return DOWNLOAD_EXTS.some(ext => path.endsWith(ext));
-}
-
-function triggerOpen(filename: string) {
-  const url = '/api/download/' + encodeURIComponent(filename);
-  // Fire-and-forget fetch to trigger backend native open
-  fetch(url, { cache: 'no-store' }).catch(() => {});
-  // Also try via Image beacon for environments where fetch is blocked
-  try {
-    const img = new Image();
-    img.src = url + '?_=' + Date.now();
-  } catch {}
+  const path = href.split('?')[0].split('#')[0];
+  const lower = path.toLowerCase();
+  if (!path.startsWith('/')) return false;
+  const inLocalDir = LOCAL_FILE_PREFIXES.some((p) => path.startsWith(p));
+  if (!inLocalDir) return false;
+  return FILE_EXTS.some((ext) => lower.endsWith(ext));
 }
 
 export const markdownComponents: Components = {
@@ -37,11 +37,22 @@ export const markdownComponents: Components = {
     return <>{children}</>;
   },
   a({ href, children }) {
-    if (isDownloadLink(href)) {
-      const rawFilename = href!.split('/').pop() || '';
-      const filename = decodeURIComponent(rawFilename);
+    if (isLocalFilePath(href)) {
+      const fullPath = href!.split('?')[0].split('#')[0];
       return (
-        <a href={href} onClick={(e) => { e.preventDefault(); triggerOpen(filename); }} className="text-v2-accent underline hover:opacity-80 cursor-pointer">
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault();
+            openOutputFile(fullPath, {
+              fallback: (p) => {
+                navigator.clipboard?.writeText(p).catch(() => {});
+              },
+            }).catch(() => {});
+          }}
+          className="text-v2-accent underline hover:opacity-80 cursor-pointer"
+          title="点击在 Finder 中显示"
+        >
           {children}
         </a>
       );
