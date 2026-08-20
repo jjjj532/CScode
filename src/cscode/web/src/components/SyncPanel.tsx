@@ -1,77 +1,26 @@
-import { useEffect, useState, useCallback } from 'react';
-
-interface SyncEvent {
-  id: number;
-  aggregate_id: string;
-  seq: number;
-  type: string;
-  created_at: number;
-}
-
-async function syncRequest<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Sync error ${res.status}: ${text}`);
-  }
-  return res.json();
-}
+import { useSync } from '../hooks/useSync';
 
 export function SyncPanel() {
-  const [events, setEvents] = useState<SyncEvent[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await syncRequest<{ events: SyncEvent[] }>('/api/sync/events');
-      setEvents(data.events || []);
-    } catch (e: unknown) {
-      setMessage(e instanceof Error ? e.message : 'Failed to fetch events');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
-
-  const handlePush = async () => {
-    setLoading(true);
-    setMessage('');
-    try {
-      await syncRequest<{ pushed: number }>('/api/sync/push', { method: 'POST' });
-      setMessage('Sync pushed successfully');
-      await fetchEvents();
-    } catch (e: unknown) {
-      setMessage(e instanceof Error ? e.message : 'Push failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { status, events, push, refresh } = useSync();
+  const syncing = status === 'syncing';
 
   return (
     <div style={{ padding: '16px 0' }}>
       <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Sync</h3>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <button onClick={handlePush} disabled={loading}
+        <button onClick={() => { void push(); }} disabled={syncing}
           style={{
-            background: loading ? '#e5e7eb' : '#3b82f6',
-            color: loading ? '#9ca3af' : '#fff',
+            background: syncing ? '#e5e7eb' : '#3b82f6',
+            color: syncing ? '#9ca3af' : '#fff',
             border: 'none',
             padding: '6px 16px',
             borderRadius: 6,
             fontSize: 13,
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: syncing ? 'not-allowed' : 'pointer',
           }}>
-          {loading ? 'Syncing...' : 'Push Sync'}
+          {syncing ? 'Syncing...' : 'Push Sync'}
         </button>
-        <button onClick={fetchEvents} disabled={loading}
+        <button onClick={() => { void refresh(); }} disabled={syncing}
           style={{
             background: '#f3f4f6',
             border: '1px solid #d1d5db',
@@ -82,12 +31,13 @@ export function SyncPanel() {
           }}>
           Refresh
         </button>
+        {status === 'complete' && (
+          <span style={{ fontSize: 12, color: '#22c55e' }}>✓ Synced</span>
+        )}
+        {status === 'error' && (
+          <span style={{ fontSize: 12, color: '#ef4444' }}>Sync failed</span>
+        )}
       </div>
-      {message && (
-        <div style={{ fontSize: 13, marginBottom: 8, color: message.includes('Error') ? '#ef4444' : '#22c55e' }}>
-          {message}
-        </div>
-      )}
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
         {events.length} sync events
       </div>
