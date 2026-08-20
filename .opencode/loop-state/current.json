@@ -1,23 +1,19 @@
 {
   "phase": "COMPLETED",
-  "iteration": 2,
-  "module": "system-prompts-constants",
+  "iteration": 7,
+  "module": "G-6-TUI-plugin + G-7-REST-endpoint",
   "status": "completed",
-  "cost": 0.2,
+  "cost": 0,
   "findings": {
-    "analysis": "Added BUILD_SYSTEM_PROMPT and SUBAGENT_SYSTEM_PROMPT constants to system_prompts.py. Updated BuildAgent and SubAgentAgent to use these as default fallbacks instead of returning None or inline strings. All 3 agents now return a proper default system prompt when none is provided.",
-    "deliverables": [
-      "system_prompts.py — BUILD_SYSTEM_PROMPT (coding assistant), SUBAGENT_SYSTEM_PROMPT (focused subtask) constants",
-      "build.py — get_system_prompt() returns BUILD_SYSTEM_PROMPT when no custom prompt given",
-      "subagent.py — get_system_prompt() returns SUBAGENT_SYSTEM_PROMPT constant instead of inline string",
-      "__init__.py — exports all 3 prompt constants",
-      "tests/test_system_prompts.py — 14 tests (constants defined, distinct, default fallback, custom override, mode checks)"
-    ]
+    "g6": "新增 src/cscode/tui/commands.py（CommandRegistry：规范名/别名/category 分组/补全派生/dispatch async 调度）+ src/cscode/tui/plugin_api.py（TuiPluginAPI：register_command/navigate/theme_set/theme_install/kv + TuiPluginLoader：目录发现 plugin.py + install 回调 + deactivate 无残留）；app.py 挂载 load_plugin_dir + _handle_session_command 接 registry 分发 + CommandCompleter.set_extra_commands 补全联动。17 新测试 + 61 既有 TUI 测试 0 回归。",
+    "g7_rest": "permissions.py 新增 GET /api/permission/request + POST /api/permission/request/{id}/reply（once/always/reject 校验 422）；state.py 加 permission_manager 字段惰性实例化。4 新测试（含 ask→list→reply 全链路）。",
+    "spec_deviations": "无新偏差；G-7 偏差 #5（REST 端点未暴露）已消除",
+    "key_design": "dispatch 无 running loop 时降级为仅识别（同步测试可用）；CommandRegistry.list 返回 canonical 命令、completion_commands 返回含别名全量——职责分离"
   },
-  "next_action": "Ready for next module",
+  "next_action": "P0+P1 全部交付（G-1~G-7 共 28+4 验收标准）——等用户确认收尾（报告 v6 / 修 spec 引用 / 提交）",
   "stop_conditions": {
     "max_iterations": 10,
     "cost_limit_usd": 10,
-    "current_iteration": 2
+    "current_iteration": 7
   }
 }

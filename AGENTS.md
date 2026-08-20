@@ -207,6 +207,11 @@ Before completion, verify: pytest tests/ && mypy src/ && ruff check src/
 - Unlimited iterations without cost controls
 - Skip tests before claiming completion
 
+## 方案规划注意事项（Ratchet Rules）
+- 制定迭代/迁移方案前，必须用 codegraph 核查目标模块现状，禁止凭文档或假设推断已实现能力（教训：`docs/cscode-iteration-plan.md` v1 基于过时假设，P0 五项中三项实际已实现）
+- 已实现能力的「半实现」状态要标注具体证据（文件 + 行号 + 行为），不能只写「有/无」
+- 路线图只列真实差距，已实现项归入「现状核查」章节，不混入待办
+
 ---
 # 项目概述
 CScode 是一个 AI 编程助手，支持 Claude Code、Cursor 等主流 AI 编码工具的本地化部署。
