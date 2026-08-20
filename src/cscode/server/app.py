@@ -412,7 +412,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Lifespan shutdown complete")
 
 
-app = FastAPI(title="CScode API", version="0.3.6", lifespan=lifespan)
+app = FastAPI(title="CScode API", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
