@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from cscode.tools2.plan import PlanInput, PlanTool, PlanOutput
+from cscode.tools2.output_store import OutputStoreInput, OutputStoreTool, ToolOutputStore
+from cscode.tools2.plan import PlanInput, PlanTool
 from cscode.tools2.task import TaskInput, TaskTool
 from cscode.tools2.truncate import TruncateInput, TruncateTool
-from cscode.tools2.output_store import OutputStoreInput, OutputStoreTool, ToolOutputStore
-
 
 # ---------------------------------------------------------------------------
 # PlanTool (0.4.1)
@@ -243,3 +242,136 @@ class TestToolOutputStoreBounded:
         assert entry is not None
         assert entry["data"] == "test data"
         assert "saved_at" in entry
+
+
+# ---------------------------------------------------------------------------
+# TruncateTool — G-2 真实会话存储接入（spec §4.2）
+# ---------------------------------------------------------------------------
+
+class TestTruncateToolRealStore:
+    """注入真实 Compactor + EventStore 时，truncate 落地到会话存储。"""
+
+    @pytest.fixture
+    async def db(self, tmp_path):
+        from cscode.storage.db import Database
+
+        db = Database(db_path=tmp_path / "truncate.db")
+        await db.init()
+        yield db
+        await db.close()
+
+    async def test_truncate_with_real_store_creates_epoch(self, db) -> None:
+        from cscode.server.compactor import Compactor
+        from cscode.server.projector import Projector
+        from cscode.storage.event_store import EventStore
+        from cscode.tools2.truncate import TruncateTool
+
+        store = EventStore(db)
+        projector = Projector(db)
+        compactor = Compactor(db, store, projector)
+        tool = TruncateTool(compactor=compactor, event_store=store)
+
+        await store.append("s1", [
+            {"type": "prompt.admitted", "data": {"content": "hello"}},
+            {"type": "text.ended", "data": {"content": "hi"}},
+        ])
+
+        result = await tool.execute(TruncateInput(
+            strategy="keep_recent",
+            max_tokens=1000,
+            session_id="s1",
+        ))
+        assert result.success
+        assert result.data is not None
+        assert result.data.truncated
+
+        # 真实 epoch 落库
+        epoch = await projector._get_latest_epoch("s1")
+        assert epoch is not None
+        assert epoch["epoch"] == 1
+        # 返回真实 token 差值（非输入值原样返回）
+        assert result.data.tokens_freed >= 0
+        assert result.data.remaining_tokens >= 0
+
+    async def test_truncate_freed_tokens_exact_delta(self, db) -> None:
+        """tokens_freed 是精确的真实差值（报告 §5.2 缺口 #3）。
+
+        事件内容已知："hello"（5 ASCII → 1 token）+ "hi"（2 ASCII → 0 token）。
+        compact 的 baseline_seq 覆盖全部事件 → remaining=0 → freed=total_before。
+        """
+        from cscode.core.token_estimate import estimate_tokens
+        from cscode.server.compactor import Compactor
+        from cscode.server.projector import Projector
+        from cscode.storage.event_store import EventStore
+        from cscode.tools2.truncate import TruncateTool
+
+        store = EventStore(db)
+        projector = Projector(db)
+        compactor = Compactor(db, store, projector)
+        tool = TruncateTool(compactor=compactor, event_store=store)
+
+        await store.append("s2", [
+            {"type": "prompt.admitted", "data": {"content": "hello"}},
+            {"type": "text.ended", "data": {"content": "hi"}},
+        ])
+
+        result = await tool.execute(TruncateInput(
+            strategy="keep_recent",
+            max_tokens=1000,
+            session_id="s2",
+        ))
+        assert result.success
+        assert result.data is not None
+        expected_total = estimate_tokens("hello") + estimate_tokens("hi")
+        assert result.data.tokens_freed == expected_total
+        assert result.data.remaining_tokens == 0
+
+    async def test_truncate_without_session_id_fails(self, db) -> None:
+        from cscode.server.compactor import Compactor
+        from cscode.server.projector import Projector
+        from cscode.storage.event_store import EventStore
+        from cscode.tools2.truncate import TruncateTool
+
+        store = EventStore(db)
+        projector = Projector(db)
+        compactor = Compactor(db, store, projector)
+        tool = TruncateTool(compactor=compactor, event_store=store)
+
+        result = await tool.execute(TruncateInput(
+            strategy="keep_recent",
+            max_tokens=1000,
+        ))
+        assert not result.success
+        assert "session" in (result.error or "").lower()
+
+    async def test_truncate_empty_session(self, db) -> None:
+        from cscode.server.compactor import Compactor
+        from cscode.server.projector import Projector
+        from cscode.storage.event_store import EventStore
+        from cscode.tools2.truncate import TruncateTool
+
+        store = EventStore(db)
+        projector = Projector(db)
+        compactor = Compactor(db, store, projector)
+        tool = TruncateTool(compactor=compactor, event_store=store)
+
+        result = await tool.execute(TruncateInput(
+            strategy="keep_recent",
+            max_tokens=1000,
+            session_id="empty-session",
+        ))
+        assert not result.success
+        assert result.error is not None
+
+    async def test_truncate_stub_without_deps_keeps_compat(self) -> None:
+        """无依赖注入 → 保持 stub 行为（向后兼容）。"""
+        from cscode.tools2.truncate import TruncateTool
+
+        tool = TruncateTool()
+        result = await tool.execute(TruncateInput(
+            strategy="keep_recent",
+            max_tokens=1000,
+        ))
+        assert result.success
+        assert result.data is not None
+        assert result.data.truncated

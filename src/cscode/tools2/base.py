@@ -18,6 +18,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel
 
 from cscode.schema.tool import ToolDefinition
+from cscode.schema.tool_result import ToolResultValue
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)
@@ -28,13 +29,19 @@ class ToolResult(Generic[OutputT]):
     """Typed result from a Tool execution.
 
     Generic over OutputT (output type), so callers know the shape of data on success.
+
+    G-3 (spec §4.3): 新增 ``value`` 判别联合 + ``provider_executed`` 标记。
+    ``data`` 保留为 Pydantic 结构化输出的向后兼容路径；``value`` 提供
+    OpenCode ToolResultValue 形状（text/json/error/content）。
     """
 
     success: bool
     data: OutputT | None = None
+    value: ToolResultValue | None = None
     error: str | None = None
     tool_call_id: str | None = None
     metadata: dict[str, str] = field(default_factory=dict)
+    provider_executed: bool = False
 
 
 class Tool(ABC, Generic[InputT, OutputT]):

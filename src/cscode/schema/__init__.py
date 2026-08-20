@@ -51,6 +51,7 @@ from cscode.schema.options import CachePolicy, GenerationOptions, ProviderOption
 from cscode.schema.session import SessionInfo, SessionState
 from cscode.schema.session_input import AdmittedInput, DeliveryMode
 from cscode.schema.tool import ToolChoice, ToolDefinition
+from cscode.schema.tool_result import ToolOutput, ToolResultValue
 
 __all__ = [
     # messages
@@ -97,6 +98,9 @@ __all__ = [
     # tool
     "ToolDefinition",
     "ToolChoice",
+    # tool result (G-3)
+    "ToolResultValue",
+    "ToolOutput",
     # session
     "SessionInfo",
     "SessionState",

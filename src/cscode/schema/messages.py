@@ -17,9 +17,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from cscode.schema.ids import AssistantMessageID, MessageID, ToolCallID
+
+if TYPE_CHECKING:
+    from cscode.llm.cache_policy import CacheHint
 
 # ─── Content Parts ─────────────────────────────────────────────────
 
@@ -71,6 +74,9 @@ class ToolResultPart:
     """Tool execution result fed back to the LLM.
 
     When is_error is True, 'result' contains the error message.
+
+    G-3 (spec §4.3.3): 增补 ``provider_executed``（provider 预执行标记，
+    如 Anthropic computer use）、``cache``（CacheHint）与 ``metadata``。
     """
 
     type: Literal["tool-result"] = field(default="tool-result", init=False)
@@ -78,6 +84,9 @@ class ToolResultPart:
     name: str
     result: str
     is_error: bool = False
+    provider_executed: bool = False
+    cache: CacheHint | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,13 +188,27 @@ class Message:
                     parts.append({"type": "media", "media_type": m, "data": d})
                 case ToolCallPart(tool_call_id=i, name=n, args=a):
                     tool_calls.append({"id": i, "type": "function", "function": {"name": n, "arguments": a}})
-                case ToolResultPart(tool_call_id=i, name=n, result=r, is_error=e):
-                    parts.append({"type": "tool-result", "tool_call_id": i, "name": n, "result": r, "is_error": e})
-                case ReasoningPart(text=t, signature=s):
-                    entry: dict[str, object] = {"type": "reasoning", "text": t}
-                    if s is not None:
-                        entry["signature"] = s
+                case ToolResultPart(tool_call_id=i, name=n, result=r, is_error=e) as trp:
+                    entry: dict[str, object] = {
+                        "type": "tool-result",
+                        "tool_call_id": i,
+                        "name": n,
+                        "result": r,
+                        "is_error": e,
+                    }
+                    # G-3: 条件序列化新字段——默认形状与改造前一致
+                    if trp.provider_executed:
+                        entry["provider_executed"] = True
+                    if trp.cache is not None:
+                        entry["cache"] = {"type": trp.cache.type, "ttl_seconds": trp.cache.ttl_seconds}
+                    if trp.metadata:
+                        entry["metadata"] = dict(trp.metadata)
                     parts.append(entry)
+                case ReasoningPart(text=t, signature=s):
+                    reasoning_entry: dict[str, object] = {"type": "reasoning", "text": t}
+                    if s is not None:
+                        reasoning_entry["signature"] = s
+                    parts.append(reasoning_entry)
 
         result: dict[str, object] = {"role": self.role, "content": ""}
         if parts:
