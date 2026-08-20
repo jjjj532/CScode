@@ -6,6 +6,11 @@
 > 对照文档：`docs/opencode-analysis/source-analysis.md`、`docs/technical-specification.md`
 > 任务范围：**仅做 1:1 功能差距对比，不写代码**
 > 验证方法：逐文件核对 `src/cscode/` 下 20+ 子包 + 70+ 测试文件
+>
+> **⚠️ 2026-08-20 增量更新（迭代 6-9，G-8~G-10）**：本表部分"缺失/部分"项已随 G-1~G-9 交付闭环，未逐一重核全表；下列项已确认更新：
+> - Sync 系统（L157）：✅ 已对齐（G-9）
+> - Provider 数量（L20）：7 → 16（G-10 核查）
+> - Compaction/Truncate/ToolResult 判别联合/受限沙箱/ACP 服务器/Permission 三态（once/always/reject）/TUI 插件化/OpenAPI 生成客户端/sync 状态机：均已在 G-1~G-9 交付（见 `openspec/specs/cscode-iteration-upgrade.md` + `openspec/reports/g-1-g-9-iteration-test-report-v7.md`）
 
 ---
 
@@ -17,7 +22,7 @@
 | 核心子包/模块 | ~50 个顶层模块 | 21 个子包（acp/app/auth/enterprise/git/llm/lsp/mcp/plugins/providers/schema/server/sharing/skills/storage/tools/tools2/tui/utils/web） | — |
 | API 端点 | ~60 个（18 个 protocol group + 21 个 instance group） | 28 个等价端点 + session 单数别名 | ~47% |
 | 工具数量 | 18+（含 lsp/plan/task/skill/apply_patch/question） | 18 个（tools2/ 下 18 个实际工具） | ~90% |
-| Provider 数量 | 30+（plugin/provider/ 下含 alibaba/anthropic/azure/bedrock/cohere/grok/mistral/nvidia/openrouter/perplexity/vertex/xai…） | 7（anthropic/azure/gemini/ollama/openai/openrouter + base） | ~23% |
+| Provider 数量 | 30+（plugin/provider/ 下含 alibaba/anthropic/azure/bedrock/cohere/grok/mistral/nvidia/openrouter/perplexity/vertex/xai…） | 16（anthropic/azure/gemini/ollama/openai/openrouter/grok/mistral/nvidia/vertex/xai/bedrock/cohere/copilot/perplexity + base，2026-08-20 核查） | ~50% |
 | 事件系统 | EventStore + Projector + v2 schema + PublicEventManifest | EventStore + Projector + Compactor + EventSourcing + SSE streaming | ~75% |
 | 前端组件 | React 18 + 18 国语言 + 桌面 + Web + TUI + 独立 ui 包 | React 18 + 20+ 组件 + 单语 + 桌面(Tauri) + TUI(Textual) | ~50% |
 | 测试覆盖 | — | 70+ 测试文件（pytest + Playwright + Jest） | — |
@@ -154,7 +159,7 @@ schema → llm → core → app+server+web
 | 会话 Todo | `core/session/todo.ts` | `tools2/todowrite.py`（仅工具） | ⚠️ 部分 |
 | 会话 Error | `core/session/error.ts` | `core/errors.py`（通用） | ⚠️ 部分 |
 | 会话 Share | `core/share/sql.ts` + `opencode/src/share/` | `sharing/manager.py`（内存存储） | ⚠️ 部分 |
-| 会话 Sync | `opencode/src/sync/` | ❌ 完全无 | **缺失** |
+| 会话 Sync | `opencode/src/sync/` | `core/sync.py` SyncEngine + `/api/sync/events` + `/api/sync/push`（app.py:2542,2562）+ 前端 `useSync.ts` 状态机（G-9 交付，2026-08-20） | ✅ 已对齐（增量事件同步；无 fork） |
 | 会话 Summary | `core/session/summary.ts` + `agent/prompt/summary.txt` | ❌ 无 | 缺失 |
 | 会话 System Prompt | `core/session/system.ts` | `_build_system_prompt()`（hardcode） | ⚠️ 部分 |
 | 会话 Reminders | `core/session/reminders.ts` | ❌ 无 | 缺失 |

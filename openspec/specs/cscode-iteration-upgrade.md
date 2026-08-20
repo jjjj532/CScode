@@ -576,6 +576,49 @@ export interface UseSyncResult {
 | OS 沙箱（G-4 路线 C） | Landlock/Seatbelt 文件级限制 | dsh §18 |
 | Capability Seams 文档化 | 三角色决策表写入 `docs/` | 无 |
 
+### 6.4 G-10: Capability Seams 文档化（迭代 9）
+
+**目标**：把 dsh §6 的三角色模型（Service Definition / Provider / Consumer）映射到 CScode 真实代码，产出 `docs/capability-seams.md`——"新行为放哪里"决策表，每一项引用真实源码路径。
+
+#### 6.4.1 现状核查（实测证据，2026-08-20）
+
+CScode 已具备的"缝"及其实证：
+
+| 缝 | Service Definition（接口） | Service Provider（实现） | Consumer（使用） |
+|---|---|---|---|
+| 沙箱 | `sandbox/runner.py` `SandboxRunner.run()` | `sandbox/limits.py` ExecutionLimits + `runner.py` 超时/输出限制 | `tools2/bash.py` spawn 前包装 argv |
+| 工具系统 | `tools2/registry.py` `ToolRegistry.register()` | 22 个 `tools2/*.py` 工具 | `llm/tool_runtime.py` + `core/tool_registry.py` |
+| Agent preset | `core/agent/registry.py` | `core/agent/base.py` + `build.py` + `factory.py` | `app/` agent 工厂 |
+| TUI 命令 | `tui/commands.py` `CommandRegistry.register()` | `tui/plugin_api.py` TuiPluginAPI | `server/app.py` _handle_session_command |
+| 后台任务 | `core/background_job.py` JobStore | `core/background_job.py` Job 模型 | TUI/前端任务面板 |
+| 事件/权限 | `core/events.py` PermissionAsked/RepliedEvent | `core/permission_v2.py` PermissionV2 | `tools2/` 工具权限确认 |
+| Provider | `providers/base.py` | 16 个 `providers/*.py`（anthropic/azure/gemini/ollama/openai/openrouter/grok/mistral/nvidia/vertex/xai/bedrock/cohere/copilot/perplexity…） | `llm/route.py` + `llm/client.py` |
+| 文件系统 | `core/fs_protected.py` ProtectedPaths + `core/fs_ignore.py` | `core/fs_watcher.py` | `tools2/read.py`/`write.py`/`grep.py`/`glob.py` |
+| 终端 | `tools2/pty.py` PTYAction/PTYInput/PTYCreateOutput | `tools2/pty.py` PTY 后端 | TUI 终端面板 |
+| LSP | `lsp/manager.py` LSPManager | `lsp/manager.py` LSPClient | `tools2/lsp.py` |
+| Sub-agent | `core/sub_agent.py` SubAgentOrchestrator | `core/agent/subagent.py` | `core/runner.py` 会话调度 |
+| 同步 | `core/sync.py` SyncEngine | `server/app.py:2542,2562` /api/sync/* 端点 | `web/src/hooks/useSync.ts`（G-9） |
+
+**关键发现（Ratchet 记录）**：
+1. **CScode 无 session fork**（`rg fork` 前后端零命中）——dsh §6.3 的 `Fork 活跃 session` 行不适用，标注为"预留（依赖 G-9 sync.status 检查点）"
+2. **16 个 provider**（dsh 分析时 7 个）——已扩至 16，决策表按实际列
+3. **Permission 三态**（once/always/reject，G-7 交付）——事件缝的 provider 侧已就绪
+
+#### 6.4.2 设计决策
+
+1. 文档结构：三角色模型说明（映射 dsh §6.1）→ 决策表（映射 dsh §6.3）→ 缝清单（上表）→ 预留项
+2. 决策表每行**必须引用真实源码路径**（Ratchet：禁止凭假设写文档）
+3. 与 dsh 的差异显式标注（如 Fork 行标注"预留"）
+4. 文档放置：`docs/capability-seams.md`（dsh 是 opencode 分析，本文件是 CScode 落地版）
+
+#### 6.4.3 验收标准
+
+1. `docs/capability-seams.md` 存在，含三角色模型 + 决策表 + 缝清单 + 预留项 4 节
+2. 决策表 ≥ 10 行，每行 "目标 → 机制" 引用真实源码路径（`rg` 验证路径存在）
+3. 缝清单每行 Definition/Provider/Consumer 三列均引用真实文件
+4. 无 fork 项显式标注"预留"（不得虚构 fork 实现）
+5. `docs/opencode-1to1-gap-analysis.md` 更新：对照本 spec 标注 G-1~G-9 已闭环的差距项（Compaction/Truncate/ToolResult/沙箱/ACP/Permission 三态/TUI 插件/OpenAPI 生成/sync 状态机）
+
 ---
 
 ## 7. 任务分解（迭代批次）
@@ -590,6 +633,7 @@ export interface UseSyncResult {
 | 迭代 4 | **G-5 ACP 服务器** + **G-7 Permission 三态** | 迭代 2（ToolResult 判别联合被 ACP 复用） | `pytest tests/test_acp_server.py tests/test_permission_v2.py` |
 | 迭代 5 | **G-6 TUI 插件化** | 无 | `pytest tests/test_tui_plugin_api.py` + 既有 TUI 测试 |
 | 迭代 6+ | G-8 SDK 生成 → G-9 前端 sync 竞态 → 远期项 | 迭代 3（沙箱底座） | 前端 type-check + E2E |
+| 迭代 9 | **G-10 Capability Seams 文档化** + gap-analysis 更新 | 无（纯文档） | `docs/capability-seams.md` 决策表路径 rg 验证 + gap-analysis 标注 |
 
 ---
 
