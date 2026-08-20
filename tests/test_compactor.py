@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from cscode.core.messages import MessageRole
+from cscode.storage.db import Database
 from cscode.server.compactor import Compactor
 from cscode.server.projector import Projector
 from cscode.storage.event_store import EventStore
@@ -146,3 +147,87 @@ async def test_compact_empty_session(db):
 
     epoch = await projector._get_latest_epoch(sid)
     assert epoch is None
+
+
+class TestSummarizer:
+    """G-1: Compactor 可选 LLM 摘要（spec §4.1.4 验收 5）。"""
+
+    @pytest.mark.asyncio
+    async def test_without_summarizer_keeps_compatible_text(self, db: Database) -> None:
+        """无 summarizer → snapshot 保持兼容固定文本。"""
+        store = EventStore(db)
+        projector = Projector(db)
+        compactor = Compactor(db, store, projector)
+        sid = "s1"
+
+        await store.append(sid, [
+            {"type": "prompt.admitted", "data": {"content": "hello"}},
+            {"type": "text.ended", "data": {"content": "hi"}},
+        ])
+
+        await compactor.compact(sid, system_prompt="sys")
+        epoch = await projector._get_latest_epoch(sid)
+        assert epoch is not None
+        assert "Compacted 2 earlier messages" in epoch["snapshot"]
+        assert "sys" in epoch["snapshot"]
+
+    @pytest.mark.asyncio
+    async def test_with_summarizer_produces_summary(self, db: Database) -> None:
+        """有 summarizer → snapshot 为真实摘要。"""
+        store = EventStore(db)
+        projector = Projector(db)
+
+        def fake_summarize(serialized: str) -> str:
+            assert "[User]:" in serialized or "[user]:" in serialized or "hello" in serialized
+            return "SUMMARY: user asked hello, assistant replied hi"
+
+        compactor = Compactor(db, store, projector, summarizer=fake_summarize)
+        sid = "s1"
+
+        await store.append(sid, [
+            {"type": "prompt.admitted", "data": {"content": "hello"}},
+            {"type": "text.ended", "data": {"content": "hi"}},
+        ])
+
+        await compactor.compact(sid)
+        epoch = await projector._get_latest_epoch(sid)
+        assert epoch is not None
+        assert epoch["snapshot"] == "SUMMARY: user asked hello, assistant replied hi"
+
+    @pytest.mark.asyncio
+    async def test_summarizer_failure_falls_back(self, db: Database) -> None:
+        """summarizer 抛错 → 回退兼容文本（logger.exception 记录，不静默）。"""
+        store = EventStore(db)
+        projector = Projector(db)
+
+        def broken_summarize(serialized: str) -> str:
+            raise RuntimeError("llm down")
+
+        compactor = Compactor(db, store, projector, summarizer=broken_summarize)
+        sid = "s1"
+
+        await store.append(sid, [
+            {"type": "prompt.admitted", "data": {"content": "hello"}},
+        ])
+
+        await compactor.compact(sid, system_prompt="sys")
+        epoch = await projector._get_latest_epoch(sid)
+        assert epoch is not None
+        assert "Compacted 1 earlier messages" in epoch["snapshot"]
+
+    @pytest.mark.asyncio
+    async def test_summarizer_empty_result_falls_back(self, db: Database) -> None:
+        """summarizer 返回空 → 回退兼容文本。"""
+        store = EventStore(db)
+        projector = Projector(db)
+        compactor = Compactor(db, store, projector, summarizer=lambda s: "")
+        sid = "s1"
+
+        await store.append(sid, [
+            {"type": "prompt.admitted", "data": {"content": "hello"}},
+        ])
+
+        await compactor.compact(sid)
+        epoch = await projector._get_latest_epoch(sid)
+        assert epoch is not None
+        assert "has been compacted" in epoch["snapshot"]

@@ -1467,7 +1467,7 @@ async def _handle_chat(
             plugin_context_text=plugin_text,
         )
 
-        _compressor = ContextCompressor(threshold=50_000, keep_recent=10)
+        _compressor = ContextCompressor(buffer_tokens=50_000, keep_tokens=10)
         if _compressor.needs_compression(messages):
             logger.info("Compressing %d messages before LLM call", len(messages))
             messages = _compressor.compress(messages)
