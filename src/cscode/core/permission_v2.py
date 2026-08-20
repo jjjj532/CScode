@@ -13,6 +13,7 @@ Architecture (from cscode-rearchitecture.md):
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -28,6 +29,29 @@ logger = get_logger(__name__)
 class RuleEffect(StrEnum):
     ALLOW = "allow"
     DENY = "deny"
+
+
+class ReplyMode(StrEnum):
+    """Tri-state user reply to a pending permission request (spec §5.3).
+
+    - ONCE:   allow this one request only (no persistence).
+    - ALWAYS: remember the decision — persist an ALLOW rule.
+    - REJECT: deny and record the decision.
+    """
+
+    ONCE = "once"
+    ALWAYS = "always"
+    REJECT = "reject"
+
+
+@dataclass(frozen=True, slots=True)
+class PermissionRequest:
+    """A queued permission request awaiting a user reply."""
+
+    request_id: str
+    session_id: str
+    action: str
+    resource: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,6 +420,7 @@ class SessionPermission:
 
     def __init__(self, saved_rules: SavedRules) -> None:
         self._saved_rules = saved_rules
+        self._pending: dict[str, PermissionRequest] = {}
 
     async def evaluate(
         self,
@@ -418,10 +443,73 @@ class SessionPermission:
         ])
         return PermissionV2.evaluate(action, resource, [global_rules, session_rules])
 
-    async def is_allowed(self, session_id: str, action: str, resource: str) -> bool:
+    async def is_allowed(
+        self,
+        session_id: str,
+        action: str,
+        resource: str,
+        remember: bool = False,
+    ) -> bool:
+        """Return True if the request is allowed under saved rules.
+
+        ``remember=True`` only affects decisions made via ``reply(ALWAYS)``
+        which persists the ALLOW rule; this method itself never writes.
+        """
         rule = await self.evaluate(session_id, action, resource)
         return rule is not None and rule.effect == RuleEffect.ALLOW
 
     async def is_denied(self, session_id: str, action: str, resource: str) -> bool:
         rule = await self.evaluate(session_id, action, resource)
         return rule is not None and rule.effect == RuleEffect.DENY
+
+    # ─── Tri-state queue (spec §5.3) ────────────────────────────────
+
+    async def ask(self, session_id: str, action: str, resource: str) -> str:
+        """Queue a permission request and return its request_id."""
+        request_id = str(uuid.uuid4())
+        self._pending[request_id] = PermissionRequest(
+            request_id=request_id,
+            session_id=session_id,
+            action=action,
+            resource=resource,
+        )
+        logger.debug(
+            "Permission asked: request=%s session=%s action=%s resource=%s",
+            request_id, session_id, action, resource,
+        )
+        return request_id
+
+    async def reply(self, request_id: str, mode: ReplyMode) -> bool:
+        """Resolve a pending request with a tri-state decision.
+
+        ONCE: pop only (no persistence). ALWAYS: pop + persist ALLOW rule.
+        REJECT: pop + persist DENY rule. Returns False for unknown id.
+        """
+        req = self._pending.pop(request_id, None)
+        if req is None:
+            logger.warning("Permission reply for unknown request: %s", request_id)
+            return False
+
+        if mode is ReplyMode.ALWAYS:
+            await self._saved_rules.save_session_rule(
+                req.session_id,
+                Rule(action=req.action, resource=req.resource, effect=RuleEffect.ALLOW),
+            )
+        elif mode is ReplyMode.REJECT:
+            await self._saved_rules.save_session_rule(
+                req.session_id,
+                Rule(action=req.action, resource=req.resource, effect=RuleEffect.DENY),
+            )
+        logger.info(
+            "Permission resolved: request=%s mode=%s session=%s",
+            request_id, mode.value, req.session_id,
+        )
+        return True
+
+    async def list_pending(
+        self, session_id: str | None = None
+    ) -> list[PermissionRequest]:
+        """Return queued requests, optionally filtered by session_id."""
+        if session_id is None:
+            return list(self._pending.values())
+        return [r for r in self._pending.values() if r.session_id == session_id]
