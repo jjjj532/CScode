@@ -473,12 +473,100 @@ async def is_allowed(self, session_id: str, action: str, resource: str,
 - **目标文件**：`web/src/lib/api/generated/`（生成物）+ `scripts/gen-api.sh`（生成脚本）
 - **验收**：`GET /openapi.json` 端点存在 → 生成 client → `web/src/lib/api.ts` 改为调用生成 client 门面；手写逻辑（错误处理/重试）保留在门面层
 
+#### 6.1.1 现状核查（实测证据，2026-08-20）
+
+- `GET /openapi.json`：FastAPI 默认 schema 可生成，**74 个路径**、18 个 components schemas。
+- **schema 覆盖缺口**：`/api/session`（单数别名）等端点不在 schema（`/api/sessions` 复数在）——直接生成 client 会丢失前端实际调用的单数别名。
+- **类型缺口**：多数端点返回 `dict[str, Any]`（无 response_model），OpenAPI 生成类型为 `any`，无法替代 `stores/useSessionStore.ts` / `useConfigStore.ts` 的手写 `Session`/`Message`/`Config` 类型。
+- 前端 `api.ts`：110 行、7 处 import（Composer/Sidebar/ProjectItem/ThreadsHeader/CommandPalette/SettingsPanel/useChat）、内含重试/错误处理封装。
+
+#### 6.1.2 设计决策（路线选型）
+
+**不采用**全量 OpenAPI generator（openapi-typescript 等）——74 端点中大量 `dict[str, Any]` 会产出 `any` 类型，违背「无 Any 泄漏」原则，且丢失单数别名端点。
+
+**采用**轻量生成器路线：
+1. `scripts/gen-api.sh`：从运行中的后端 `GET /openapi.json` 拉取 schema
+2. 生成 `web/src/lib/api/generated/endpoints.ts`——**端点清单 + 方法名 + 路径**（`Record<MethodName, { path, method, needsBody }>`），类型安全（路径模板字面量）
+3. `api.ts` 门面改造：保留手写类型（`Session`/`Message`/`Config`）+ 重试/错误逻辑，**请求路径改为从 generated 端点表解析**——路径改动后 tsc 编译失败（类型错误），实现「路径漂移检测」
+4. 单数别名端点**手工补录**进端点表（`/api/session` 等），生成脚本不覆盖手写补录段
+
+#### 6.1.3 接口定义
+
+```typescript
+// web/src/lib/api/generated/endpoints.ts（生成物 + 手工补录段）
+export interface ApiEndpoint {
+  path: string;          // 路径模板，如 "/api/sessions/{session_id}"
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  needsBody: boolean;
+}
+export const ENDPOINTS = {
+  listSessions: { path: '/api/sessions', method: 'GET', needsBody: false },
+  // ... 74 个生成端点
+  // ── 手工补录段（生成脚本不覆盖）──
+  listSessionAlias: { path: '/api/session', method: 'GET', needsBody: false },
+  // ...
+} as const satisfies Record<string, ApiEndpoint>;
+
+// api.ts 门面（改造后）
+import { ENDPOINTS } from './api/generated/endpoints';
+export const api = {
+  session: {
+    list: () => request<Session[]>(ENDPOINTS.listSessionAlias.path),
+    // ...
+  },
+  // 重试/错误处理逻辑不变
+};
+```
+
+#### 6.1.4 验收标准
+
+1. `GET /openapi.json` 可访问（后端默认 FastAPI schema）
+2. `scripts/gen-api.sh` 生成 `generated/endpoints.ts`（74 端点 + 方法名映射），可重复执行且幂等
+3. `api.ts` 全部请求路径改为从 `ENDPOINTS` 解析（rg 验证 `api.ts` 内无硬编码 `/api/` 路径字面量）
+4. 单数别名端点（`/api/session`）在补录段保留，生成脚本重新执行不覆盖
+5. `npx tsc --noEmit` 通过 + `npm test` 全过（既有 jest 测试不破坏）
+6. 路径漂移检测：若后端某路径删除，`endpoints.ts` 手工补录段仍在 → 编译通过但运行时 404；新增路径 → 重新生成后出现
+
 ### 6.2 G-9: 前端 sync 竞态处理
 
-**目标**：对齐 OpenCode §2.12 的 `sync.status === "complete"` 再 fork 保护。
+**目标**：对齐 OpenCode §2.12 的 `sync.status === "complete"` 语义——SyncPanel 建立 sync 状态机，push/pull 串行化，消除并发竞态。
 
-- **目标文件**：`web/src/components/SyncPanel.tsx` + `web/src/hooks/useSync.ts`（若存在）
-- **验收**：session fork 前等待 sync complete；本地乐观更新 vs 服务器事件的冲突不产生孤儿 session（测试：模拟 reconcile 覆盖场景）
+#### 6.2.1 现状核查（实测证据，2026-08-20）
+
+- `web/src/components/SyncPanel.tsx`（124 行）：纯展示组件——`/api/sync/events`（GET 拉取）+ `/api/sync/push`（POST 推送）两个按钮，**无状态机、无串行保护**。
+- **无 `useSync.ts` hook**、**前端无任何 fork/session 分支功能**（`rg fork|duplicate|clone|branch` 零命中）——spec 原文的"fork 前等待 sync complete"中 fork 在前端不存在，需调整为状态机基础设施。
+- 后端 `/api/sync/events` + `/api/sync/push` 存在（`server/app.py:2542,2562`），**无 status 概念**——只返回增量事件（id > after_id）。
+- **真实竞态**：Push 与 Refresh 按钮无并发保护，快速连点会并发请求；拉取结果应用无 `complete` 追踪。
+
+#### 6.2.2 设计决策
+
+1. 新增 `useSync.ts` hook：暴露 `syncStatus: 'idle' | 'syncing' | 'complete' | 'error'` + `lastSyncedAt` + `push()` / `refresh()`（内部串行化：busy 期间调用排队/忽略）
+2. SyncPanel 改造：按钮 disabled 绑定 `syncing`；状态机 `complete` 时显示最近同步时间——为未来 fork 功能提供 `sync.status === 'complete'` 检查点
+3. **串行化**：hook 内部用 in-flight promise 锁，连点不产生并发请求
+4. 竞态测试：模拟 push 进行中点击 refresh → 请求不并发（单次 fetch 调用）
+
+#### 6.2.3 接口定义
+
+```typescript
+// web/src/hooks/useSync.ts（新增）
+export type SyncStatus = 'idle' | 'syncing' | 'complete' | 'error';
+
+export interface UseSyncResult {
+  status: SyncStatus;
+  lastSyncedAt: number | null;
+  events: SyncEvent[];
+  push: () => Promise<void>;   // 串行化：busy 时忽略
+  refresh: () => Promise<void>; // 串行化：busy 时忽略
+}
+```
+
+#### 6.2.4 验收标准
+
+1. `push()` 执行期间状态为 `syncing`，完成后 `complete` + 刷新事件列表
+2. `refresh()` 执行期间状态为 `syncing`，成功后 `complete`
+3. **串行化**：busy 期间重复调用 `push()`/`refresh()` 被忽略（单测：mock fetch 计数 = 1）
+4. 失败时状态为 `error` + 保留最后成功时间
+5. SyncPanel 按钮 disabled 绑定状态；`npx tsc --noEmit` + `npm test` 全过
 
 ### 6.3 远期（P2-2/P2-3 合并项）
 
