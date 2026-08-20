@@ -1,19 +1,20 @@
 {
   "phase": "COMPLETED",
-  "iteration": 7,
-  "module": "G-6-TUI-plugin + G-7-REST-endpoint",
+  "iteration": 8,
+  "module": "G-8-OpenAPI-generator + G-9-sync-race",
   "status": "completed",
   "cost": 0,
   "findings": {
-    "g6": "新增 src/cscode/tui/commands.py（CommandRegistry：规范名/别名/category 分组/补全派生/dispatch async 调度）+ src/cscode/tui/plugin_api.py（TuiPluginAPI：register_command/navigate/theme_set/theme_install/kv + TuiPluginLoader：目录发现 plugin.py + install 回调 + deactivate 无残留）；app.py 挂载 load_plugin_dir + _handle_session_command 接 registry 分发 + CommandCompleter.set_extra_commands 补全联动。17 新测试 + 61 既有 TUI 测试 0 回归。",
-    "g7_rest": "permissions.py 新增 GET /api/permission/request + POST /api/permission/request/{id}/reply（once/always/reject 校验 422）；state.py 加 permission_manager 字段惰性实例化。4 新测试（含 ask→list→reply 全链路）。",
-    "spec_deviations": "无新偏差；G-7 偏差 #5（REST 端点未暴露）已消除",
-    "key_design": "dispatch 无 running loop 时降级为仅识别（同步测试可用）；CommandRegistry.list 返回 canonical 命令、completion_commands 返回含别名全量——职责分离"
+    "g8": "scripts/gen_api.py（operationId 截 _api_ 前缀→语义化方法名，100% 命中）+ gen-api.sh 薄壳 + generated/endpoints.ts（100 端点 + MANUAL_ENDPOINTS 手工补录段 7 别名）+ api.ts 门面改造（无硬编码 /api/ 路径，rg 0 行）。16 pytest 全过；幂等 MD5 一致；mypy --strict 0；tsc 0。",
+    "g9": "useSync.ts 状态机（idle/syncing/complete/error）+ busyRef 串行化（busy 期间重复调用忽略）；SyncPanel 接入（按钮 disabled 绑定 + ✓/失败指示）。7 jest 全过；202 jest 总计 + tsc 0。",
+    "version": "0.3.6 → 0.4.0 全量 7 处（__init__/app/mcp×2/tauri.conf/Cargo.toml/build.sh）+ Cargo.lock 条目；残留 0.3.6 仅 web/package-lock.json 依赖版本。",
+    "spec_deviations": "G-9 spec 原文假设 useSync.ts 存在 + fork 功能——实测不存在，调整为状态机基础设施 + sync.status 检查点（§6.2 已更新）",
+    "key_design": "不采用全量 OpenAPI generator（dict[str,Any] 无 response_model 会产 any）；轻量端点表 + 门面保留手写类型/重试"
   },
-  "next_action": "P0+P1 全部交付（G-1~G-7 共 28+4 验收标准）——等用户确认收尾（报告 v6 / 修 spec 引用 / 提交）",
+  "next_action": "P0+P1+P2（G-1~G-9）全部交付，迭代 1-6 落地——报告 v7 + 4 提交完成，待用户确认发布/推送",
   "stop_conditions": {
     "max_iterations": 10,
     "cost_limit_usd": 10,
-    "current_iteration": 7
+    "current_iteration": 8
   }
 }
