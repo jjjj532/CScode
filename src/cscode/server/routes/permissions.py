@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from cscode.core.permission_v2 import Rule, RuleEffect, SavedRules
+from cscode.core.permission_v2 import ReplyMode, Rule, RuleEffect, SavedRules, SessionPermission
 from cscode.server.state import state
 from cscode.utils.logging import get_logger
 
@@ -24,10 +24,23 @@ class PermissionRuleUpdate(BaseModel):
     effect: str | None = None
 
 
+class PermissionReply(BaseModel):
+    mode: str
+
+
 def _db_or_503() -> SavedRules:
     if state.db is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
     return SavedRules(state.db)
+
+
+def _permission_or_503() -> SessionPermission:
+    """Return the shared SessionPermission instance (queue survives requests)."""
+    if state.db is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+    if state.permission_manager is None:
+        state.permission_manager = SessionPermission(SavedRules(state.db))
+    return state.permission_manager
 
 
 _RULE_EFFECTS = {"allow": RuleEffect.ALLOW, "deny": RuleEffect.DENY}
@@ -106,3 +119,41 @@ async def update_permission_rule(
         if entry["id"] == rule_id:
             return entry
     raise HTTPException(status_code=500, detail="Rule not found after update")
+
+
+# ─── Pending request queue (spec §5.3) ────────────────────────────
+
+
+@router.get("/permission/request")
+async def list_pending_requests() -> list[dict[str, object]]:
+    """List queued permission requests awaiting a user reply."""
+    perms = _permission_or_503()
+    requests = await perms.list_pending()
+    return [
+        {
+            "request_id": r.request_id,
+            "session_id": r.session_id,
+            "action": r.action,
+            "resource": r.resource,
+        }
+        for r in requests
+    ]
+
+
+@router.post("/permission/request/{request_id}/reply")
+async def reply_permission_request(
+    request_id: str, body: PermissionReply
+) -> dict[str, object]:
+    """Resolve a pending request: once / always / reject."""
+    try:
+        mode = ReplyMode(body.mode.lower())
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"mode: must be 'once', 'always' or 'reject', got '{body.mode}'",
+        )
+    perms = _permission_or_503()
+    ok = await perms.reply(request_id, mode)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Request not found: {request_id}")
+    return {"status": "ok", "request_id": request_id, "mode": mode.value}

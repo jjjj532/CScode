@@ -12,6 +12,8 @@ from cscode.core.agent.tab import TabManager
 from cscode.core.config import load_config
 from cscode.core.tui_sessions import TuiSessionManager
 from cscode.tui.autocomplete import CommandCompleter
+from cscode.tui.commands import CommandRegistry
+from cscode.tui.plugin_api import TuiPluginAPI, TuiPluginLoader
 from cscode.tui.screens.sessions_screen import SessionsScreen
 from cscode.tui.screens.settings_screen import SettingsScreen
 from cscode.tui.themes import apply_theme
@@ -62,6 +64,10 @@ class CScodeTUI(App[None]):
         self._session_manager = TuiSessionManager()
         self._tab_manager = TabManager()
         self._completer = CommandCompleter()
+        self._command_registry = CommandRegistry()
+        self._plugin_loader = TuiPluginLoader(self)
+        self._plugin_themes: dict[str, object] = {}
+        self._kv: dict[str, object] = {}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -79,6 +85,43 @@ class CScodeTUI(App[None]):
         output.write(f"Model: {self._agent.llm_client.route.model}")
         output.write("Type your message and press Enter.")
         output.write("")
+
+    def load_plugin_dir(self, plugin_dir: str) -> list[TuiPluginAPI]:
+        """Load TUI plugins from a directory (spec §5.2). Returns active APIs."""
+        from pathlib import Path
+
+        if not Path(plugin_dir).is_dir():
+            return []
+        apis = self._plugin_loader.load([plugin_dir])
+        if apis:
+            self._completer.set_extra_commands(
+                self._command_registry.completion_commands()
+            )
+        return apis
+
+    # ── TuiPluginHost protocol ─────────────────────────────────────
+
+    @property
+    def registry(self) -> CommandRegistry:
+        return self._command_registry
+
+    def navigate(self, screen: str, params: dict[str, object] | None = None) -> None:
+        """Push a named screen from a plugin command."""
+        if screen == "sessions":
+            self.action_show_sessions()
+        elif screen == "settings":
+            self.action_show_settings()
+
+    def install_theme(self, name: str, theme: object) -> None:
+        self._plugin_themes[name] = theme
+
+    def set_theme(self, name: str) -> bool:
+        if name in self._plugin_themes:
+            return True
+        return apply_theme(name) is not None
+
+    def get_kv(self) -> dict[str, object]:
+        return self._kv
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         user_input = event.value.strip()
@@ -218,6 +261,9 @@ class CScodeTUI(App[None]):
                     output.write(f"[red]Tab not found:[/] {parts[2]}")
                 return True
             output.write("[yellow]Usage:[/] /tab list|create <mode>|switch <id>|close <id>")
+            return True
+
+        if self._command_registry.dispatch(user_input):
             return True
 
         return False

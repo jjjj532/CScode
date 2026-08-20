@@ -37,11 +37,19 @@ class CommandCompleter:
     def __init__(self) -> None:
         self._matches: list[str] = []
         self._index: int = -1
+        self._extra_commands: list[str] = []
+
+    def set_extra_commands(self, commands: list[str]) -> None:
+        """Extend the command list with plugin-registered commands."""
+        self._extra_commands = list(commands)
 
     @staticmethod
     def known_commands() -> list[str]:
         """Return the full list of known commands (including aliases)."""
         return list(_COMMANDS)
+
+    def _all_commands(self) -> list[str]:
+        return _COMMANDS + self._extra_commands
 
     def find_matches(self, prefix: str) -> list[str]:
         """Return commands matching the given prefix and reset cycle state.
@@ -54,7 +62,7 @@ class CommandCompleter:
             return []
 
         self._matches = sorted(
-            cmd for cmd in _COMMANDS if cmd.startswith(prefix)
+            cmd for cmd in self._all_commands() if cmd.startswith(prefix)
         )
         return list(self._matches)
 
