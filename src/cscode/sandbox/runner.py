@@ -23,6 +23,7 @@ import tempfile
 from pathlib import Path
 
 from cscode.sandbox.diagnostics import Diagnostic, DiagnosticKind
+from cscode.sandbox.landlock import apply_landlock_rules, is_landlock_available
 from cscode.sandbox.limits import ExecutionLimits
 from cscode.sandbox.result import SandboxFailure, SandboxResult, SandboxSuccess
 from cscode.utils.logging import get_logger
@@ -54,6 +55,16 @@ class SandboxRunner:
                     suggestions=["fix the syntax error and retry"],
                 )
             )
+
+        # Apply Landlock if available (Linux 5.13+)
+        if is_landlock_available():
+            try:
+                apply_landlock_rules(
+                    allowed_read=self._limits.allowed_read_paths,
+                    allowed_write=self._limits.allowed_write_paths,
+                )
+            except Exception as e:
+                logger.warning("SandboxRunner: Landlock failed, continuing without: %s", e)
 
         timeout_s = self._limits.timeout_ms / 1000.0
         try:
