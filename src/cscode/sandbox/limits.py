@@ -16,3 +16,4 @@ class ExecutionLimits:
 
     timeout_ms: int = 5_000
     max_output_bytes: int = 1_000_000
+    max_steps: int = 1_000

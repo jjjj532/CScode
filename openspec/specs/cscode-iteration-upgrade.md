@@ -621,6 +621,110 @@ CScode 已具备的"缝"及其实证：
 
 ---
 
+### 6.5 G-11: Python 子集解释器（Route A，迭代 10-11）
+
+**目标**：创建受限 Python 子集解释器——在父进程内解释执行模型生成的受限脚本，消除 subprocess 开销与隔离边界。
+
+#### 6.5.1 现状核查（实测证据，2026-08-20）
+
+- **当前执行方式**：`sandbox/runner.py` `SandboxRunner.run()` → `asyncio.create_subprocess_exec(sys.executable, "-I", script_path)`——subprocess 隔离（route B）
+- **无解释器执行**：`rg "ast\.parse|exec\(|eval\(" src/cscode/sandbox/` 零命中——全文无 AST-walk 解释器
+- **dsh §2.11 参考**：dsh 有 JS 子集解释器（自研，不跑子进程），含工具树 + 执行预算 + 诊断代数 + Result 双态
+- **CScode 无等价物**：`core/container.py` 是 DI 容器（非沙箱），无 `run_code`/`subprocess`/`sandbox` 语义
+
+#### 6.5.2 设计决策
+
+1. **Python 子集定义**：限制为可 AST-walk 的子集——变量赋值、算术、条件、循环、函数定义、列表/字典操作、print。**禁止**：import、async、class 继承、with、try/except、exec/eval、文件 I/O、网络
+2. **执行模型**：`compile()` → `ast.parse()` → 自定义 AST walker（`NodeVisitor` 子类）→ 执行。预算计数器（每步 +1，超限终止）
+3. **工具调用**：通过 `tools_ns` 对象注入（`tools_ns.tool("bash", {"cmd": "ls"})`），调用经过权限检查
+4. **诊断代数**：复用 `sandbox/diagnostics.py` DiagnosticKind（TIMEOUT_EXCEEDED/EXECUTION_FAILURE/...）
+5. **Result 双态**：Success/Failure（与 SandboxRunner 输出兼容）
+6. **执行预算**：`ExecutionLimits` 复用（timeout_ms/max_output_bytes）+ 新增 `max_steps`（AST 节点步数上限）
+
+#### 6.5.3 接口定义
+
+```python
+# sandbox/interpreter.py（新增）
+class PythonInterpreter:
+    """解释执行受限 Python 子集，返回 SandboxResult。"""
+    def __init__(self, limits: ExecutionLimits, tools_ns: dict[str, Any] | None = None): ...
+    async def run(self, script: str, argv: list[str] | None = None) -> SandboxResult: ...
+```
+
+#### 6.5.4 验收标准
+
+1. `PythonInterpreter.run()` 可执行：赋值/算术/条件/循环/函数/列表/字典/print——返回 `SandboxSuccess(stdout=...)`
+2. 禁止操作（import/async/class/with/try/exec/eval/文件/网络）→ `SandboxFailure(DiagnosticKind.EXECUTION_FAILURE)`，脚本不执行
+3. 执行预算：`max_steps=1000` 的循环在 1000 步后终止（`TIMEOUT_EXCEEDED`）
+4. 工具调用：`tools_ns.tool("bash", {"cmd": "ls"})` 经过权限检查（复用 `core/permission_v2.py`）
+5. 与 `SandboxRunner` 输出兼容：`SandboxResult` 类型不变
+6. 性能基准：同等脚本下，解释器执行延迟 < subprocess 3x（消除进程创建开销）
+
+#### 6.5.5 风险
+
+| 风险 | 缓解 |
+|------|------|
+| Python AST 复杂度（30+ 节点类型） | 只实现子集（~15 节点类型），渐进扩展 |
+| 执行性能（AST walk 比 bytecode 慢） | 预算步数限制 + 子集限制避免深循环 |
+| 与现有工具调用语义不一致 | 复用 SandboxResult + PermissionV2 |
+
+---
+
+### 6.6 G-12: OS 沙箱（Route B，迭代 12）
+
+**目标**：在 subprocess 隔离之上增加 OS 级文件系统访问限制——Landlock（Linux 5.13+）或 Seatbelt/App Sandbox（macOS）。
+
+#### 6.6.1 现状核查（实测证据，2026-08-20）
+
+- **当前沙箱**：`sandbox/runner.py` `SandboxRunner.run()` → subprocess 隔离（`-I` 模式 + 空环境 + 超时 + 输出上限）。**无 OS 级文件系统限制**
+- **dsh §18 参考**：dsh 有 `@deepseek-ai/node-addon-landlock-run`（Rust node addon，Linux-only）——Landlock LSM 限制文件系统访问
+- **macOS Seatbelt**：`docs/cscode-iteration-plan.md` 提到 "seatbelt"，但 macOS 10.14+ 已弃用 `sandbox-exec`；App Sandbox 需要 App Store 签名
+- **Linux Landlock**：内核 5.13+（2021），无需 root，用户态 LSM——最可行方案
+
+#### 6.6.2 设计决策
+
+1. **平台策略**：Linux 用 Landlock（内核 LSM，无需 root）；macOS 暂不实现（Seatbelt 弃用 + App Sandbox 需签名）；Windows 暂不实现（需 AppContainer）
+2. **集成点**：`SandboxRunner.run()` 在 `create_subprocess_exec` 前，调用 Landlock 限制子进程的文件系统访问（只读 bind + workspace-write）
+3. **配置**：`ExecutionLimits` 新增 `allowed_read_paths: list[str]` + `allowed_write_paths: list[str]`（默认：脚本工作目录 + 系统只读路径）
+4. **实现**：Python ctypes 绑定 Landlock 系统调用（`landlock_create_ruleset` / `landlock_add_rule` / `prctl(PR_SET_NO_NEW_PRIVS)`）
+5. **降级**：Landlock 不可用时（旧内核/macOS）→ 回退到纯 subprocess 隔离（当前行为）
+
+#### 6.6.3 接口定义
+
+```python
+# sandbox/landlock.py（新增，Linux-only）
+def is_landlock_available() -> bool: ...
+def apply_landlock_rules(allowed_read: list[str], allowed_write: list[str]) -> None: ...
+```
+
+```python
+# sandbox/limits.py（扩展）
+@dataclass
+class ExecutionLimits:
+    # 现有字段...
+    allowed_read_paths: list[str] = field(default_factory=list)  # 新增
+    allowed_write_paths: list[str] = field(default_factory=list)  # 新增
+```
+
+#### 6.6.4 验收标准
+
+1. `is_landlock_available()` 在 Linux 5.13+ 返回 `True`；macOS/旧内核返回 `False`
+2. `apply_landlock_rules(["/usr"], ["/tmp/sandbox"])` 后，子进程读 `/etc/passwd` 允许（只读），写 `/tmp/sandbox/file` 允许，写 `/etc/file` 拒绝（`EACCES`）
+3. `SandboxRunner.run()` 在 Linux 上自动应用 Landlock（若内核支持）
+4. Landlock 不可用时 → 回退到纯 subprocess（无行为变化）
+5. 跨平台：macOS/Linux 测试均通过（macOS 跳过 Landlock 测试）
+
+#### 6.6.5 风险
+
+| 风险 | 缓解 |
+|------|------|
+| macOS Seatbelt 弃用 | 跳过 macOS，专注 Linux Landlock |
+| Landlock 内核版本要求（5.13+） | `is_landlock_available()` 检测 + 降级 |
+| ctypes 绑定系统调用复杂度 | 只实现 3 个系统调用（create_ruleset/add_rule/set_no_new_privs） |
+| 文件路径白名单配置 | 默认值：脚本工作目录 + `/usr` 只读 + `/tmp` 写 |
+
+---
+
 ## 7. 任务分解（迭代批次）
 
 > 每个迭代 = DEFINE → PLAN → BUILD(TDD) → VERIFY → REVIEW，遵循 `docs/reimplementation-methodology.md`。
@@ -634,6 +738,8 @@ CScode 已具备的"缝"及其实证：
 | 迭代 5 | **G-6 TUI 插件化** | 无 | `pytest tests/test_tui_plugin_api.py` + 既有 TUI 测试 |
 | 迭代 6+ | G-8 SDK 生成 → G-9 前端 sync 竞态 → 远期项 | 迭代 3（沙箱底座） | 前端 type-check + E2E |
 | 迭代 9 | **G-10 Capability Seams 文档化** + gap-analysis 更新 | 无（纯文档） | `docs/capability-seams.md` 决策表路径 rg 验证 + gap-analysis 标注 |
+| 迭代 10-11 | **G-11 Python 子集解释器**（Route A） | 无（独立） | `pytest tests/test_interpreter.py`（子集执行/禁止操作/预算/工具调用）+ mypy |
+| 迭代 12 | **G-12 OS 沙箱**（Route B，Linux Landlock） | 迭代 3（沙箱底座） | `pytest tests/test_landlock.py`（可用性检测/规则应用/降级）+ Linux CI |
 
 ---
 
