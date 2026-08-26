@@ -101,29 +101,27 @@ TMP_PYTHON="$ROOT/build/python-resources"
 rm -rf "$TMP_PYTHON"
 mkdir -p "$TMP_PYTHON"
 
-# Copy dependencies from venv instead of pip install --target (avoids Python 3.14 lxml build failures)
+# Copy third-party dependencies from venv (avoids Python 3.14 lxml build failures with pip install --target)
 VENV_SITE=$(python3 -c "import site; print(site.getsitepackages()[0])")
-echo "Copying dependencies from $VENV_SITE ..."
-# Copy all packages except cscode itself (we copy our own src below)
-for d in "$VENV_SITE"/*/; do
-    pkg_name=$(basename "$d")
-    case "$pkg_name" in
-        cscode|cscode-*.egg-info|__pycache__) continue ;;
-    esac
-    cp -r "$d" "$TMP_PYTHON/"
-done
-# Copy .dist-info and .egg-info directories
-for d in "$VENV_SITE"/*.dist-info "$VENV_SITE"/*.egg-info; do
-    [ -d "$d" ] || continue
-    pkg_name=$(basename "$d")
-    case "$pkg_name" in
-        cscode-*) continue ;;
-    esac
-    cp -r "$d" "$TMP_PYTHON/"
-done
-# Copy .so and .dylib files
-cp "$VENV_SITE"/*.so "$TMP_PYTHON/" 2>/dev/null || true
-cp "$VENV_SITE"/*.dylib "$TMP_PYTHON/" 2>/dev/null || true
+echo "Copying third-party dependencies from $VENV_SITE ..."
+cp -r "$VENV_SITE"/* "$TMP_PYTHON/" 2>/dev/null || true
+
+rm -rf "$TMP_PYTHON/cscode" "$TMP_PYTHON"/cscode-*.dist-info "$TMP_PYTHON"/cscode-*.egg-info 2>/dev/null || true
+rm -rf "$TMP_PYTHON/bin" 2>/dev/null || true
+
+python3 -c "
+import sys, pathlib, shutil
+dst = pathlib.Path('$TMP_PYTHON')
+for name in sys.stdlib_module_names:
+    d = dst / name; f = dst / (name + '.py')
+    if d.is_dir(): shutil.rmtree(d)
+    elif f.is_file(): f.unlink()
+for extra in ('distutils', 'ensurepip', 'unittest', 'test', 'idlelib', 'tkinter', 'turtle', 'lib2to3'):
+    d = dst / extra; f = dst / (extra + '.py')
+    if d.is_dir(): shutil.rmtree(d)
+    elif f.is_file(): f.unlink()
+"
+echo "Copied $(ls "$TMP_PYTHON" | wc -l | tr -d ' ') third-party items after stdlib cleanup"
 
 # Clean up cache and compile artifacts
 find "$TMP_PYTHON" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
