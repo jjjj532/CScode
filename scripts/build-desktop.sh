@@ -101,7 +101,29 @@ TMP_PYTHON="$ROOT/build/python-resources"
 rm -rf "$TMP_PYTHON"
 mkdir -p "$TMP_PYTHON"
 
-pip install --target="$TMP_PYTHON" --quiet "$ROOT[desktop]" 2>&1 | tail -2
+# Copy dependencies from venv instead of pip install --target (avoids Python 3.14 lxml build failures)
+VENV_SITE=$(python3 -c "import site; print(site.getsitepackages()[0])")
+echo "Copying dependencies from $VENV_SITE ..."
+# Copy all packages except cscode itself (we copy our own src below)
+for d in "$VENV_SITE"/*/; do
+    pkg_name=$(basename "$d")
+    case "$pkg_name" in
+        cscode|cscode-*.egg-info|__pycache__) continue ;;
+    esac
+    cp -r "$d" "$TMP_PYTHON/"
+done
+# Copy .dist-info and .egg-info directories
+for d in "$VENV_SITE"/*.dist-info "$VENV_SITE"/*.egg-info; do
+    [ -d "$d" ] || continue
+    pkg_name=$(basename "$d")
+    case "$pkg_name" in
+        cscode-*) continue ;;
+    esac
+    cp -r "$d" "$TMP_PYTHON/"
+done
+# Copy .so and .dylib files
+cp "$VENV_SITE"/*.so "$TMP_PYTHON/" 2>/dev/null || true
+cp "$VENV_SITE"/*.dylib "$TMP_PYTHON/" 2>/dev/null || true
 
 # Clean up cache and compile artifacts
 find "$TMP_PYTHON" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
