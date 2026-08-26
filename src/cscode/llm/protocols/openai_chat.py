@@ -12,6 +12,7 @@ Streaming: SSE with data: lines, terminated by [DONE]
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -175,7 +176,29 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
                     # Use accumulated text instead of last chunk's content
                     # (some providers e.g. MiniMax send finish_reason on a
                     # chunk where content is already "")
-                    yield TextEnded(full_text=accumulated_text)
+
+                    # ── Kimi format fallback ────────────────────────
+                    # Some models (e.g. kimi-k2.6) return tool calls
+                    # inline as text instead of using delta.tool_calls.
+                    # Detect and parse the Kimi tool call markers.
+                    cleaned_text = accumulated_text
+                    if not tool_calls_in_progress and accumulated_text:
+                        parsed_kimi, cleaned_text = _parse_kimi_tool_calls(
+                            accumulated_text
+                        )
+                        for tc_info in parsed_kimi:
+                            tc_id = ToolCallID(f"kimi_{tc_info['index']}")
+                            yield ToolCallStarted(
+                                tool_call_id=tc_id,
+                                name=tc_info["name"],
+                            )
+                            yield ToolCallEnded(
+                                tool_call_id=tc_id,
+                                name=tc_info["name"],
+                                args=tc_info["args"],
+                            )
+
+                    yield TextEnded(full_text=cleaned_text)
 
                     # Emit completed tool calls
                     for tc_data in tool_calls_in_progress.values():
@@ -203,7 +226,6 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
     # ─── Helpers ───────────────────────────────────────────────────
 
     def _build_headers(self, route: Route) -> dict[str, str]:
-        """Build HTTP headers for the request."""
         headers: dict[str, str] = {
             "Content-Type": "application/json",
         }
@@ -335,3 +357,45 @@ class OpenAIProtocolAdapter(_ProtocolAdapter):
             "usage": data.get("usage"),
             "model": data.get("model", ""),
         }
+
+
+_KIMI_TOOL_CALL_RE = re.compile(
+    r"<\|tool_call_begin\|>functions\.(\w+):(\d+)<\|tool_call_argument_begin\|>(.*?)<\|tool_call_end\|>",
+    re.DOTALL,
+)
+
+
+def _parse_kimi_tool_calls(text: str) -> tuple[list[dict[str, Any]], str]:
+    """Parse Kimi-format tool calls from text content.
+
+    Kimi models return tool calls as inline text markers:
+        <|tool_calls_section_begin|>
+        <|tool_call_begin|>functions.bash:0<|tool_call_argument_begin|>{...}<|tool_call_end|>
+        <|tool_calls_section_end|>
+
+    Returns (parsed_tool_calls, cleaned_text) where cleaned_text has
+    the Kimi markers stripped.
+    """
+    matches = list(_KIMI_TOOL_CALL_RE.finditer(text))
+    if not matches:
+        return [], text
+
+    tool_calls: list[dict[str, Any]] = []
+    for m in matches:
+        name = m.group(1)
+        index = int(m.group(2))
+        args_raw = m.group(3).strip()
+        try:
+            args = json.loads(args_raw)
+        except json.JSONDecodeError:
+            args = {"_raw": args_raw}
+        tool_calls.append({"name": name, "index": index, "args": args})
+
+    cleaned = _KIMI_TOOL_CALL_RE.sub("", text)
+    cleaned = re.sub(
+        r"<\|tool_calls_section_begin\|>|<\|tool_calls_section_end\|>",
+        "",
+        cleaned,
+    ).strip()
+
+    return tool_calls, cleaned

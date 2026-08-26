@@ -22,7 +22,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, AsyncIterator
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile, WebSocket
+from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
+from starlette.datastructures import UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
