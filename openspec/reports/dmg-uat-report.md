@@ -286,7 +286,7 @@ data: {"type": "complete",       "data": {"content": "LLM error: HTTP 401..."}, 
 
 ## 11. 发现的缺陷与问题
 
-### 11.1 P0 缺陷:DMG 内 Python 源码版本号不一致
+### 11.1 ~~P0 缺陷:DMG 内 Python 源码版本号不一致~~ ✅ 已修复
 
 | 项 | 值 |
 |---|---|
@@ -296,6 +296,8 @@ data: {"type": "complete",       "data": {"content": "LLM error: HTTP 401..."}, 
 | 影响 | `/api/version` 与 `/api/health` 通过 FastAPI 运行时变量返回 0.4.0(源码是 0.4.0,但打包的是旧 build),客户端感知不到差异;但运行的是 0.3.6 源码,缺失 G-1~G-12 部分修复 |
 | 根因 | `scripts/build-desktop.sh` 打包 `resources/python/` 时未重新同步最新 src/cscode,或 PyInstaller 临时目录缓存了旧版本 |
 | 建议 | 打包前执行 `rm -rf desktop/src-tauri/resources/python` 并重新 `cp -R src/cscode desktop/src-tauri/resources/python/`,然后再次 build |
+| **修复状态** | **✅ 已修复(2026-08-26)**:清理旧 resources + 重新打包,DMG 内 `__version__="0.4.0"`,后端启动 `/api/health` 返回 `{"status":"ok","version":"0.4.0"}` |
+| **根因修复** | 打包脚本同时修复:改用 venv 复制 + stdlib 清理替代 `pip install --target`(Python 3.14 lxml 无预编译 wheel),避免再次打包旧代码 |
 
 ### 11.2 P2 缺陷:credentials POST 字段命名不一致
 
