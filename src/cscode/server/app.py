@@ -490,6 +490,7 @@ _share_store: ShareStore | None = None
 _external_dir_store: ExternalDirectoryStore | None = None
 _active_agent_tasks: dict[str, asyncio.Task[Any]] = {}
 _session_queues: dict[str, asyncio.Queue[dict[str, object]]] = {}
+_sse_semaphore: asyncio.Semaphore = asyncio.Semaphore(5)
 
 
 class ChatResponse(BaseModel):
@@ -705,7 +706,7 @@ async def chat_stream(request: Request) -> StreamingResponse:
             user_agent=request.headers.get("user-agent", ""),
         )
 
-    async def event_stream() -> AsyncGenerator[str, None]:
+    async def _raw_event_stream() -> AsyncGenerator[str, None]:
         global _event_store, _coordinator, _tool_registry, _db
         nonlocal session_id
         if _event_store is None or _coordinator is None:
@@ -1054,7 +1055,12 @@ async def chat_stream(request: Request) -> StreamingResponse:
                         pass
                     await session_v2.mark_run_stop()
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    async def _throttled_stream() -> AsyncGenerator[str, None]:
+        async with _sse_semaphore:
+            async for chunk in _raw_event_stream():
+                yield chunk
+
+    return StreamingResponse(_throttled_stream(), media_type="text/event-stream")
 
 
 @api_router.get("/events")

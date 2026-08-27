@@ -218,14 +218,16 @@ async def get_run_state(session_id: str) -> dict[str, str]:
 
 
 @router.get("/sessions/{session_id}/overflow")
-async def get_session_overflow(session_id: str) -> dict[str, bool | int]:
+async def get_session_overflow(
+    session_id: str, threshold: int = 100
+) -> dict[str, bool | int]:
     """P2-12: Check if a session is overflowing (too many messages)."""
     if state.event_store is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
     session_v2 = await SessionV2.load(state.event_store, SessionID(session_id))
     if session_v2.state.seq == 0:
         raise HTTPException(status_code=404, detail="Session not found")
-    info = session_v2.check_overflow()
+    info = session_v2.check_overflow(threshold=threshold)
     return {
         "overflowing": info["overflowing"],
         "near_overflow": info["near_overflow"],
