@@ -110,7 +110,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
           {project.sessions.map((session) => (
             <div
               key={session.id}
-              className={`group flex items-center rounded-md transition-colors pr-1 ${
+              className={`group flex items-center rounded-md transition-colors pr-3 ${
                 activeSessionId === session.id
                   ? 'bg-v2-bg-base'
                   : 'hover:bg-v2-bg-base/50'
@@ -153,7 +153,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
               <button
                 onClick={(e) => onDeleteSession(session.id, e)}
                 aria-label="Delete session"
-                className="p-1 mr-1 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-red-400 transition-all"
+                className="p-1 mr-2 rounded opacity-0 group-hover:opacity-100 hover:bg-v2-bg-deep text-v2-text-muted hover:text-red-400 transition-all"
                 title="Delete session"
               >
                 <X size={12} />
