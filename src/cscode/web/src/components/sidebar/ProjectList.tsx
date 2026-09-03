@@ -17,7 +17,7 @@ export function ProjectList({ sessions, activeSessionId, onSelectSession, onDele
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto py-1">
+    <div className="flex-1 overflow-y-auto py-1" style={{ scrollbarGutter: 'stable' }}>
       {projects.map((project) => (
         <ProjectItem
           key={project.name}

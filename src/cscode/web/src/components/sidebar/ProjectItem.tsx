@@ -110,7 +110,7 @@ export function ProjectItem({ project, activeSessionId, onSelectSession, onDelet
           {project.sessions.map((session) => (
             <div
               key={session.id}
-              className={`group flex items-center rounded-md transition-colors ${
+              className={`group flex items-center rounded-md transition-colors pr-1 ${
                 activeSessionId === session.id
                   ? 'bg-v2-bg-base'
                   : 'hover:bg-v2-bg-base/50'
